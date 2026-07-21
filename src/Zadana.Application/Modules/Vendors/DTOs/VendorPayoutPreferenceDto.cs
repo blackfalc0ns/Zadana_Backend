@@ -1,3 +1,5 @@
 namespace Zadana.Application.Modules.Vendors.DTOs;
 
-public sealed record VendorPayoutPreferenceDto(string PayoutDay);
+public sealed record VendorPayoutPreferenceDto(
+    string PayoutDay,
+    IReadOnlyList<string> AvailablePayoutDays);

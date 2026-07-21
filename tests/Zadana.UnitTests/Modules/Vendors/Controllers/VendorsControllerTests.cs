@@ -138,7 +138,7 @@ public class VendorsControllerTests
             .Setup(sender => sender.Send(
                 It.Is<UpdateVendorPayoutPreferenceCommand>(command => command.PayoutDay == "Thursday"),
                 default))
-            .ReturnsAsync(new VendorPayoutPreferenceDto("Thursday"));
+            .ReturnsAsync(new VendorPayoutPreferenceDto("Thursday", ["Monday", "Thursday"]));
 
         var result = await _controller.UpdatePayoutPreference(
             new UpdateVendorPayoutPreferenceRequest("Thursday"));

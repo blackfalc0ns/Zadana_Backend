@@ -553,7 +553,8 @@ public class AdminWalletsController : ApiControllerBase
     }
 
     [HttpPost("withdrawals/{id:guid}/process")]
-    public async Task<IActionResult> ProcessWithdrawal(
+    [RequireAccess(PermissionKeys.Admin.FinancesApprove)]
+    public async Task<ActionResult<AdminProcessWithdrawalResultDto>> ProcessWithdrawal(
         Guid id,
         [FromBody] AdminProcessWithdrawalRequest request,
         [FromServices] IApplicationDbContext context,
@@ -580,16 +581,13 @@ public class AdminWalletsController : ApiControllerBase
             throw new BusinessRuleException("INVALID_STATUS", "Only pending or processing withdrawals can be processed.");
         }
 
+        Payout? payout = withdrawal.Payout;
+        var isAutomaticProcessing = settlementProcessingSettingsService is null ||
+            await settlementProcessingSettingsService.IsAutomaticAsync(cancellationToken);
+        var shouldNotifyDriver = false;
+
         if (request.IsApproved)
         {
-            if (settlementProcessingSettingsService is not null &&
-                !await settlementProcessingSettingsService.IsAutomaticAsync(cancellationToken))
-            {
-                throw new BusinessRuleException(
-                    "MANUAL_PAYOUT_CONFIRMATION_REQUIRED",
-                    "Manual processing is enabled. Confirm the linked payout through the manual confirmation endpoint with a transfer reference and proof.");
-            }
-
             var payoutDay = await context.Drivers
                 .AsNoTracking()
                 .Where(driver => driver.Id == withdrawal.DriverId)
@@ -597,16 +595,21 @@ public class AdminWalletsController : ApiControllerBase
                 .FirstOrDefaultAsync(cancellationToken)
                 ?? throw new NotFoundException("Driver", withdrawal.DriverId);
 
+            var enabledPayoutDays = settlementProcessingSettingsService is null
+                ? PayoutScheduleDayPolicy.DefaultPayoutDays
+                : await settlementProcessingSettingsService.GetEnabledPayoutDaysAsync(cancellationToken);
+            if (!enabledPayoutDays.Contains(payoutDay))
+            {
+                throw new BusinessRuleException(
+                    "PAYOUT_DAY_DISABLED",
+                    "This driver's selected payout day is not enabled by the platform.");
+            }
+
             if (!PayoutScheduleDayPolicy.IsPayoutDay(SaudiTime.Today, payoutDay))
             {
                 throw new BusinessRuleException(
                     "DRIVER_WITHDRAWAL_NOT_DUE",
                     $"This driver selected {payoutDay}; withdrawals can only be paid on that day.");
-            }
-
-            if (payoutOrchestrator is null)
-            {
-                throw new BusinessRuleException("PAYOUT_ORCHESTRATOR_REQUIRED", "Payout orchestration service is required.");
             }
 
             if (withdrawal.DriverPayoutMethod.MethodType != DriverPayoutMethodType.BankAccount)
@@ -619,41 +622,82 @@ public class AdminWalletsController : ApiControllerBase
                 throw new BusinessRuleException("DRIVER_BANK_IBAN_INVALID", "Driver bank account must be a valid Saudi IBAN.");
             }
 
-            var hasConfiguredPayoutGateway = payoutOrchestrator.HasEnabledGateway &&
-                (moyasarSettings is null ||
-                 await HasConfiguredPayoutSourceAsync(context, moyasarSettings.Value, cancellationToken));
-
-            if (!hasConfiguredPayoutGateway && string.IsNullOrWhiteSpace(request.TransferReference))
+            // Preparing a manual transfer deliberately does not mark it paid
+            // and never submits it to a gateway. The returned PayoutId is used
+            // later with /api/admin/payouts/{id}/confirm-manual after the bank
+            // reference and proof have been captured.
+            if (!isAutomaticProcessing)
             {
-                throw new BusinessRuleException(
-                    "PAYOUT_GATEWAY_UNAVAILABLE",
-                    "Moyasar payouts are not enabled. Provide a transfer reference for manual processing.");
-            }
-
-            var payout = await EnsureDriverWithdrawalPayoutAsync(context, withdrawal, cancellationToken);
-            await EnsureDriverWithdrawalHoldAsync(context, withdrawal, cancellationToken);
-            withdrawal.MarkProcessing();
-            await context.SaveChangesAsync(cancellationToken);
-
-            if (hasConfiguredPayoutGateway)
-            {
-                await payoutOrchestrator.TriggerAsync(payout.Id, cancellationToken: cancellationToken);
+                var preparation = await EnsureDriverWithdrawalPreparedAsync(
+                    context,
+                    withdrawal,
+                    payoutDay,
+                    cancellationToken);
+                withdrawal = preparation.Withdrawal;
+                payout = preparation.Payout;
+                shouldNotifyDriver = preparation.PreparedNow;
             }
             else
             {
-                await payoutOrchestrator.MarkPaidAsync(
-                    payout.Id,
-                    request.TransferReference!,
-                    cancellationToken: cancellationToken);
+                if (payoutOrchestrator is null)
+                {
+                    throw new BusinessRuleException("PAYOUT_ORCHESTRATOR_REQUIRED", "Payout orchestration service is required.");
+                }
+
+                var hasConfiguredPayoutGateway = payoutOrchestrator.HasEnabledGateway &&
+                    (moyasarSettings is null ||
+                     await HasConfiguredPayoutSourceAsync(context, moyasarSettings.Value, cancellationToken));
+
+                // A free-form transfer reference is never a valid automatic
+                // payment result. If money will leave outside the platform,
+                // finance must use Manual mode and confirm it with evidence.
+                if (!hasConfiguredPayoutGateway)
+                {
+                    throw new BusinessRuleException(
+                        "PAYOUT_GATEWAY_UNAVAILABLE",
+                        "No automatic payout gateway is configured. Switch settlement processing to Manual, prepare the withdrawal, then confirm it with a bank reference and transfer proof.");
+                }
+
+                var preparation = await EnsureDriverWithdrawalPreparedAsync(
+                    context,
+                    withdrawal,
+                    payoutDay,
+                    cancellationToken);
+                withdrawal = preparation.Withdrawal;
+                payout = preparation.Payout;
+                shouldNotifyDriver = preparation.PreparedNow;
+                payout = await payoutOrchestrator.TriggerAsync(payout.Id, cancellationToken: cancellationToken);
             }
         }
         else
         {
-            withdrawal.MarkFailed(request.FailureReason ?? "Rejected by admin");
-            await CancelDriverWithdrawalHoldsAsync(context, withdrawal, request.FailureReason ?? "Rejected by admin", cancellationToken);
-        }
+            if (withdrawal.PayoutId.HasValue)
+            {
+                if (payoutOrchestrator is null)
+                {
+                    throw new BusinessRuleException(
+                        "PAYOUT_ORCHESTRATOR_REQUIRED",
+                        "Payout orchestration service is required to cancel a prepared withdrawal.");
+                }
 
-        await context.SaveChangesAsync(cancellationToken);
+                // Do not leave a pending manual payout behind when finance
+                // rejects a request after it was prepared. CancelAsync also
+                // releases the active claim/hold when safe, and deliberately
+                // refuses a submitted or in-flight transfer that must instead
+                // be reconciled.
+                await payoutOrchestrator.CancelAsync(withdrawal.PayoutId.Value, cancellationToken);
+                payout = await context.Payouts
+                    .FirstAsync(item => item.Id == withdrawal.PayoutId.Value, cancellationToken);
+            }
+            else
+            {
+                withdrawal.MarkFailed(request.FailureReason ?? "Rejected by admin");
+                await CancelDriverWithdrawalHoldsAsync(context, withdrawal, request.FailureReason ?? "Rejected by admin", cancellationToken);
+                await context.SaveChangesAsync(cancellationToken);
+            }
+
+            shouldNotifyDriver = true;
+        }
 
         var driverUserId = await context.Drivers
             .AsNoTracking()
@@ -661,7 +705,7 @@ public class AdminWalletsController : ApiControllerBase
             .Select(driver => driver.UserId)
             .FirstOrDefaultAsync(cancellationToken);
 
-        if (driverUserId != Guid.Empty)
+        if (shouldNotifyDriver && driverUserId != Guid.Empty)
         {
             var approvedAndPaid = request.IsApproved && withdrawal.Status == DriverWithdrawalStatus.Paid;
             var approvedAndProcessing = request.IsApproved && withdrawal.Status == DriverWithdrawalStatus.Processing;
@@ -746,18 +790,90 @@ public class AdminWalletsController : ApiControllerBase
                 cancellationToken);
         }
 
-        return NoContent();
+        var manualWorkflowRequired = request.IsApproved &&
+            !isAutomaticProcessing &&
+            payout is not null &&
+            payout.Status != PayoutStatus.Paid;
+
+        return Ok(new AdminProcessWithdrawalResultDto(
+            withdrawal.Id,
+            withdrawal.Status.ToString(),
+            payout?.Id ?? withdrawal.PayoutId,
+            payout?.Status.ToString(),
+            manualWorkflowRequired,
+            manualWorkflowRequired && payout is not null
+                ? $"/api/admin/payouts/{payout.Id}/manual-claim"
+                : null,
+            manualWorkflowRequired && payout is not null
+                ? $"/api/admin/payouts/{payout.Id}/manual-bank-submission"
+                : null,
+            manualWorkflowRequired && payout is not null
+                ? $"/api/admin/payouts/{payout.Id}/confirm-manual"
+                : null,
+            withdrawal.TransferReference,
+            withdrawal.FailureReason));
     }
 
-    private static async Task<Payout> EnsureDriverWithdrawalPayoutAsync(
+    private sealed record DriverWithdrawalPreparation(
+        DriverWithdrawalRequest Withdrawal,
+        Payout Payout,
+        bool PreparedNow);
+
+    /// <summary>
+    /// Prepares a driver withdrawal for gateway or manual settlement. New
+    /// settlement, payout, withdrawal link, processing state and active hold
+    /// are persisted together by one SaveChanges call. Relational providers
+    /// wrap that call in a transaction, and the withdrawal concurrency tokens
+    /// make a concurrent admin request resolve to the same linked payout.
+    /// </summary>
+    private static async Task<DriverWithdrawalPreparation> EnsureDriverWithdrawalPreparedAsync(
         IApplicationDbContext context,
         DriverWithdrawalRequest withdrawal,
+        PayoutScheduleDay payoutDay,
         CancellationToken cancellationToken)
     {
         if (withdrawal.PayoutId.HasValue)
         {
-            return await context.Payouts
-                .FirstAsync(item => item.Id == withdrawal.PayoutId.Value, cancellationToken);
+            var existingPayout = withdrawal.Payout ?? await context.Payouts
+                .FirstOrDefaultAsync(item => item.Id == withdrawal.PayoutId.Value, cancellationToken)
+                ?? throw new BusinessRuleException(
+                    "WITHDRAWAL_PAYOUT_NOT_FOUND",
+                    "The withdrawal is linked to a payout that no longer exists and requires finance review.");
+
+            if (existingPayout.Status == PayoutStatus.Cancelled)
+            {
+                throw new BusinessRuleException(
+                    "WITHDRAWAL_PAYOUT_CANCELLED",
+                    "A cancelled payout cannot be processed again. Create a new withdrawal request after finance review.");
+            }
+
+            var changed = false;
+            if (!existingPayout.ScheduledPayoutDay.HasValue)
+            {
+                // Legacy prepared withdrawals did not persist a schedule. The
+                // first safe preparation captures the day selected for this
+                // withdrawal so later profile edits cannot move it.
+                existingPayout.SetScheduledPayoutDay(payoutDay);
+                changed = true;
+            }
+
+            if (existingPayout.Status != PayoutStatus.Paid && withdrawal.Status != DriverWithdrawalStatus.Processing)
+            {
+                withdrawal.MarkProcessing();
+                changed = true;
+            }
+
+            if (existingPayout.Status != PayoutStatus.Paid)
+            {
+                changed |= await EnsureDriverWithdrawalHoldAsync(context, withdrawal, cancellationToken);
+            }
+
+            if (changed)
+            {
+                await context.SaveChangesAsync(cancellationToken);
+            }
+
+            return new DriverWithdrawalPreparation(withdrawal, existingPayout, changed);
         }
 
         var settlement = new Settlement(null, withdrawal.DriverId);
@@ -765,21 +881,63 @@ public class AdminWalletsController : ApiControllerBase
         settlement.Approve();
 
         var payout = new Payout(settlement.Id, withdrawal.Amount);
+        payout.SetScheduledPayoutDay(payoutDay);
+        // The withdrawal method can be edited after this request is prepared.
+        // Persist the complete immutable recipient snapshot (encrypted at rest)
+        // instead of looking the method up again at payment time.
         payout.PrepareDestination(
             PayoutDestinationType.DriverPayoutMethod,
-            JsonSerializer.Serialize(new
-            {
-                withdrawal.DriverPayoutMethodId,
-                withdrawal.DriverPayoutMethod.MethodType,
-                withdrawal.DriverPayoutMethod.AccountHolderName,
-                withdrawal.DriverPayoutMethod.ProviderName,
-                withdrawal.DriverPayoutMethod.MaskedLabel
-            }));
+            PayoutDestinationSnapshotCodec.CreateDriverPayoutMethod(withdrawal.DriverPayoutMethod));
 
         withdrawal.LinkPayout(payout.Id);
         context.Settlements.Add(settlement);
         context.Payouts.Add(payout);
-        return payout;
+        await EnsureDriverWithdrawalHoldAsync(context, withdrawal, cancellationToken);
+        withdrawal.MarkProcessing();
+
+        try
+        {
+            await context.SaveChangesAsync(cancellationToken);
+            return new DriverWithdrawalPreparation(withdrawal, payout, PreparedNow: true);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            return await ReloadConcurrentPreparationAsync(context, withdrawal.Id, cancellationToken);
+        }
+        catch (DbUpdateException)
+        {
+            // The unique hold idempotency key may win a race before the
+            // optimistic concurrency update. It is idempotent only if another
+            // transaction actually linked a payout to this withdrawal.
+            return await ReloadConcurrentPreparationAsync(context, withdrawal.Id, cancellationToken);
+        }
+    }
+
+    private static async Task<DriverWithdrawalPreparation> ReloadConcurrentPreparationAsync(
+        IApplicationDbContext context,
+        Guid withdrawalId,
+        CancellationToken cancellationToken)
+    {
+        if (context is DbContext dbContext)
+        {
+            // Failed inserts and the failed PayoutId update remain tracked
+            // after SaveChanges throws. Clear them before loading the winner
+            // so no later action in this request can write stale entities.
+            dbContext.ChangeTracker.Clear();
+        }
+
+        var winner = await context.DriverWithdrawalRequests
+            .Include(item => item.Payout)
+            .FirstOrDefaultAsync(item => item.Id == withdrawalId, cancellationToken);
+
+        if (winner?.PayoutId is not { } || winner.Payout is null)
+        {
+            throw new BusinessRuleException(
+                "WITHDRAWAL_PROCESSING_CONFLICT",
+                "The withdrawal changed while it was being prepared. Refresh it and try again.");
+        }
+
+        return new DriverWithdrawalPreparation(winner, winner.Payout, PreparedNow: false);
     }
 
     private static AdminPlatformBankAccountDto BuildPlatformAccountFallback(
@@ -856,7 +1014,7 @@ public class AdminWalletsController : ApiControllerBase
         return moyasarSettings.Payouts.Enabled && !string.IsNullOrWhiteSpace(moyasarSettings.Payouts.SourceId);
     }
 
-    private static async Task EnsureDriverWithdrawalHoldAsync(
+    private static async Task<bool> EnsureDriverWithdrawalHoldAsync(
         IApplicationDbContext context,
         DriverWithdrawalRequest withdrawal,
         CancellationToken cancellationToken)
@@ -873,7 +1031,7 @@ public class AdminWalletsController : ApiControllerBase
 
         if (exists)
         {
-            return;
+            return false;
         }
 
         var activeHolds = await context.WalletHolds
@@ -903,6 +1061,8 @@ public class AdminWalletsController : ApiControllerBase
             referenceType: "DriverWithdrawalRequest",
             referenceId: withdrawal.Id,
             memo: "Driver withdrawal approved for transfer"));
+
+        return true;
     }
 
     private static async Task CancelDriverWithdrawalHoldsAsync(

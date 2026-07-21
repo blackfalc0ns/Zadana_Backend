@@ -3,6 +3,7 @@ using MediatR;
 using Microsoft.Extensions.Localization;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Common.Localization;
+using Zadana.Application.Modules.Finances.Services;
 using Zadana.Application.Modules.Vendors.DTOs;
 using Zadana.Application.Modules.Vendors.Interfaces;
 using Zadana.Application.Modules.Vendors.Support;
@@ -47,6 +48,7 @@ public class UpdateVendorBankingCommandHandler : IRequestHandler<UpdateVendorBan
     private readonly IVendorReviewAuditService _vendorReviewAuditService;
     private readonly IProfileChangeApprovalService _profileChangeApprovalService;
     private readonly IAdminAlertService _adminAlertService;
+    private readonly ISettlementProcessingSettingsService _settlementProcessingSettingsService;
 
     public UpdateVendorBankingCommandHandler(
         IVendorRepository vendorRepository,
@@ -54,7 +56,8 @@ public class UpdateVendorBankingCommandHandler : IRequestHandler<UpdateVendorBan
         ICurrentUserService currentUserService,
         IVendorReviewAuditService vendorReviewAuditService,
         IProfileChangeApprovalService profileChangeApprovalService,
-        IAdminAlertService adminAlertService)
+        IAdminAlertService adminAlertService,
+        ISettlementProcessingSettingsService settlementProcessingSettingsService)
     {
         _vendorRepository = vendorRepository;
         _vendorReadService = vendorReadService;
@@ -62,6 +65,7 @@ public class UpdateVendorBankingCommandHandler : IRequestHandler<UpdateVendorBan
         _vendorReviewAuditService = vendorReviewAuditService;
         _profileChangeApprovalService = profileChangeApprovalService;
         _adminAlertService = adminAlertService;
+        _settlementProcessingSettingsService = settlementProcessingSettingsService;
     }
 
     public async Task<VendorWorkspaceDto> Handle(UpdateVendorBankingCommand request, CancellationToken cancellationToken)
@@ -69,6 +73,14 @@ public class UpdateVendorBankingCommandHandler : IRequestHandler<UpdateVendorBan
         var userId = _currentUserService.UserId ?? throw new UnauthorizedException("USER_NOT_AUTHENTICATED");
         var vendor = await _vendorRepository.GetByUserIdAsync(userId, cancellationToken)
             ?? throw new NotFoundException("Vendor", userId);
+
+        if (!string.IsNullOrWhiteSpace(request.PayoutDay))
+        {
+            var payoutDay = PayoutScheduleDayPolicy.ParseOrDefault(request.PayoutDay);
+            await _settlementProcessingSettingsService.EnsurePayoutDayEnabledAsync(
+                payoutDay,
+                cancellationToken);
+        }
 
         var payload = new VendorBankingProfileChangePayload(
             vendor.Id,

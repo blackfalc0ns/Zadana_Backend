@@ -73,6 +73,15 @@ public sealed class AccessAuthorizationConvention : IApplicationModelConvention
                 approve: [PermissionKeys.Admin.FinancesApprove],
                 overrides: new Dictionary<string, string[]>(StringComparer.Ordinal)
                 {
+                    ["Trigger"] = [PermissionKeys.Admin.FinancesApprove],
+                    ["Retry"] = [PermissionKeys.Admin.FinancesApprove],
+                    ["Cancel"] = [PermissionKeys.Admin.FinancesApprove],
+                    ["MarkPaid"] = [PermissionKeys.Admin.FinancesApprove],
+                    ["ConfirmManual"] = [PermissionKeys.Admin.FinancesApprove],
+                    ["ClaimManual"] = [PermissionKeys.Admin.FinancesApprove],
+                    ["RecordManualBankSubmission"] = [PermissionKeys.Admin.FinancesApprove],
+                    ["ReleaseManualClaim"] = [PermissionKeys.Admin.FinancesApprove],
+                    ["RecordReturn"] = [PermissionKeys.Admin.FinancesApprove],
                     ["GetProcessingSettings"] = [PermissionKeys.Admin.FinancesManageSettings],
                     ["UpdateProcessingSettings"] = [PermissionKeys.Admin.FinancesManageSettings],
                     ["GetProcessingSettingsAudit"] = [PermissionKeys.Admin.FinancesManageSettings]
@@ -90,6 +99,16 @@ public sealed class AccessAuthorizationConvention : IApplicationModelConvention
                 [PermissionKeys.Admin.FinancesView],
                 edit: [PermissionKeys.Admin.FinancesEdit],
                 approve: [PermissionKeys.Admin.FinancesApprove]),
+            ["AdminPayoutReconciliation"] = new(
+                [PermissionKeys.Admin.FinancesView],
+                edit: [PermissionKeys.Admin.FinancesEdit],
+                approve: [PermissionKeys.Admin.FinancesApprove],
+                overrides: new Dictionary<string, string[]>(StringComparer.Ordinal)
+                {
+                    ["ImportBankStatement"] = [PermissionKeys.Admin.FinancesApprove],
+                    ["MatchEntry"] = [PermissionKeys.Admin.FinancesApprove],
+                    ["IgnoreEntry"] = [PermissionKeys.Admin.FinancesApprove]
+                }),
             ["AdminCustomers"] = new(
                 [PermissionKeys.Admin.CustomersView],
                 edit: [PermissionKeys.Admin.CustomersEdit]),
@@ -131,7 +150,18 @@ public sealed class AccessAuthorizationConvention : IApplicationModelConvention
                 [PermissionKeys.Admin.VendorsView],
                 create: [PermissionKeys.Admin.VendorsEdit],
                 edit: [PermissionKeys.Admin.VendorsEdit],
-                approve: [PermissionKeys.Admin.VendorsApprove]),
+                approve: [PermissionKeys.Admin.VendorsApprove],
+                // Finance operations remain available from the vendor detail
+                // screen for convenience, but they must never inherit the
+                // comparatively broad VendorsEdit/VendorsApprove permissions.
+                overrides: new Dictionary<string, string[]>(StringComparer.Ordinal)
+                {
+                    ["CreateVendorSettlement"] = [PermissionKeys.Admin.FinancesEdit],
+                    ["RetryVendorPayout"] = [PermissionKeys.Admin.FinancesApprove],
+                    ["CompleteVendorPayout"] = [PermissionKeys.Admin.FinancesApprove],
+                    ["SuspendVendorPayout"] = [PermissionKeys.Admin.FinancesApprove],
+                    ["EscalateVendorPayout"] = [PermissionKeys.Admin.FinancesApprove]
+                }),
             ["AdminVendorWorkspaceState"] = new(
                 [PermissionKeys.Admin.VendorsView],
                 edit: [PermissionKeys.Admin.VendorsEdit]),

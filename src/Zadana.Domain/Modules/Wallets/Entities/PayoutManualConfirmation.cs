@@ -11,18 +11,24 @@ public sealed class PayoutManualConfirmation
     public Guid Id { get; private set; } = Guid.NewGuid();
     public Guid PayoutId { get; private set; }
     public string TransferReference { get; private set; } = null!;
-    public string ProofUrl { get; private set; } = null!;
+    /// <summary>
+    /// The protected attachment used for new confirmations. A nullable value
+    /// is retained only for pre-migration confirmations that used a legacy URL.
+    /// </summary>
+    public Guid? ProofAttachmentId { get; private set; }
+    public string? LegacyProofUrl { get; private set; }
     public Guid ConfirmedByUserId { get; private set; }
     public DateTime ConfirmedAtUtc { get; private set; } = DateTime.UtcNow;
 
     public Payout Payout { get; private set; } = null!;
+    public PayoutProofAttachment? ProofAttachment { get; private set; }
 
     private PayoutManualConfirmation() { }
 
     public PayoutManualConfirmation(
         Guid payoutId,
         string transferReference,
-        string proofUrl,
+        Guid proofAttachmentId,
         Guid confirmedByUserId)
     {
         if (payoutId == Guid.Empty)
@@ -35,7 +41,7 @@ public sealed class PayoutManualConfirmation
             throw new BusinessRuleException("TRANSFER_REFERENCE_REQUIRED", "Transfer reference is required for manual payout confirmation.");
         }
 
-        if (string.IsNullOrWhiteSpace(proofUrl))
+        if (proofAttachmentId == Guid.Empty)
         {
             throw new BusinessRuleException("PAYOUT_PROOF_REQUIRED", "Transfer proof is required for manual payout confirmation.");
         }
@@ -47,7 +53,8 @@ public sealed class PayoutManualConfirmation
 
         PayoutId = payoutId;
         TransferReference = transferReference.Trim();
-        ProofUrl = proofUrl.Trim();
+        ProofAttachmentId = proofAttachmentId;
+        LegacyProofUrl = null;
         ConfirmedByUserId = confirmedByUserId;
         ConfirmedAtUtc = DateTime.UtcNow;
     }

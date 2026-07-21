@@ -5,7 +5,7 @@ namespace Zadana.Api.Localization;
 
 public static class ApiLocalizedMessages
 {
-    public static string Resolve(HttpContext context, string key, string? fallback = null)
+    public static string Resolve(HttpContext? context, string key, string? fallback = null)
     {
         var value = PrefersEnglish(context)
             ? LocalizedMessages.GetEn(key)
@@ -16,9 +16,9 @@ public static class ApiLocalizedMessages
             : value;
     }
 
-    private static bool PrefersEnglish(HttpContext context)
+    private static bool PrefersEnglish(HttpContext? context)
     {
-        var language = context.Request.Headers["Accept-Language"].ToString().ToLowerInvariant();
+        var language = context?.Request?.Headers["Accept-Language"].ToString().ToLowerInvariant() ?? string.Empty;
         return language.Contains("en");
     }
 }

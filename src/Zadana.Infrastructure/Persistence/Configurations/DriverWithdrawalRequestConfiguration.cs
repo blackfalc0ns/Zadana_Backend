@@ -21,7 +21,15 @@ public class DriverWithdrawalRequestConfiguration : IEntityTypeConfiguration<Dri
             .HasConversion<string>()
             .HasMaxLength(50)
             .HasDefaultValue(DriverWithdrawalStatus.Pending)
+            // Processing a withdrawal creates a payout with a client-generated
+            // id.  Treat both state and that link as optimistic concurrency
+            // tokens so two administrators cannot attach two payouts to the
+            // same withdrawal.
+            .IsConcurrencyToken()
             .IsRequired();
+
+        builder.Property(x => x.PayoutId)
+            .IsConcurrencyToken();
 
         builder.Property(x => x.TransferReference)
             .HasMaxLength(200);
@@ -46,6 +54,13 @@ public class DriverWithdrawalRequestConfiguration : IEntityTypeConfiguration<Dri
 
         builder.HasIndex(x => x.DriverId);
         builder.HasIndex(x => x.WalletId);
-        builder.HasIndex(x => x.PayoutId);
+        // A payout belongs to a single withdrawal. The withdrawal's
+        // PayoutId concurrency token protects two payouts being attached to
+        // one withdrawal; this filtered unique index protects the inverse
+        // link from accidental reuse as well.
+        builder.HasIndex(x => x.PayoutId)
+            .IsUnique()
+            .HasFilter("[PayoutId] IS NOT NULL")
+            .HasDatabaseName("UX_DriverWithdrawalRequests_PayoutId");
     }
 }

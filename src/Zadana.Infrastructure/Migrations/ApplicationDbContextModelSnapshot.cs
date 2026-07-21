@@ -6533,12 +6533,14 @@ namespace Zadana.Infrastructure.Migrations
                         .HasColumnType("nvarchar(500)");
 
                     b.Property<Guid?>("PayoutId")
+                        .IsConcurrencyToken()
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<DateTime?>("ProcessedAtUtc")
                         .HasColumnType("datetime2");
 
                     b.Property<string>("Status")
+                        .IsConcurrencyToken()
                         .IsRequired()
                         .ValueGeneratedOnAdd()
                         .HasMaxLength(50)
@@ -6561,7 +6563,10 @@ namespace Zadana.Infrastructure.Migrations
 
                     b.HasIndex("DriverPayoutMethodId");
 
-                    b.HasIndex("PayoutId");
+                    b.HasIndex("PayoutId")
+                        .IsUnique()
+                        .HasDatabaseName("UX_DriverWithdrawalRequests_PayoutId")
+                        .HasFilter("[PayoutId] IS NOT NULL");
 
                     b.HasIndex("WalletId");
 
@@ -6615,6 +6620,16 @@ namespace Zadana.Infrastructure.Migrations
                     b.Property<string>("ProviderTransferId")
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.Property<string>("ScheduledPayoutDay")
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
 
                     b.Property<Guid>("SettlementId")
                         .HasColumnType("uniqueidentifier");
@@ -6702,6 +6717,219 @@ namespace Zadana.Infrastructure.Migrations
                     b.ToTable("PayoutAttempts", (string)null);
                 });
 
+            modelBuilder.Entity("Zadana.Domain.Modules.Wallets.Entities.PayoutBankStatementEntry", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("Amount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("BankReference")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("BeneficiaryMasked")
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("CurrencyCode")
+                        .IsRequired()
+                        .HasMaxLength(8)
+                        .HasColumnType("nvarchar(8)");
+
+                    b.Property<Guid>("ImportId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("MatchedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid?>("MatchedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Memo")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("NormalizedBankReference")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<Guid?>("PayoutId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("ResolutionNote")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<int>("RowNumber")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<DateTime>("TransactionDateUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("UpdatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PayoutId")
+                        .IsUnique()
+                        .HasDatabaseName("UX_PayoutBankStatementEntries_PayoutId")
+                        .HasFilter("[PayoutId] IS NOT NULL");
+
+                    b.HasIndex("ImportId", "RowNumber")
+                        .IsUnique()
+                        .HasDatabaseName("UX_PayoutBankStatementEntries_Import_Row");
+
+                    b.HasIndex("NormalizedBankReference", "Amount")
+                        .HasDatabaseName("IX_PayoutBankStatementEntries_Reference_Amount");
+
+                    b.HasIndex("Status", "TransactionDateUtc")
+                        .HasDatabaseName("IX_PayoutBankStatementEntries_Status_Date");
+
+                    b.ToTable("PayoutBankStatementEntries", (string)null);
+                });
+
+            modelBuilder.Entity("Zadana.Domain.Modules.Wallets.Entities.PayoutBankStatementImport", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("AmbiguousRows")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("FileName")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("nvarchar(255)");
+
+                    b.Property<string>("FileSha256")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<DateTime>("ImportedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("ImportedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("InvalidRows")
+                        .HasColumnType("int");
+
+                    b.Property<int>("MatchedRows")
+                        .HasColumnType("int");
+
+                    b.Property<int>("MismatchRows")
+                        .HasColumnType("int");
+
+                    b.Property<int>("TotalRows")
+                        .HasColumnType("int");
+
+                    b.Property<int>("UnmatchedRows")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("UpdatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("FileSha256")
+                        .IsUnique()
+                        .HasDatabaseName("UX_PayoutBankStatementImports_FileSha256");
+
+                    b.HasIndex("ImportedAtUtc", "ImportedByUserId")
+                        .HasDatabaseName("IX_PayoutBankStatementImports_ImportedAt_ImportedBy");
+
+                    b.ToTable("PayoutBankStatementImports", (string)null);
+                });
+
+            modelBuilder.Entity("Zadana.Domain.Modules.Wallets.Entities.PayoutExecutionReservation", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("ClaimedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid?>("ClaimedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Mode")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<Guid>("PayoutId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("ReleaseReason")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<DateTime?>("ReleasedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid?>("ReleasedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<string>("SubmissionReference")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<DateTime?>("SubmittedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid?>("SubmittedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("UpdatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PayoutId")
+                        .IsUnique()
+                        .HasDatabaseName("IX_PayoutExecutionReservations_PayoutId");
+
+                    b.HasIndex("Mode", "Status", "ClaimedAtUtc")
+                        .HasDatabaseName("IX_PayoutExecutionReservations_Mode_Status_ClaimedAt");
+
+                    b.ToTable("PayoutExecutionReservations", (string)null);
+                });
+
             modelBuilder.Entity("Zadana.Domain.Modules.Wallets.Entities.PayoutManualConfirmation", b =>
                 {
                     b.Property<Guid>("Id")
@@ -6714,13 +6942,16 @@ namespace Zadana.Infrastructure.Migrations
                     b.Property<Guid>("ConfirmedByUserId")
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<string>("LegacyProofUrl")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)")
+                        .HasColumnName("ProofUrl");
+
                     b.Property<Guid>("PayoutId")
                         .HasColumnType("uniqueidentifier");
 
-                    b.Property<string>("ProofUrl")
-                        .IsRequired()
-                        .HasMaxLength(2000)
-                        .HasColumnType("nvarchar(2000)");
+                    b.Property<Guid?>("ProofAttachmentId")
+                        .HasColumnType("uniqueidentifier");
 
                     b.Property<string>("TransferReference")
                         .IsRequired()
@@ -6733,10 +6964,132 @@ namespace Zadana.Infrastructure.Migrations
                         .IsUnique()
                         .HasDatabaseName("IX_PayoutManualConfirmations_PayoutId");
 
+                    b.HasIndex("ProofAttachmentId")
+                        .HasDatabaseName("IX_PayoutManualConfirmations_ProofAttachmentId");
+
                     b.HasIndex("ConfirmedByUserId", "ConfirmedAtUtc")
                         .HasDatabaseName("IX_PayoutManualConfirmations_ConfirmedBy_ConfirmedAt");
 
                     b.ToTable("PayoutManualConfirmations", (string)null);
+                });
+
+            modelBuilder.Entity("Zadana.Domain.Modules.Wallets.Entities.PayoutProofAttachment", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<long>("ContentLength")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("ContentType")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("FileName")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("nvarchar(255)");
+
+                    b.Property<DateTime?>("FinalizedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid?>("FinalizedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<Guid>("PayoutId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<byte[]>("ProtectedContent")
+                        .IsRequired()
+                        .HasColumnType("varbinary(max)");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.Property<string>("Sha256")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<DateTime>("UpdatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("UploadedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("UploadedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PayoutId", "Kind", "FinalizedAtUtc")
+                        .HasDatabaseName("IX_PayoutProofAttachments_PayoutId_Kind_FinalizedAt");
+
+                    b.HasIndex("PayoutId", "Kind", "Sha256")
+                        .IsUnique()
+                        .HasDatabaseName("UX_PayoutProofAttachments_PayoutId_Kind_Sha256");
+
+                    b.ToTable("PayoutProofAttachments", (string)null);
+                });
+
+            modelBuilder.Entity("Zadana.Domain.Modules.Wallets.Entities.PayoutReversal", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("ConfirmedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("ConfirmedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("LegacyProofUrl")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)")
+                        .HasColumnName("ProofUrl");
+
+                    b.Property<Guid>("PayoutId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("ProofAttachmentId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Reason")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<string>("ReturnReference")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PayoutId")
+                        .IsUnique()
+                        .HasDatabaseName("IX_PayoutReversals_PayoutId");
+
+                    b.HasIndex("ProofAttachmentId")
+                        .HasDatabaseName("IX_PayoutReversals_ProofAttachmentId");
+
+                    b.HasIndex("ConfirmedByUserId", "ConfirmedAtUtc")
+                        .HasDatabaseName("IX_PayoutReversals_ConfirmedBy_ConfirmedAt");
+
+                    b.ToTable("PayoutReversals", (string)null);
                 });
 
             modelBuilder.Entity("Zadana.Domain.Modules.Wallets.Entities.PlatformBankAccount", b =>
@@ -7020,6 +7373,24 @@ namespace Zadana.Infrastructure.Migrations
                         .HasMaxLength(20)
                         .HasColumnType("nvarchar(20)")
                         .HasDefaultValue("Automatic");
+
+                    b.Property<string>("PayoutDays")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)")
+                        .HasDefaultValue("Monday,Thursday");
+
+                    b.Property<bool>("RequireManualPayoutDualControl")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(true);
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
 
                     b.Property<DateTime>("UpdatedAtUtc")
                         .HasColumnType("datetime2");
@@ -8433,6 +8804,35 @@ namespace Zadana.Infrastructure.Migrations
                     b.Navigation("Payout");
                 });
 
+            modelBuilder.Entity("Zadana.Domain.Modules.Wallets.Entities.PayoutBankStatementEntry", b =>
+                {
+                    b.HasOne("Zadana.Domain.Modules.Wallets.Entities.PayoutBankStatementImport", "Import")
+                        .WithMany("Entries")
+                        .HasForeignKey("ImportId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Zadana.Domain.Modules.Wallets.Entities.Payout", "Payout")
+                        .WithMany()
+                        .HasForeignKey("PayoutId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("Import");
+
+                    b.Navigation("Payout");
+                });
+
+            modelBuilder.Entity("Zadana.Domain.Modules.Wallets.Entities.PayoutExecutionReservation", b =>
+                {
+                    b.HasOne("Zadana.Domain.Modules.Wallets.Entities.Payout", "Payout")
+                        .WithOne("ExecutionReservation")
+                        .HasForeignKey("Zadana.Domain.Modules.Wallets.Entities.PayoutExecutionReservation", "PayoutId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Payout");
+                });
+
             modelBuilder.Entity("Zadana.Domain.Modules.Wallets.Entities.PayoutManualConfirmation", b =>
                 {
                     b.HasOne("Zadana.Domain.Modules.Wallets.Entities.Payout", "Payout")
@@ -8441,7 +8841,43 @@ namespace Zadana.Infrastructure.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
+                    b.HasOne("Zadana.Domain.Modules.Wallets.Entities.PayoutProofAttachment", "ProofAttachment")
+                        .WithMany()
+                        .HasForeignKey("ProofAttachmentId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.Navigation("Payout");
+
+                    b.Navigation("ProofAttachment");
+                });
+
+            modelBuilder.Entity("Zadana.Domain.Modules.Wallets.Entities.PayoutProofAttachment", b =>
+                {
+                    b.HasOne("Zadana.Domain.Modules.Wallets.Entities.Payout", "Payout")
+                        .WithMany("ProofAttachments")
+                        .HasForeignKey("PayoutId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Payout");
+                });
+
+            modelBuilder.Entity("Zadana.Domain.Modules.Wallets.Entities.PayoutReversal", b =>
+                {
+                    b.HasOne("Zadana.Domain.Modules.Wallets.Entities.Payout", "Payout")
+                        .WithOne("Reversal")
+                        .HasForeignKey("Zadana.Domain.Modules.Wallets.Entities.PayoutReversal", "PayoutId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Zadana.Domain.Modules.Wallets.Entities.PayoutProofAttachment", "ProofAttachment")
+                        .WithMany()
+                        .HasForeignKey("ProofAttachmentId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("Payout");
+
+                    b.Navigation("ProofAttachment");
                 });
 
             modelBuilder.Entity("Zadana.Domain.Modules.Wallets.Entities.Settlement", b =>
@@ -8702,7 +9138,18 @@ namespace Zadana.Infrastructure.Migrations
                 {
                     b.Navigation("Attempts");
 
+                    b.Navigation("ExecutionReservation");
+
                     b.Navigation("ManualConfirmation");
+
+                    b.Navigation("ProofAttachments");
+
+                    b.Navigation("Reversal");
+                });
+
+            modelBuilder.Entity("Zadana.Domain.Modules.Wallets.Entities.PayoutBankStatementImport", b =>
+                {
+                    b.Navigation("Entries");
                 });
 
             modelBuilder.Entity("Zadana.Domain.Modules.Wallets.Entities.Settlement", b =>

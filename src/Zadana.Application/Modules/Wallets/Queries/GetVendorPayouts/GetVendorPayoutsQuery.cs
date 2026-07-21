@@ -48,7 +48,8 @@ public class GetVendorPayoutsQueryHandler : IRequestHandler<GetVendorPayoutsQuer
                 item.ProviderTransferId,
                 ManualConfirmationId = item.ManualConfirmation == null ? (Guid?)null : item.ManualConfirmation.Id,
                 ManualTransferReference = item.ManualConfirmation == null ? null : item.ManualConfirmation.TransferReference,
-                ManualProofUrl = item.ManualConfirmation == null ? null : item.ManualConfirmation.ProofUrl,
+                ManualProofAttachmentId = item.ManualConfirmation == null ? (Guid?)null : item.ManualConfirmation.ProofAttachmentId,
+                ManualHasLegacyProof = item.ManualConfirmation != null && item.ManualConfirmation.LegacyProofUrl != null,
                 ManualConfirmedByUserId = item.ManualConfirmation == null ? (Guid?)null : item.ManualConfirmation.ConfirmedByUserId,
                 ManualConfirmedAtUtc = item.ManualConfirmation == null ? (DateTime?)null : item.ManualConfirmation.ConfirmedAtUtc,
                 item.CreatedAtUtc,
@@ -92,7 +93,8 @@ public class GetVendorPayoutsQueryHandler : IRequestHandler<GetVendorPayoutsQuer
                     ? new AdminVendorManualPayoutConfirmationDto(
                         manualConfirmationId,
                         item.ManualTransferReference!,
-                        item.ManualProofUrl!,
+                        item.ManualProofAttachmentId,
+                        item.ManualHasLegacyProof,
                         item.ManualConfirmedByUserId!.Value,
                         item.ManualConfirmedAtUtc!.Value)
                     : null))

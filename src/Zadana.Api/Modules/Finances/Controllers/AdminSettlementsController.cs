@@ -68,6 +68,8 @@ public sealed class AdminSettlementsController(
             .Include(item => item.Items)
             .Include(item => item.Payouts)
                 .ThenInclude(item => item.ManualConfirmation)
+            .Include(item => item.Payouts)
+                .ThenInclude(item => item.ExecutionReservation)
             .FirstOrDefaultAsync(item => item.Id == id, cancellationToken);
 
         if (settlement is null)
@@ -88,20 +90,7 @@ public sealed class AdminSettlementsController(
                 item.Adjustment,
                 item.Recovery,
                 item.NetAmount)).ToList(),
-            settlement.Payouts.Select(item => new AdminSettlementPayoutDto(
-                item.Id,
-                item.Amount,
-                item.Status.ToString(),
-                item.ProviderTransferId,
-                item.TransferReference,
-                item.ManualConfirmation is null
-                    ? null
-                    : new AdminManualPayoutConfirmationDto(
-                        item.ManualConfirmation.Id,
-                        item.ManualConfirmation.TransferReference,
-                        item.ManualConfirmation.ProofUrl,
-                        item.ManualConfirmation.ConfirmedByUserId,
-                        item.ManualConfirmation.ConfirmedAtUtc))).ToList(),
+            settlement.Payouts.Select(ToPayoutDto).ToList(),
             await GetSettlementProcessingModeAsync(cancellationToken)));
     }
 
@@ -155,10 +144,9 @@ public sealed class AdminSettlementsController(
                 line.CreditAmount - line.DebitAmount));
         }
 
-        if (net > 0 && settlement.ResolutionType == SettlementResolutionType.BankPayout)
-        {
-            context.Payouts.Add(new Payout(settlement.Id, net));
-        }
+        // The recipient has to be captured at approval time, after the verified
+        // payout account is resolved. Creating a destination-less payout here
+        // would allow a later account edit to change where the funds go.
 
         await context.SaveChangesAsync(cancellationToken);
         return Ok(ToDto(settlement));
@@ -275,6 +263,35 @@ public sealed class AdminSettlementsController(
         }
 
         var payout = new Payout(settlement.Id, settlement.NetAmount, vendorBankAccountId);
+        if (settlement.OwnerType == SettlementOwnerType.Vendor)
+        {
+            var bankAccount = await context.VendorBankAccounts
+                .AsNoTracking()
+                .FirstAsync(item => item.Id == vendorBankAccountId!.Value, cancellationToken);
+            payout.PrepareDestination(
+                PayoutDestinationType.VendorBankAccount,
+                PayoutDestinationSnapshotCodec.CreateVendorBankAccount(bankAccount));
+        }
+
+        var scheduledPayoutDay = settlement.OwnerType switch
+        {
+            SettlementOwnerType.Vendor => await context.Vendors
+                .AsNoTracking()
+                .Where(item => item.Id == settlement.OwnerId)
+                .Select(item => (PayoutScheduleDay?)item.PayoutDay)
+                .FirstOrDefaultAsync(cancellationToken),
+            SettlementOwnerType.Driver => await context.Drivers
+                .AsNoTracking()
+                .Where(item => item.Id == settlement.OwnerId)
+                .Select(item => (PayoutScheduleDay?)item.PayoutDay)
+                .FirstOrDefaultAsync(cancellationToken),
+            _ => null
+        };
+        if (scheduledPayoutDay.HasValue)
+        {
+            payout.SetScheduledPayoutDay(scheduledPayoutDay.Value);
+        }
+
         context.Payouts.Add(payout);
         return payout;
     }
@@ -286,6 +303,8 @@ public sealed class AdminSettlementsController(
             .Include(item => item.Items)
             .Include(item => item.Payouts)
                 .ThenInclude(item => item.ManualConfirmation)
+            .Include(item => item.Payouts)
+                .ThenInclude(item => item.ExecutionReservation)
             .FirstAsync(item => item.Id == id, cancellationToken);
 
         return new AdminSettlementDetailDto(
@@ -301,20 +320,7 @@ public sealed class AdminSettlementsController(
                 item.Adjustment,
                 item.Recovery,
                 item.NetAmount)).ToList(),
-            settlement.Payouts.Select(item => new AdminSettlementPayoutDto(
-                item.Id,
-                item.Amount,
-                item.Status.ToString(),
-                item.ProviderTransferId,
-                item.TransferReference,
-                item.ManualConfirmation is null
-                    ? null
-                    : new AdminManualPayoutConfirmationDto(
-                        item.ManualConfirmation.Id,
-                        item.ManualConfirmation.TransferReference,
-                        item.ManualConfirmation.ProofUrl,
-                        item.ManualConfirmation.ConfirmedByUserId,
-                        item.ManualConfirmation.ConfirmedAtUtc))).ToList(),
+            settlement.Payouts.Select(ToPayoutDto).ToList(),
             await GetSettlementProcessingModeAsync(cancellationToken));
     }
 
@@ -322,6 +328,39 @@ public sealed class AdminSettlementsController(
         settlementProcessingSettingsService is null
             ? SettlementProcessingMode.Automatic.ToString()
             : (await settlementProcessingSettingsService.GetAsync(cancellationToken)).Mode.ToString();
+
+    private static AdminSettlementPayoutDto ToPayoutDto(Payout payout) =>
+        new(
+            payout.Id,
+            payout.Amount,
+            payout.Status.ToString(),
+            payout.ProviderTransferId,
+            payout.TransferReference,
+            payout.ManualConfirmation is null
+                ? null
+                : new AdminManualPayoutConfirmationDto(
+                    payout.ManualConfirmation.Id,
+                    payout.ManualConfirmation.TransferReference,
+                    payout.ManualConfirmation.ProofAttachmentId,
+                    !string.IsNullOrWhiteSpace(payout.ManualConfirmation.LegacyProofUrl),
+                    payout.ManualConfirmation.ConfirmedByUserId,
+                    payout.ManualConfirmation.ConfirmedAtUtc),
+            payout.ExecutionReservation is null
+                ? null
+                : new AdminPayoutExecutionReservationDto(
+                    payout.ExecutionReservation.Id,
+                    payout.ExecutionReservation.Mode.ToString(),
+                    payout.ExecutionReservation.Status.ToString(),
+                    payout.ExecutionReservation.ClaimedByUserId,
+                    payout.ExecutionReservation.ClaimedAtUtc,
+                    payout.ExecutionReservation.SubmittedByUserId,
+                    payout.ExecutionReservation.SubmittedAtUtc,
+                    payout.ExecutionReservation.SubmissionReference,
+                    payout.ExecutionReservation.ReleasedByUserId,
+                    payout.ExecutionReservation.ReleasedAtUtc,
+                    payout.ExecutionReservation.ReleaseReason),
+            PayoutDestinationSnapshotCodec.ToMaskedLabel(payout.DestinationSnapshot),
+            payout.ScheduledPayoutDay?.ToString());
 
     private static SettlementResolutionType? ParseResolution(string? value) =>
         Enum.TryParse<SettlementResolutionType>(value, true, out var parsed) ? parsed : null;
@@ -409,4 +448,7 @@ public sealed record AdminSettlementPayoutDto(
     string Status,
     string? ProviderTransferId,
     string? TransferReference,
-    AdminManualPayoutConfirmationDto? ManualConfirmation);
+    AdminManualPayoutConfirmationDto? ManualConfirmation,
+    AdminPayoutExecutionReservationDto? ExecutionReservation,
+    string? DestinationMaskedLabel,
+    string? ScheduledPayoutDay);

@@ -3,6 +3,7 @@ using MediatR;
 using Zadana.Application.Common.Interfaces;
 using Microsoft.Extensions.Localization;
 using Zadana.Application.Common.Localization;
+using Zadana.Application.Modules.Finances.Services;
 using Zadana.Domain.Modules.Wallets.Entities;
 using Zadana.Domain.Modules.Wallets.Enums;
 using Microsoft.EntityFrameworkCore;
@@ -73,6 +74,18 @@ public class CreateSettlementCommandHandler : IRequestHandler<CreateSettlementCo
             if (primaryBankAccount is not null)
             {
                 var payout = new Payout(settlement.Id, settlement.NetAmount, primaryBankAccount.Id);
+                payout.PrepareDestination(
+                    PayoutDestinationType.VendorBankAccount,
+                    PayoutDestinationSnapshotCodec.CreateVendorBankAccount(primaryBankAccount));
+                var payoutDay = await _context.Vendors
+                    .AsNoTracking()
+                    .Where(item => item.Id == request.VendorId.Value)
+                    .Select(item => (PayoutScheduleDay?)item.PayoutDay)
+                    .FirstOrDefaultAsync(cancellationToken);
+                if (payoutDay.HasValue)
+                {
+                    payout.SetScheduledPayoutDay(payoutDay.Value);
+                }
                 _context.Payouts.Add(payout);
                 await _context.SaveChangesAsync(cancellationToken);
             }

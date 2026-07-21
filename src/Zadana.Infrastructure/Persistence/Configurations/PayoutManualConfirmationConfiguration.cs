@@ -16,9 +16,11 @@ public sealed class PayoutManualConfirmationConfiguration : IEntityTypeConfigura
             .IsRequired()
             .HasMaxLength(200);
 
-        builder.Property(item => item.ProofUrl)
-            .IsRequired()
+        builder.Property(item => item.LegacyProofUrl)
+            .HasColumnName("ProofUrl")
             .HasMaxLength(2000);
+
+        builder.Property(item => item.ProofAttachmentId);
 
         builder.HasIndex(item => item.PayoutId)
             .IsUnique()
@@ -26,5 +28,13 @@ public sealed class PayoutManualConfirmationConfiguration : IEntityTypeConfigura
 
         builder.HasIndex(item => new { item.ConfirmedByUserId, item.ConfirmedAtUtc })
             .HasDatabaseName("IX_PayoutManualConfirmations_ConfirmedBy_ConfirmedAt");
+
+        builder.HasIndex(item => item.ProofAttachmentId)
+            .HasDatabaseName("IX_PayoutManualConfirmations_ProofAttachmentId");
+
+        builder.HasOne(item => item.ProofAttachment)
+            .WithMany()
+            .HasForeignKey(item => item.ProofAttachmentId)
+            .OnDelete(DeleteBehavior.Restrict);
     }
 }

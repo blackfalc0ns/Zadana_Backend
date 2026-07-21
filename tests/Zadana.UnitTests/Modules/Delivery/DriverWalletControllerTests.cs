@@ -1,13 +1,18 @@
 using FluentAssertions;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 using Moq;
 using Zadana.Api.Modules.Delivery.Controllers;
 using Zadana.Api.Modules.Delivery.Requests;
 using Zadana.Api.Modules.Wallets.Controllers;
 using Zadana.Application.Common.Interfaces;
+using Zadana.Application.Common.Settings;
 using Zadana.Application.Modules.Delivery.Interfaces;
 using Zadana.Application.Modules.Finances.Services;
+using Zadana.Application.Modules.Payments.Interfaces;
 using Zadana.Application.Modules.Wallets.DTOs;
+using Zadana.Application.Modules.Wallets.Services;
 using Zadana.Domain.Modules.Delivery.Entities;
 using Zadana.Domain.Modules.Wallets.Entities;
 using Zadana.Domain.Modules.Wallets.Enums;
@@ -220,37 +225,42 @@ public class DriverWalletControllerTests
         var driver = CreateApprovedDriver();
         var currentUserService = Mock.Of<ICurrentUserService>(service => service.UserId == driver.UserId);
         var driverRepository = CreateDriverRepository(driver);
+        var settlementSettings = new SettlementProcessingSettingsService(context);
 
         var result = await controller.UpdatePayoutPreference(
             new UpdateDriverPayoutPreferenceRequest("thursday"),
             currentUserService,
             driverRepository.Object,
             context,
+            settlementSettings,
             CancellationToken.None);
 
         result.Result.Should().BeOfType<OkObjectResult>()
-            .Which.Value.Should().Be(new DriverPayoutPreferenceDto("Thursday"));
+            .Which.Value.Should().BeEquivalentTo(
+                new DriverPayoutPreferenceDto("Thursday", ["Monday", "Thursday"]));
         driver.PayoutDay.Should().Be(PayoutScheduleDay.Thursday);
     }
 
     [Fact]
-    public async Task UpdatePayoutPreference_RejectsUnsupportedDay()
+    public async Task UpdatePayoutPreference_RejectsDisabledDay()
     {
         await using var context = TestDbContextFactory.Create();
         var controller = new DriverWalletController();
         var driver = CreateApprovedDriver();
         var currentUserService = Mock.Of<ICurrentUserService>(service => service.UserId == driver.UserId);
         var driverRepository = CreateDriverRepository(driver);
+        var settlementSettings = new SettlementProcessingSettingsService(context);
 
         var act = () => controller.UpdatePayoutPreference(
             new UpdateDriverPayoutPreferenceRequest("Sunday"),
             currentUserService,
             driverRepository.Object,
             context,
+            settlementSettings,
             CancellationToken.None);
 
-        await act.Should().ThrowAsync<BadRequestException>()
-            .WithMessage("*Monday or Thursday*");
+        await act.Should().ThrowAsync<BusinessRuleException>()
+            .WithMessage("*not enabled by the platform*");
     }
 
     private static Mock<IDriverRepository> CreateDriverRepository(Driver driver)
@@ -279,33 +289,39 @@ public class DriverWalletControllerTests
 public class AdminWalletsControllerTests
 {
     [Fact]
-    public async Task ProcessWithdrawal_RequiresManualConfirmationEndpoint_WhenManualModeIsEnabled()
+    public async Task ProcessWithdrawal_InManualMode_PreparesLinkedPayoutAndReturnsConfirmationMetadata()
     {
         await using var context = TestDbContextFactory.Create();
         var controller = new AdminWalletsController();
-        var driverId = Guid.NewGuid();
-        var wallet = new Wallet(WalletOwnerType.Driver, driverId);
+        var driver = CreateApprovedDriver();
+        driver.UpdatePayoutDay((PayoutScheduleDay)SaudiTime.Today.DayOfWeek);
+        var wallet = new Wallet(WalletOwnerType.Driver, driver.Id);
+        wallet.Credit(100m);
         var payoutMethod = new DriverPayoutMethod(
-            driverId,
+            driver.Id,
             DriverPayoutMethodType.BankAccount,
             "Driver Name",
             "SA1234567890123456789012",
             "Bank",
             true);
-        var withdrawal = new DriverWithdrawalRequest(driverId, wallet.Id, payoutMethod.Id, 40m);
+        var withdrawal = new DriverWithdrawalRequest(driver.Id, wallet.Id, payoutMethod.Id, 40m);
         var settlementSettings = new Mock<ISettlementProcessingSettingsService>();
         settlementSettings
             .Setup(service => service.IsAutomaticAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync(false);
+        settlementSettings
+            .Setup(service => service.GetEnabledPayoutDaysAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync([(PayoutScheduleDay)SaudiTime.Today.DayOfWeek]);
 
+        context.Drivers.Add(driver);
         context.Wallets.Add(wallet);
         context.DriverPayoutMethods.Add(payoutMethod);
         context.DriverWithdrawalRequests.Add(withdrawal);
         await context.SaveChangesAsync(CancellationToken.None);
 
-        var act = () => controller.ProcessWithdrawal(
+        var result = await controller.ProcessWithdrawal(
             withdrawal.Id,
-            new AdminProcessWithdrawalRequest(true, "legacy-reference", null),
+            new AdminProcessWithdrawalRequest(true, null, null),
             context,
             null!,
             null!,
@@ -317,10 +333,173 @@ public class AdminWalletsControllerTests
             moyasarSettings: null,
             settlementProcessingSettingsService: settlementSettings.Object);
 
-        await act.Should().ThrowAsync<BusinessRuleException>()
-            .WithMessage("*manual confirmation endpoint*");
-        context.Payouts.Should().BeEmpty();
-        withdrawal.Status.Should().Be(DriverWithdrawalStatus.Pending);
+        var ok = result.Result.Should().BeOfType<OkObjectResult>().Subject;
+        var response = ok.Value.Should().BeOfType<AdminProcessWithdrawalResultDto>().Subject;
+
+        withdrawal.Status.Should().Be(DriverWithdrawalStatus.Processing);
+        withdrawal.PayoutId.Should().NotBeNull();
+        response.PayoutId.Should().Be(withdrawal.PayoutId);
+        response.PayoutStatus.Should().Be(PayoutStatus.Pending.ToString());
+        response.ManualWorkflowRequired.Should().BeTrue();
+        response.ManualClaimEndpoint.Should().Be($"/api/admin/payouts/{withdrawal.PayoutId}/manual-claim");
+        response.ManualBankSubmissionEndpoint.Should().Be($"/api/admin/payouts/{withdrawal.PayoutId}/manual-bank-submission");
+        response.ManualConfirmationEndpoint.Should().Be($"/api/admin/payouts/{withdrawal.PayoutId}/confirm-manual");
+        response.TransferReference.Should().BeNull();
+        context.Settlements.Should().ContainSingle(item =>
+            item.DriverId == driver.Id &&
+            item.Status == SettlementStatus.Approved &&
+            item.NetAmount == withdrawal.Amount);
+        context.Payouts.Should().ContainSingle(item =>
+            item.Id == withdrawal.PayoutId &&
+            item.Status == PayoutStatus.Pending &&
+            item.Settlement.Status == SettlementStatus.Approved);
+        context.WalletHolds.Should().ContainSingle(item =>
+            item.ReferenceId == withdrawal.Id &&
+            item.Status == WalletHoldStatus.Active &&
+            item.Amount == withdrawal.Amount);
+    }
+
+    [Fact]
+    public async Task ProcessWithdrawal_ManualPreparation_IsIdempotent_WhenPayoutIsAlreadyLinked()
+    {
+        await using var context = TestDbContextFactory.Create();
+        var controller = new AdminWalletsController();
+        var driver = CreateApprovedDriver();
+        driver.UpdatePayoutDay((PayoutScheduleDay)SaudiTime.Today.DayOfWeek);
+        var wallet = new Wallet(WalletOwnerType.Driver, driver.Id);
+        wallet.Credit(100m);
+        var payoutMethod = new DriverPayoutMethod(
+            driver.Id,
+            DriverPayoutMethodType.BankAccount,
+            "Driver Name",
+            "SA1234567890123456789012",
+            "Bank",
+            true);
+        var withdrawal = new DriverWithdrawalRequest(driver.Id, wallet.Id, payoutMethod.Id, 40m);
+        var settlementSettings = new Mock<ISettlementProcessingSettingsService>();
+        settlementSettings
+            .Setup(service => service.IsAutomaticAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(false);
+        settlementSettings
+            .Setup(service => service.GetEnabledPayoutDaysAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync([(PayoutScheduleDay)SaudiTime.Today.DayOfWeek]);
+
+        context.Drivers.Add(driver);
+        context.Wallets.Add(wallet);
+        context.DriverPayoutMethods.Add(payoutMethod);
+        context.DriverWithdrawalRequests.Add(withdrawal);
+        await context.SaveChangesAsync(CancellationToken.None);
+
+        var first = await controller.ProcessWithdrawal(
+            withdrawal.Id,
+            new AdminProcessWithdrawalRequest(true, null, null),
+            context,
+            null!,
+            null!,
+            null!,
+            Mock.Of<INotificationService>(),
+            Mock.Of<IOneSignalPushService>(),
+            CancellationToken.None,
+            payoutOrchestrator: null,
+            moyasarSettings: null,
+            settlementProcessingSettingsService: settlementSettings.Object);
+        var second = await controller.ProcessWithdrawal(
+            withdrawal.Id,
+            new AdminProcessWithdrawalRequest(true, "ignored-manual-reference", null),
+            context,
+            null!,
+            null!,
+            null!,
+            Mock.Of<INotificationService>(),
+            Mock.Of<IOneSignalPushService>(),
+            CancellationToken.None,
+            payoutOrchestrator: null,
+            moyasarSettings: null,
+            settlementProcessingSettingsService: settlementSettings.Object);
+
+        var firstResponse = ((OkObjectResult)first.Result!).Value.Should()
+            .BeOfType<AdminProcessWithdrawalResultDto>().Subject;
+        var secondResponse = ((OkObjectResult)second.Result!).Value.Should()
+            .BeOfType<AdminProcessWithdrawalResultDto>().Subject;
+
+        firstResponse.PayoutId.Should().NotBeNull();
+        secondResponse.PayoutId.Should().Be(firstResponse.PayoutId);
+        context.Settlements.Should().HaveCount(1);
+        context.Payouts.Should().HaveCount(1);
+        context.WalletHolds.Should().ContainSingle(item =>
+            item.ReferenceId == withdrawal.Id && item.Status == WalletHoldStatus.Active);
+        withdrawal.TransferReference.Should().BeNull("manual confirmation owns the bank reference");
+    }
+
+    [Fact]
+    public async Task ProcessWithdrawal_RejectPreparedManualPayout_CancelsTheLinkedPayoutAndHold()
+    {
+        await using var context = TestDbContextFactory.Create();
+        var controller = new AdminWalletsController();
+        var driver = CreateApprovedDriver();
+        driver.UpdatePayoutDay((PayoutScheduleDay)SaudiTime.Today.DayOfWeek);
+        var wallet = new Wallet(WalletOwnerType.Driver, driver.Id);
+        wallet.Credit(100m);
+        var payoutMethod = new DriverPayoutMethod(
+            driver.Id,
+            DriverPayoutMethodType.BankAccount,
+            "Driver Name",
+            "SA1234567890123456789012",
+            "Bank",
+            true);
+        var withdrawal = new DriverWithdrawalRequest(driver.Id, wallet.Id, payoutMethod.Id, 40m);
+        var settlementSettings = new Mock<ISettlementProcessingSettingsService>();
+        settlementSettings
+            .Setup(service => service.IsAutomaticAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(false);
+        settlementSettings
+            .Setup(service => service.GetEnabledPayoutDaysAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync([(PayoutScheduleDay)SaudiTime.Today.DayOfWeek]);
+
+        context.Drivers.Add(driver);
+        context.Wallets.Add(wallet);
+        context.DriverPayoutMethods.Add(payoutMethod);
+        context.DriverWithdrawalRequests.Add(withdrawal);
+        await context.SaveChangesAsync(CancellationToken.None);
+
+        await controller.ProcessWithdrawal(
+            withdrawal.Id,
+            new AdminProcessWithdrawalRequest(true, null, null),
+            context,
+            null!,
+            null!,
+            null!,
+            Mock.Of<INotificationService>(),
+            Mock.Of<IOneSignalPushService>(),
+            CancellationToken.None,
+            payoutOrchestrator: null,
+            moyasarSettings: null,
+            settlementProcessingSettingsService: settlementSettings.Object);
+
+        var result = await controller.ProcessWithdrawal(
+            withdrawal.Id,
+            new AdminProcessWithdrawalRequest(false, null, "Rejected before bank submission"),
+            context,
+            null!,
+            null!,
+            null!,
+            Mock.Of<INotificationService>(),
+            Mock.Of<IOneSignalPushService>(),
+            CancellationToken.None,
+            payoutOrchestrator: CreatePayoutOrchestrator(context, [], settlementSettings.Object),
+            moyasarSettings: null,
+            settlementProcessingSettingsService: settlementSettings.Object);
+
+        var response = ((OkObjectResult)result.Result!).Value.Should()
+            .BeOfType<AdminProcessWithdrawalResultDto>().Subject;
+
+        withdrawal.Status.Should().Be(DriverWithdrawalStatus.Cancelled);
+        context.Payouts.Should().ContainSingle(item => item.Status == PayoutStatus.Cancelled);
+        context.Settlements.Should().ContainSingle(item => item.Status == SettlementStatus.OnHold);
+        context.WalletHolds.Should().ContainSingle(item =>
+            item.ReferenceId == withdrawal.Id && item.Status == WalletHoldStatus.Cancelled);
+        response.WithdrawalStatus.Should().Be(DriverWithdrawalStatus.Cancelled.ToString());
+        response.PayoutStatus.Should().Be(PayoutStatus.Cancelled.ToString());
     }
 
     [Fact]
@@ -367,6 +546,60 @@ public class AdminWalletsControllerTests
     }
 
     [Fact]
+    public async Task ProcessWithdrawal_AutomaticModeWithoutGateway_DoesNotUseTransferReferenceAsPayment()
+    {
+        await using var context = TestDbContextFactory.Create();
+        var controller = new AdminWalletsController();
+        var driver = CreateApprovedDriver();
+        driver.UpdatePayoutDay((PayoutScheduleDay)SaudiTime.Today.DayOfWeek);
+        var wallet = new Wallet(WalletOwnerType.Driver, driver.Id);
+        wallet.Credit(100m);
+        var payoutMethod = new DriverPayoutMethod(
+            driver.Id,
+            DriverPayoutMethodType.BankAccount,
+            "Driver Name",
+            "SA1234567890123456789012",
+            "Bank",
+            true);
+        var withdrawal = new DriverWithdrawalRequest(driver.Id, wallet.Id, payoutMethod.Id, 40m);
+        var settlementSettings = new Mock<ISettlementProcessingSettingsService>();
+        settlementSettings
+            .Setup(service => service.IsAutomaticAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true);
+        settlementSettings
+            .Setup(service => service.GetEnabledPayoutDaysAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync([(PayoutScheduleDay)SaudiTime.Today.DayOfWeek]);
+
+        context.Drivers.Add(driver);
+        context.Wallets.Add(wallet);
+        context.DriverPayoutMethods.Add(payoutMethod);
+        context.DriverWithdrawalRequests.Add(withdrawal);
+        await context.SaveChangesAsync(CancellationToken.None);
+
+        var act = () => controller.ProcessWithdrawal(
+            withdrawal.Id,
+            new AdminProcessWithdrawalRequest(true, "bank-reference-must-not-pay", null),
+            context,
+            null!,
+            null!,
+            null!,
+            Mock.Of<INotificationService>(),
+            Mock.Of<IOneSignalPushService>(),
+            CancellationToken.None,
+            payoutOrchestrator: CreatePayoutOrchestrator(context, [], settlementSettings.Object),
+            moyasarSettings: null,
+            settlementProcessingSettingsService: settlementSettings.Object);
+
+        await act.Should().ThrowAsync<BusinessRuleException>()
+            .Where(error => error.ErrorCode == "PAYOUT_GATEWAY_UNAVAILABLE");
+
+        withdrawal.Status.Should().Be(DriverWithdrawalStatus.Pending);
+        withdrawal.TransferReference.Should().BeNull();
+        context.Settlements.Should().BeEmpty();
+        context.Payouts.Should().BeEmpty();
+    }
+
+    [Fact]
     public async Task ProcessWithdrawal_AddsReleaseTransaction_WhenRejected()
     {
         await using var context = TestDbContextFactory.Create();
@@ -407,10 +640,35 @@ public class AdminWalletsControllerTests
             oneSignalPushService,
             CancellationToken.None);
 
-        result.Should().BeOfType<NoContentResult>();
+        var ok = result.Result.Should().BeOfType<OkObjectResult>().Subject;
+        var response = ok.Value.Should().BeOfType<AdminProcessWithdrawalResultDto>().Subject;
 
         withdrawal.Status.Should().Be(DriverWithdrawalStatus.Failed);
         withdrawal.FailureReason.Should().Be("Rejected");
+        response.WithdrawalStatus.Should().Be(DriverWithdrawalStatus.Failed.ToString());
+        response.PayoutId.Should().BeNull();
+    }
+
+    private static PayoutOrchestrator CreatePayoutOrchestrator(
+        IApplicationDbContext context,
+        IEnumerable<IPayoutGateway> gateways,
+        ISettlementProcessingSettingsService settings)
+    {
+        return new PayoutOrchestrator(
+            context,
+            gateways,
+            new FinancialEventPostingService(
+                context,
+                NullLogger<FinancialEventPostingService>.Instance),
+            new WalletProjectionUpdater(context),
+            new VendorPayoutWalletService(
+                context,
+                NullLogger<VendorPayoutWalletService>.Instance),
+            Options.Create(new FinancialSettingsOptions()),
+            Mock.Of<IAdminAlertService>(),
+            Mock.Of<INotificationService>(),
+            Mock.Of<IOneSignalPushService>(),
+            settings);
     }
 
     private static Driver CreateApprovedDriver()

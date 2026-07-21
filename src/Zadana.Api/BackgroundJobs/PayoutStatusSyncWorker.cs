@@ -52,12 +52,13 @@ public sealed class PayoutStatusSyncWorker : BackgroundService
         var payoutOrchestrator = scope.ServiceProvider.GetRequiredService<PayoutOrchestrator>();
         var adminAlertService = scope.ServiceProvider.GetRequiredService<IAdminAlertService>();
 
-        if (!payoutOrchestrator.HasEnabledGateway)
-        {
-            return;
-        }
-
-        if (await payoutOrchestrator.IsAutomaticProcessingEnabledAsync(cancellationToken))
+        // A disabled gateway must stop *new* automatic submissions, but it
+        // must not make transfers that were already submitted disappear from
+        // the operational queue.  We still refresh when the provider is
+        // available and, in every case, keep stale transfers visible through
+        // the review alerts below.
+        if (payoutOrchestrator.HasEnabledGateway &&
+            await payoutOrchestrator.IsAutomaticProcessingEnabledAsync(cancellationToken))
         {
             var pendingPayoutIds = await context.Payouts
                 .AsNoTracking()
@@ -178,6 +179,60 @@ public sealed class PayoutStatusSyncWorker : BackgroundService
                         payout.ProviderTransferId,
                         payout.ProviderSequenceNumber,
                         payout.TriggeredAtUtc
+                    }),
+                cancellationToken);
+        }
+
+        // A manual bank submission is deliberately non-cancellable. Surface a
+        // durable reminder if it remains unconfirmed for a full day so an
+        // omitted proof, a failed transfer, or a missing bank statement is
+        // handled through reconciliation rather than silently remaining in a
+        // processing state forever.
+        var manualConfirmationCutoff = DateTime.UtcNow.AddHours(-24);
+        var submittedManualPayouts = await context.PayoutExecutionReservations
+            .AsNoTracking()
+            .Where(item =>
+                item.Mode == PayoutExecutionMode.Manual &&
+                item.Status == PayoutExecutionReservationStatus.Submitted &&
+                item.SubmittedAtUtc != null &&
+                item.SubmittedAtUtc <= manualConfirmationCutoff)
+            .Join(
+                context.Payouts.AsNoTracking(),
+                reservation => reservation.PayoutId,
+                payout => payout.Id,
+                (reservation, payout) => new
+                {
+                    payout.Id,
+                    payout.SettlementId,
+                    payout.Amount,
+                    reservation.SubmittedAtUtc,
+                    reservation.SubmissionReference
+                })
+            .OrderBy(item => item.SubmittedAtUtc)
+            .Take(50)
+            .ToListAsync(cancellationToken);
+
+        foreach (var payout in submittedManualPayouts)
+        {
+            await adminAlertService.SendAsync(
+                new AdminAlertRequest(
+                    AdminAlertTypes.PayoutRequiresReview,
+                    AdminAlertCategories.Settlements,
+                    AdminAlertPriorities.High,
+                    "Manual payout needs reconciliation",
+                    "Manual payout needs reconciliation",
+                    $"Manual bank transfer for payout {payout.Id} was submitted more than 24 hours ago and still needs proof and confirmation.",
+                    $"Manual bank transfer for payout {payout.Id} was submitted more than 24 hours ago and still needs proof and confirmation.",
+                    payout.Id,
+                    "/finances/settlements",
+                    new
+                    {
+                        payout.Id,
+                        payout.SettlementId,
+                        payout.Amount,
+                        payout.SubmittedAtUtc,
+                        payout.SubmissionReference,
+                        workflow = "manual-bank-submission-awaiting-confirmation"
                     }),
                 cancellationToken);
         }

@@ -19,6 +19,7 @@ using Zadana.Application.Modules.Vendors.Commands.SubmitVendorReview;
 using Zadana.Application.Modules.Vendors.Commands.UpdateVendorProfile;
 using Zadana.Application.Modules.Vendors.Commands.UpdateVendorPayoutPreference;
 using Zadana.Application.Modules.Vendors.Commands.UpdateVendorStore;
+using Zadana.Application.Modules.Finances.Services;
 using Zadana.Application.Modules.Vendors.Queries.GetVendorProfile;
 
 namespace Zadana.Api.Modules.Vendors.Controllers;
@@ -215,10 +216,18 @@ public class VendorsController : ApiControllerBase
 
     [HttpGet("profile/payout-preference")]
     [Authorize(Policy = "VendorOnly")]
-    public async Task<IActionResult> GetPayoutPreference()
+    public async Task<IActionResult> GetPayoutPreference(
+        [FromServices] ISettlementProcessingSettingsService settlementProcessingSettingsService,
+        CancellationToken cancellationToken)
     {
         var result = await Sender.Send(new GetVendorProfileQuery());
-        return Ok(new { PayoutDay = result.PayoutDay });
+        var availablePayoutDays = await settlementProcessingSettingsService
+            .GetEnabledPayoutDaysAsync(cancellationToken);
+        return Ok(new
+        {
+            PayoutDay = result.PayoutDay,
+            AvailablePayoutDays = availablePayoutDays.Select(day => day.ToString()).ToArray()
+        });
     }
 
     [HttpPut("profile/payout-preference")]

@@ -36,4 +36,9 @@ public enum FinancialEventType
     WalletHoldCreated = 200,
     WalletHoldReleased = 201,
     WalletHoldConsumed = 202,
+
+    // Returned bank payouts. These post the exact opposite of the original
+    // payout journal and keep the original payout entry immutable.
+    VendorPayoutReversed = 210,
+    DriverPayoutReversed = 211,
 }

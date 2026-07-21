@@ -155,6 +155,11 @@ public class ApplicationDbContext : IdentityDbContext<User, IdentityRole<Guid>, 
     public DbSet<Payout> Payouts => Set<Payout>();
     public DbSet<PayoutAttempt> PayoutAttempts => Set<PayoutAttempt>();
     public DbSet<PayoutManualConfirmation> PayoutManualConfirmations => Set<PayoutManualConfirmation>();
+    public DbSet<PayoutExecutionReservation> PayoutExecutionReservations => Set<PayoutExecutionReservation>();
+    public DbSet<PayoutReversal> PayoutReversals => Set<PayoutReversal>();
+    public DbSet<PayoutProofAttachment> PayoutProofAttachments => Set<PayoutProofAttachment>();
+    public DbSet<PayoutBankStatementImport> PayoutBankStatementImports => Set<PayoutBankStatementImport>();
+    public DbSet<PayoutBankStatementEntry> PayoutBankStatementEntries => Set<PayoutBankStatementEntry>();
     public DbSet<SettlementProcessingSettings> SettlementProcessingSettings => Set<SettlementProcessingSettings>();
     public DbSet<SettlementProcessingModeAudit> SettlementProcessingModeAudits => Set<SettlementProcessingModeAudit>();
     public DbSet<VendorRecovery> VendorRecoveries => Set<VendorRecovery>();
@@ -256,6 +261,13 @@ public class ApplicationDbContext : IdentityDbContext<User, IdentityRole<Guid>, 
                 .Property(a => a.IBAN).HasConversion(converter);
             modelBuilder.Entity<VendorBankAccount>()
                 .Property(a => a.AccountHolderName).HasConversion(converter);
+
+            // A payout destination is an immutable audit record containing the
+            // beneficiary account identifier captured at preparation time.
+            // It is never returned as raw JSON and must be encrypted just like
+            // the live bank-account fields.
+            modelBuilder.Entity<Payout>()
+                .Property(p => p.DestinationSnapshot).HasConversion(converter);
 
             modelBuilder.Entity<AccessApprovalRequest>()
                 .Property(a => a.PayloadJson).HasConversion(converter);

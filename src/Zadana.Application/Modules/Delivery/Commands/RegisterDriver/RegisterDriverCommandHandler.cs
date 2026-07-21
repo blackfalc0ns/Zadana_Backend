@@ -7,9 +7,11 @@ using Zadana.Application.Modules.Delivery.Interfaces;
 using Zadana.Application.Modules.Geography.Support;
 using Zadana.Application.Modules.Identity.DTOs;
 using Zadana.Application.Modules.Identity.Interfaces;
+using Zadana.Application.Modules.Finances.Services;
 using Zadana.Domain.Modules.Identity.Entities;
 using Zadana.Domain.Modules.Identity.Enums;
 using Zadana.Domain.Modules.Delivery.Entities;
+using Zadana.Domain.Modules.Wallets.Enums;
 using Zadana.SharedKernel.Exceptions;
 
 namespace Zadana.Application.Modules.Delivery.Commands.RegisterDriver;
@@ -23,6 +25,7 @@ public class RegisterDriverCommandHandler : IRequestHandler<RegisterDriverComman
     private readonly IApplicationDbContext _context;
     private readonly IAdminAlertService _adminAlertService;
     private readonly ILogger<RegisterDriverCommandHandler> _logger;
+    private readonly ISettlementProcessingSettingsService? _settlementProcessingSettingsService;
 
     public RegisterDriverCommandHandler(
         IRegistrationWorkflow registrationWorkflow,
@@ -31,7 +34,8 @@ public class RegisterDriverCommandHandler : IRequestHandler<RegisterDriverComman
         IUnitOfWork unitOfWork,
         IApplicationDbContext context,
         IAdminAlertService adminAlertService,
-        ILogger<RegisterDriverCommandHandler> logger)
+        ILogger<RegisterDriverCommandHandler> logger,
+        ISettlementProcessingSettingsService? settlementProcessingSettingsService = null)
     {
         _registrationWorkflow = registrationWorkflow;
         _identityAccountService = identityAccountService;
@@ -40,6 +44,7 @@ public class RegisterDriverCommandHandler : IRequestHandler<RegisterDriverComman
         _context = context;
         _adminAlertService = adminAlertService;
         _logger = logger;
+        _settlementProcessingSettingsService = settlementProcessingSettingsService;
     }
 
     public async Task<AuthResponseDto> Handle(RegisterDriverCommand request, CancellationToken cancellationToken)
@@ -85,6 +90,15 @@ public class RegisterDriverCommandHandler : IRequestHandler<RegisterDriverComman
                     request.PersonalPhotoUrl,
                     request.Region,
                     request.City);
+
+                if (_settlementProcessingSettingsService is not null)
+                {
+                    driver.UpdatePayoutDay(
+                        await _settlementProcessingSettingsService.ResolveConfiguredPayoutDayAsync(
+                            requestedPayoutDay: null,
+                            fallback: PayoutScheduleDay.Monday,
+                            cancellationToken: cancellationToken));
+                }
 
                 _driverRepository.Add(driver);
                 await _unitOfWork.SaveChangesAsync(cancellationToken);

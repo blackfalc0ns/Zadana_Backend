@@ -190,7 +190,7 @@ public record AdminCreateVendorSettlementRequest(
     decimal CommissionAmount,
     decimal NetAmount);
 
-public record AdminCompleteVendorPayoutRequest(string? TransferReference, string? ProofUrl);
+public record AdminCompleteVendorPayoutRequest(string? TransferReference, Guid? ProofAttachmentId);
 
 public record AdminUpdateVendorFinanceSettingsRequest(
     string FinancialLifecycleMode,

@@ -4,6 +4,7 @@ using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Modules.Geography.Support;
 using Zadana.Application.Modules.Identity.DTOs;
 using Zadana.Application.Modules.Identity.Interfaces;
+using Zadana.Application.Modules.Finances.Services;
 using Zadana.Application.Modules.Vendors.Interfaces;
 using Zadana.Domain.Modules.Identity.Enums;
 using Zadana.Domain.Modules.Wallets.Enums;
@@ -19,6 +20,7 @@ public class RegisterVendorCommandHandler : IRequestHandler<RegisterVendorComman
     private readonly IAdminAlertService _adminAlertService;
     private readonly IApplicationDbContext _context;
     private readonly ILogger<RegisterVendorCommandHandler> _logger;
+    private readonly ISettlementProcessingSettingsService _settlementProcessingSettingsService;
 
     public RegisterVendorCommandHandler(
         IRegistrationWorkflow registrationWorkflow,
@@ -26,7 +28,8 @@ public class RegisterVendorCommandHandler : IRequestHandler<RegisterVendorComman
         IUnitOfWork unitOfWork,
         IAdminAlertService adminAlertService,
         IApplicationDbContext context,
-        ILogger<RegisterVendorCommandHandler> logger)
+        ILogger<RegisterVendorCommandHandler> logger,
+        ISettlementProcessingSettingsService settlementProcessingSettingsService)
     {
         _registrationWorkflow = registrationWorkflow;
         _vendorRepository = vendorRepository;
@@ -34,6 +37,7 @@ public class RegisterVendorCommandHandler : IRequestHandler<RegisterVendorComman
         _adminAlertService = adminAlertService;
         _context = context;
         _logger = logger;
+        _settlementProcessingSettingsService = settlementProcessingSettingsService;
     }
 
     public async Task<AuthResponseDto> Handle(RegisterVendorCommand request, CancellationToken cancellationToken)
@@ -58,6 +62,10 @@ public class RegisterVendorCommandHandler : IRequestHandler<RegisterVendorComman
 
         try
         {
+            var payoutDay = await _settlementProcessingSettingsService.ResolveConfiguredPayoutDayAsync(
+                request.PayoutDay,
+                PayoutScheduleDay.Monday,
+                cancellationToken);
             vendor = new Vendor(
                 user.Id,
                 request.BusinessNameAr,
@@ -84,7 +92,7 @@ public class RegisterVendorCommandHandler : IRequestHandler<RegisterVendorComman
                 request.CommercialRegisterDocumentUrl,
                 request.TaxDocumentUrl,
                 request.LicenseDocumentUrl,
-                PayoutScheduleDayPolicy.ParseOrDefault(request.PayoutDay));
+                payoutDay);
 
             _vendorRepository.Add(vendor);
 

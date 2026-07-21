@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Localization;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Common.Localization;
+using Zadana.Application.Modules.Finances.Services;
 using Zadana.Application.Modules.Vendors.DTOs;
 using Zadana.Application.Modules.Vendors.Interfaces;
 using Zadana.Domain.Modules.Vendors.Enums;
@@ -55,15 +56,18 @@ public class AdminUpdateVendorFinanceSettingsCommandHandler : IRequestHandler<Ad
     private readonly IApplicationDbContext _context;
     private readonly IVendorReadService _vendorReadService;
     private readonly IVendorCommunicationService _vendorCommunicationService;
+    private readonly ISettlementProcessingSettingsService _settlementProcessingSettingsService;
 
     public AdminUpdateVendorFinanceSettingsCommandHandler(
         IApplicationDbContext context,
         IVendorReadService vendorReadService,
-        IVendorCommunicationService vendorCommunicationService)
+        IVendorCommunicationService vendorCommunicationService,
+        ISettlementProcessingSettingsService settlementProcessingSettingsService)
     {
         _context = context;
         _vendorReadService = vendorReadService;
         _vendorCommunicationService = vendorCommunicationService;
+        _settlementProcessingSettingsService = settlementProcessingSettingsService;
     }
 
     public async Task<VendorDetailDto> Handle(AdminUpdateVendorFinanceSettingsCommand request, CancellationToken cancellationToken)
@@ -82,10 +86,15 @@ public class AdminUpdateVendorFinanceSettingsCommandHandler : IRequestHandler<Ad
                 "Per-order direct payout is not available. Choose a scheduled payout cycle.");
         }
 
+        var payoutDay = await _settlementProcessingSettingsService.ResolveConfiguredPayoutDayAsync(
+            request.PayoutDay,
+            vendor.PayoutDay,
+            cancellationToken);
+
         vendor.UpdateFinanceSettings(
             mode,
             request.PayoutCycle,
-            PayoutScheduleDayPolicy.ParseOrDefault(request.PayoutDay, vendor.PayoutDay));
+            payoutDay);
         await _context.SaveChangesAsync(cancellationToken);
 
         await _vendorCommunicationService.SendAsync(

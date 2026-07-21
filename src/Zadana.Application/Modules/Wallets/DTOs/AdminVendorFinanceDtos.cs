@@ -40,6 +40,7 @@ public record AdminVendorPayoutDto(
 public record AdminVendorManualPayoutConfirmationDto(
     Guid Id,
     string TransferReference,
-    string ProofUrl,
+    Guid? ProofAttachmentId,
+    bool HasLegacyProof,
     Guid ConfirmedByUserId,
     DateTime ConfirmedAtUtc);

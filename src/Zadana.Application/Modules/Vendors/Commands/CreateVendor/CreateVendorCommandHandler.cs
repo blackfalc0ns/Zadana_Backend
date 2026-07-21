@@ -1,8 +1,10 @@
 using MediatR;
 using Zadana.Application.Common.Interfaces;
+using Zadana.Application.Modules.Finances.Services;
 using Zadana.Application.Modules.Identity.Interfaces;
 using Zadana.Application.Modules.Vendors.Interfaces;
 using Zadana.Domain.Modules.Vendors.Entities;
+using Zadana.Domain.Modules.Wallets.Enums;
 using Zadana.SharedKernel.Exceptions;
 
 namespace Zadana.Application.Modules.Vendors.Commands.CreateVendor;
@@ -13,17 +15,20 @@ public class CreateVendorCommandHandler : IRequestHandler<CreateVendorCommand, G
     private readonly IUnitOfWork _unitOfWork;
     private readonly IIdentityAccountService _identityAccountService;
     private readonly IAdminAlertService _adminAlertService;
+    private readonly ISettlementProcessingSettingsService _settlementProcessingSettingsService;
 
     public CreateVendorCommandHandler(
         IVendorRepository vendorRepository,
         IUnitOfWork unitOfWork,
         IIdentityAccountService identityAccountService,
-        IAdminAlertService adminAlertService)
+        IAdminAlertService adminAlertService,
+        ISettlementProcessingSettingsService settlementProcessingSettingsService)
     {
         _vendorRepository = vendorRepository;
         _unitOfWork = unitOfWork;
         _identityAccountService = identityAccountService;
         _adminAlertService = adminAlertService;
+        _settlementProcessingSettingsService = settlementProcessingSettingsService;
     }
 
     public async Task<Guid> Handle(CreateVendorCommand request, CancellationToken cancellationToken)
@@ -38,6 +43,10 @@ public class CreateVendorCommandHandler : IRequestHandler<CreateVendorCommand, G
         // 2. Map properties to the Domain Entity
         // Note: The Domain Entity expects BusinessNameAr and BusinessNameEn, while the command
         // provides LegalName and DisplayName. For demo purposes we map them respectively.
+        var payoutDay = await _settlementProcessingSettingsService.ResolveConfiguredPayoutDayAsync(
+            requestedPayoutDay: null,
+            fallback: PayoutScheduleDay.Monday,
+            cancellationToken: cancellationToken);
         var vendor = new Vendor(
             userId: request.OwnerUserId,
             businessNameAr: request.LegalName,
@@ -46,7 +55,8 @@ public class CreateVendorCommandHandler : IRequestHandler<CreateVendorCommand, G
             commercialRegistrationNumber: request.CommercialRegister ?? string.Empty,
             contactEmail: request.SupportEmail ?? string.Empty,
             contactPhone: request.SupportPhone ?? string.Empty,
-            taxId: request.TaxNumber);
+            taxId: request.TaxNumber,
+            payoutDay: payoutDay);
 
         // 3. Save to database
         _vendorRepository.Add(vendor);

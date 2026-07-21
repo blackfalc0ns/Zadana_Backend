@@ -14,7 +14,7 @@ public record CompleteVendorPayoutCommand(
     Guid VendorId,
     Guid PayoutId,
     string? TransferReference,
-    string? ProofUrl) : IRequest<Guid>;
+    Guid? ProofAttachmentId) : IRequest<Guid>;
 
 public class CompleteVendorPayoutCommandValidator : AbstractValidator<CompleteVendorPayoutCommand>
 {
@@ -26,21 +26,12 @@ public class CompleteVendorPayoutCommandValidator : AbstractValidator<CompleteVe
             .NotEmpty().WithMessage(x => localizer["RequiredField"])
             .MaximumLength(200)
             .WithMessage(x => localizer["MaxLength"]);
-        RuleFor(x => x.ProofUrl)
-            .NotEmpty().WithMessage(x => localizer["RequiredField"])
-            .MaximumLength(2000)
-            .WithMessage(x => localizer["MaxLength"]);
-
-        RuleFor(x => x.ProofUrl)
-            .Must(BeAbsoluteHttpUrl)
-            .When(x => !string.IsNullOrWhiteSpace(x.ProofUrl), ApplyConditionTo.CurrentValidator)
-            .WithMessage("Proof URL must be an absolute HTTP(S) URL.")
-            .WithErrorCode("PAYOUT_PROOF_URL_INVALID");
+        RuleFor(x => x.ProofAttachmentId)
+            .NotNull().WithMessage(x => localizer["RequiredField"])
+            .Must(value => value.HasValue && value.Value != Guid.Empty)
+            .WithErrorCode("PAYOUT_PROOF_REQUIRED")
+            .WithMessage("A protected payout proof attachment is required.");
     }
-
-    private static bool BeAbsoluteHttpUrl(string? value) =>
-        Uri.TryCreate(value?.Trim(), UriKind.Absolute, out var proofUri) &&
-        (proofUri.Scheme == Uri.UriSchemeHttp || proofUri.Scheme == Uri.UriSchemeHttps);
 }
 
 public class CompleteVendorPayoutCommandHandler : IRequestHandler<CompleteVendorPayoutCommand, Guid>
@@ -82,15 +73,9 @@ public class CompleteVendorPayoutCommandHandler : IRequestHandler<CompleteVendor
             throw new BusinessRuleException("TRANSFER_REFERENCE_REQUIRED", "Transfer reference is required for manual vendor payout completion.");
         }
 
-        if (string.IsNullOrWhiteSpace(request.ProofUrl))
+        if (!request.ProofAttachmentId.HasValue || request.ProofAttachmentId.Value == Guid.Empty)
         {
             throw new BusinessRuleException("PAYOUT_PROOF_REQUIRED", "Transfer proof is required for manual vendor payout completion.");
-        }
-
-        if (!Uri.TryCreate(request.ProofUrl.Trim(), UriKind.Absolute, out var proofUri) ||
-            (proofUri.Scheme != Uri.UriSchemeHttp && proofUri.Scheme != Uri.UriSchemeHttps))
-        {
-            throw new BusinessRuleException("PAYOUT_PROOF_URL_INVALID", "Proof URL must be an absolute HTTP(S) URL.");
         }
 
         var confirmedByUserId = _currentUserService.UserId
@@ -104,7 +89,7 @@ public class CompleteVendorPayoutCommandHandler : IRequestHandler<CompleteVendor
         await _payoutOrchestrator.ConfirmManualAsync(
             payout.Id,
             request.TransferReference.Trim(),
-            request.ProofUrl.Trim(),
+            request.ProofAttachmentId.Value,
             confirmedByUserId,
             cancellationToken: cancellationToken);
 

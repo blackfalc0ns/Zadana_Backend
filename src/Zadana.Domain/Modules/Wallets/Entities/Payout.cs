@@ -11,6 +11,12 @@ public class Payout : BaseEntity
     public Guid? VendorBankAccountId { get; private set; }
     public PayoutDestinationType DestinationType { get; private set; }
     public string? DestinationSnapshot { get; private set; }
+    /// <summary>
+    /// The beneficiary's chosen day captured when this payout is prepared.
+    /// Later preference changes only affect new payouts, never one that finance
+    /// has already reviewed or claimed.
+    /// </summary>
+    public PayoutScheduleDay? ScheduledPayoutDay { get; private set; }
     public decimal Amount { get; private set; }
     public PayoutStatus Status { get; private set; }
     public string ProviderName { get; private set; } = "Manual";
@@ -22,12 +28,16 @@ public class Payout : BaseEntity
     public DateTime? TriggeredAtUtc { get; private set; }
     public DateTime? CompletedAtUtc { get; private set; }
     public DateTime? ProcessedAtUtc { get; private set; }
+    public byte[] RowVersion { get; private set; } = [];
 
     // Navigation
     public Settlement Settlement { get; private set; } = null!;
     public VendorBankAccount? VendorBankAccount { get; private set; }
     public ICollection<PayoutAttempt> Attempts { get; private set; } = [];
     public PayoutManualConfirmation? ManualConfirmation { get; private set; }
+    public PayoutExecutionReservation? ExecutionReservation { get; private set; }
+    public PayoutReversal? Reversal { get; private set; }
+    public ICollection<PayoutProofAttachment> ProofAttachments { get; private set; } = [];
 
     private Payout() { }
 
@@ -47,6 +57,18 @@ public class Payout : BaseEntity
     {
         DestinationType = destinationType;
         DestinationSnapshot = string.IsNullOrWhiteSpace(destinationSnapshot) ? null : destinationSnapshot.Trim();
+    }
+
+    public void SetScheduledPayoutDay(PayoutScheduleDay payoutDay)
+    {
+        if (Status is PayoutStatus.Paid or PayoutStatus.Reversed or PayoutStatus.Cancelled)
+        {
+            throw new BusinessRuleException(
+                "PAYOUT_ALREADY_CLOSED",
+                "The scheduled payout day cannot be changed for a closed payout.");
+        }
+
+        ScheduledPayoutDay = PayoutScheduleDayPolicy.EnsureAllowed(payoutDay);
     }
 
     public void MarkQueued(
@@ -83,6 +105,11 @@ public class Payout : BaseEntity
         string? providerName = null,
         string? providerSequenceNumber = null)
     {
+        if (Status == PayoutStatus.Reversed)
+        {
+            throw new BusinessRuleException("PAYOUT_ALREADY_REVERSED", "A reversed payout cannot be marked as paid again.");
+        }
+
         Status = PayoutStatus.Paid;
         ProviderName = string.IsNullOrWhiteSpace(providerName) ? ProviderName : providerName.Trim();
         ProviderTransferId = string.IsNullOrWhiteSpace(providerTransferId) ? ProviderTransferId : providerTransferId.Trim();
@@ -95,6 +122,11 @@ public class Payout : BaseEntity
 
     public void MarkAsManuallyPaid(string transferReference, Guid processedByUserId)
     {
+        if (Status == PayoutStatus.Reversed)
+        {
+            throw new BusinessRuleException("PAYOUT_ALREADY_REVERSED", "A reversed payout cannot be marked as paid again.");
+        }
+
         if (string.IsNullOrWhiteSpace(transferReference))
         {
             throw new BusinessRuleException("TRANSFER_REFERENCE_REQUIRED", "Transfer reference is required for manual payout completion.");
@@ -142,6 +174,11 @@ public class Payout : BaseEntity
         string? providerName = null,
         string? providerSequenceNumber = null)
     {
+        if (Status is PayoutStatus.Paid or PayoutStatus.Reversed)
+        {
+            throw new BusinessRuleException("PAYOUT_ALREADY_CLOSED", "A closed payout cannot be marked as failed.");
+        }
+
         Status = PayoutStatus.Failed;
         ProviderName = string.IsNullOrWhiteSpace(providerName) ? ProviderName : providerName.Trim();
         ProviderTransferId = string.IsNullOrWhiteSpace(providerTransferId) ? ProviderTransferId : providerTransferId.Trim();
@@ -152,7 +189,30 @@ public class Payout : BaseEntity
 
     public void Cancel()
     {
+        if (Status is PayoutStatus.Paid or PayoutStatus.Reversed)
+        {
+            throw new BusinessRuleException("PAYOUT_ALREADY_CLOSED", "A closed payout cannot be cancelled.");
+        }
+
+        if (Status is PayoutStatus.Queued or PayoutStatus.Processing)
+        {
+            throw new BusinessRuleException(
+                "PAYOUT_IN_FLIGHT_CANNOT_CANCEL",
+                "An in-flight payout must be reconciled with its execution channel instead of cancelled.");
+        }
+
         Status = PayoutStatus.Cancelled;
         CompletedAtUtc = DateTime.UtcNow;
+    }
+
+    public void MarkAsReversed()
+    {
+        if (Status != PayoutStatus.Paid)
+        {
+            throw new BusinessRuleException("PAYOUT_REVERSAL_INVALID_STATUS", "Only a paid payout can be reversed after funds are returned.");
+        }
+
+        Status = PayoutStatus.Reversed;
+        ProcessedAtUtc = DateTime.UtcNow;
     }
 }

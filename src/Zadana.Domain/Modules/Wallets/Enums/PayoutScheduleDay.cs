@@ -3,18 +3,32 @@ using Zadana.SharedKernel.Exceptions;
 namespace Zadana.Domain.Modules.Wallets.Enums;
 
 /// <summary>
-/// The only weekdays on which the platform processes beneficiary payouts.
+/// A beneficiary's preferred weekday for settlements. The platform-wide list
+/// of enabled days is configured separately in <c>SettlementProcessingSettings</c>.
+/// The persisted numeric values intentionally match <see cref="DayOfWeek"/>.
 /// </summary>
 public enum PayoutScheduleDay
 {
+    Sunday = (int)DayOfWeek.Sunday,
     Monday = (int)DayOfWeek.Monday,
-    Thursday = (int)DayOfWeek.Thursday
+    Tuesday = (int)DayOfWeek.Tuesday,
+    Wednesday = (int)DayOfWeek.Wednesday,
+    Thursday = (int)DayOfWeek.Thursday,
+    Friday = (int)DayOfWeek.Friday,
+    Saturday = (int)DayOfWeek.Saturday
 }
 
 public static class PayoutScheduleDayPolicy
 {
+    /// <summary>
+    /// Backwards-compatible platform defaults for deployments that have not
+    /// yet persisted the singleton processing settings row.
+    /// </summary>
+    public static readonly IReadOnlyList<PayoutScheduleDay> DefaultPayoutDays =
+        [PayoutScheduleDay.Monday, PayoutScheduleDay.Thursday];
+
     public static bool IsAllowed(PayoutScheduleDay payoutDay) =>
-        payoutDay is PayoutScheduleDay.Monday or PayoutScheduleDay.Thursday;
+        Enum.IsDefined(payoutDay);
 
     public static bool TryParse(string? value, out PayoutScheduleDay payoutDay)
     {
@@ -40,7 +54,7 @@ public static class PayoutScheduleDayPolicy
 
         throw new BusinessRuleException(
             "INVALID_PAYOUT_DAY",
-            "Payout day must be either Monday or Thursday.");
+            "Payout day must be a valid day of the week.");
     }
 
     public static PayoutScheduleDay EnsureAllowed(PayoutScheduleDay payoutDay)
@@ -49,7 +63,7 @@ public static class PayoutScheduleDayPolicy
         {
             throw new BusinessRuleException(
                 "INVALID_PAYOUT_DAY",
-                "Payout day must be either Monday or Thursday.");
+                "Payout day must be a valid day of the week.");
         }
 
         return payoutDay;
@@ -63,5 +77,52 @@ public static class PayoutScheduleDayPolicy
         EnsureAllowed(payoutDay);
         var offset = ((int)payoutDay - (int)date.DayOfWeek + 7) % 7;
         return date.Date.AddDays(offset);
+    }
+
+    public static IReadOnlyList<PayoutScheduleDay> NormalizeDays(
+        IEnumerable<PayoutScheduleDay>? payoutDays,
+        bool useDefaultWhenNull = false)
+    {
+        if (payoutDays is null)
+        {
+            return useDefaultWhenNull
+                ? DefaultPayoutDays.ToArray()
+                : [];
+        }
+
+        var normalized = payoutDays
+            .Distinct()
+            .OrderBy(day => (int)day)
+            .ToArray();
+
+        if (normalized.Any(day => !IsAllowed(day)))
+        {
+            throw new BusinessRuleException(
+                "INVALID_PAYOUT_DAY",
+                "Payout days must contain valid days of the week only.");
+        }
+
+        return normalized;
+    }
+
+    /// <summary>
+    /// Resolves a stable fallback when an administrator disables a day.
+    /// Monday remains the preferred fallback when enabled to preserve the
+    /// existing platform behaviour; otherwise the earliest enabled weekday is
+    /// selected by its <see cref="DayOfWeek"/> value.
+    /// </summary>
+    public static PayoutScheduleDay ResolveFallback(IEnumerable<PayoutScheduleDay> payoutDays)
+    {
+        var normalized = NormalizeDays(payoutDays);
+        if (normalized.Count == 0)
+        {
+            throw new BusinessRuleException(
+                "PAYOUT_DAYS_REQUIRED",
+                "At least one payout day must be enabled.");
+        }
+
+        return normalized.Contains(PayoutScheduleDay.Monday)
+            ? PayoutScheduleDay.Monday
+            : normalized[0];
     }
 }

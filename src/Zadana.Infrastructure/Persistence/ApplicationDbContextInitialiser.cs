@@ -165,6 +165,25 @@ public class ApplicationDbContextInitialiser
 
     private async Task NormalizeLegacyPerOrderVendorPayoutsAsync()
     {
+        var configuredPayoutDays = await _context.SettlementProcessingSettings
+            .AsNoTracking()
+            .Where(item => item.Id == SettlementProcessingSettings.SingletonId)
+            .Select(item => item.PayoutDays)
+            .FirstOrDefaultAsync();
+        var enabledPayoutDays = string.IsNullOrWhiteSpace(configuredPayoutDays)
+            ? PayoutScheduleDayPolicy.DefaultPayoutDays
+            : configuredPayoutDays
+                .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .Select(value => Enum.TryParse<PayoutScheduleDay>(value, true, out var payoutDay)
+                    ? (PayoutScheduleDay?)payoutDay
+                    : null)
+                .Where(value => value.HasValue && PayoutScheduleDayPolicy.IsAllowed(value.Value))
+                .Select(value => value!.Value)
+                .ToArray();
+        var fallbackPayoutDay = PayoutScheduleDayPolicy.ResolveFallback(
+            enabledPayoutDays.Count == 0
+                ? PayoutScheduleDayPolicy.DefaultPayoutDays
+                : enabledPayoutDays);
         var perOrderVendors = await _context.Vendors
             .Where(vendor => vendor.FinancialLifecycleMode == VendorFinancialLifecycleMode.PerOrderDirectPayout)
             .ToListAsync();
@@ -174,7 +193,7 @@ public class ApplicationDbContextInitialiser
             vendor.UpdateFinanceSettings(
                 VendorFinancialLifecycleMode.Weekly,
                 "weekly",
-                PayoutScheduleDay.Monday);
+                fallbackPayoutDay);
         }
     }
 

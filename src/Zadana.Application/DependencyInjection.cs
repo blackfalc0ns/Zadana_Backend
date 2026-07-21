@@ -45,6 +45,7 @@ public static class DependencyInjection
         services.AddScoped<RevenueReconciliationService>();
         services.AddScoped<ISettlementProcessingSettingsService, SettlementProcessingSettingsService>();
         services.AddScoped<PayoutOrchestrator>();
+        services.AddScoped<PayoutBankReconciliationService>();
         services.AddScoped<ICurrentVendorService, CurrentVendorService>();
         services.AddScoped<IOrderStatusNotificationDispatcher, OrderStatusNotificationDispatcher>();
         services.AddScoped<OrderInventoryWorkflowService>();

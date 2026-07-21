@@ -133,6 +133,16 @@ public class Settlement : BaseEntity
 
     public void MarkPayoutFailed() => Status = SettlementStatus.PayoutFailed;
     public void MarkAsFailed() => Status = SettlementStatus.Failed;
+    public void MarkReversed()
+    {
+        if (Status != SettlementStatus.PaidOut)
+        {
+            throw new InvalidOperationException("Only a paid-out settlement can be reversed.");
+        }
+
+        Status = SettlementStatus.Reversed;
+        ProcessedAtUtc = DateTime.UtcNow;
+    }
 
     private static SettlementResolutionType ResolveDefaultResolution(decimal netAmount) =>
         netAmount > 0 ? SettlementResolutionType.BankPayout : SettlementResolutionType.NoTransferRequired;

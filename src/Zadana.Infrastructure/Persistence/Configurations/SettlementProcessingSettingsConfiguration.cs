@@ -19,7 +19,20 @@ public sealed class SettlementProcessingSettingsConfiguration : IEntityTypeConfi
             .HasDefaultValue(SettlementProcessingMode.Automatic)
             .IsRequired();
 
+        builder.Property(item => item.PayoutDays)
+            .HasMaxLength(200)
+            .HasDefaultValue("Monday,Thursday")
+            .IsRequired();
+
+        builder.Property(item => item.RequireManualPayoutDualControl)
+            .HasDefaultValue(true)
+            .IsRequired();
+
         builder.Property(item => item.UpdatedAtUtc)
             .IsRequired();
+
+        builder.Property(item => item.RowVersion)
+            .IsRowVersion()
+            .IsConcurrencyToken();
     }
 }

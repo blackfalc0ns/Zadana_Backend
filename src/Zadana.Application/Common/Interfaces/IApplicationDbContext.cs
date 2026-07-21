@@ -100,6 +100,11 @@ public interface IApplicationDbContext
     DbSet<Payout> Payouts { get; }
     DbSet<PayoutAttempt> PayoutAttempts { get; }
     DbSet<PayoutManualConfirmation> PayoutManualConfirmations { get; }
+    DbSet<PayoutExecutionReservation> PayoutExecutionReservations { get; }
+    DbSet<PayoutReversal> PayoutReversals { get; }
+    DbSet<PayoutProofAttachment> PayoutProofAttachments { get; }
+    DbSet<PayoutBankStatementImport> PayoutBankStatementImports { get; }
+    DbSet<PayoutBankStatementEntry> PayoutBankStatementEntries { get; }
     DbSet<SettlementProcessingSettings> SettlementProcessingSettings { get; }
     DbSet<SettlementProcessingModeAudit> SettlementProcessingModeAudits { get; }
     DbSet<VendorRecovery> VendorRecoveries { get; }

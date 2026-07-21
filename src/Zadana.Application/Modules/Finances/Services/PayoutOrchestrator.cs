@@ -69,10 +69,27 @@ public sealed class PayoutOrchestrator
     {
         var payout = await LoadPayoutAsync(payoutId, cancellationToken);
 
-        if (payout.Status == PayoutStatus.Paid ||
+        if (payout.Status is PayoutStatus.Paid or PayoutStatus.Reversed ||
             (payout.Status == PayoutStatus.Cancelled && !isRetry))
         {
             throw new BusinessRuleException("PAYOUT_ALREADY_CLOSED", "Closed payouts cannot be triggered.");
+        }
+
+        // A manual claim is a durable ownership boundary. It remains in force
+        // even if finance switches the global mode back to Automatic, so the
+        // worker cannot create a second gateway transfer for a bank transfer
+        // which an administrator has already prepared.
+        if (payout.ExecutionReservation?.IsManualActive == true)
+        {
+            return payout;
+        }
+
+        // An automatic reservation is persisted before the external provider
+        // call. A retry must reconcile an existing submission instead of
+        // posting a duplicate command with the same payout amount.
+        if (payout.ExecutionReservation?.IsAutomaticActive == true)
+        {
+            return payout;
         }
 
         if (!isRetry && payout.Status is PayoutStatus.Queued or PayoutStatus.Processing)
@@ -91,24 +108,22 @@ public sealed class PayoutOrchestrator
 
         EnsureSettlementCanBeTriggered(payout);
 
+        // Automatic submissions and retries are schedule-bound as well. The
+        // status-sync worker may examine a pending payout every few minutes,
+        // so this intentionally returns it unchanged until the owner is due
+        // instead of raising an error or creating an off-cycle gateway attempt.
+        if (!await IsAutomaticPayoutDueTodayAsync(payout, cancellationToken))
+        {
+            return payout;
+        }
+
         var gateway = GetEnabledGateway();
 
+        // Do not manufacture a fake "Manual" processing payout when no
+        // gateway is configured. It must stay pending until finance either
+        // enables a gateway or explicitly claims it through the manual flow.
         if (gateway is null)
         {
-            payout.MarkAsProcessing();
-            payout.Settlement.MarkAsProcessing();
-            await MarkLinkedDriverWithdrawalProcessingAsync(payout.Id, cancellationToken);
-            payout.MarkQueued(providerName: "Manual");
-            _context.PayoutAttempts.Add(new PayoutAttempt(
-                payout.Id,
-                isRetry ? PayoutAttemptType.Retry : PayoutAttemptType.Trigger,
-                PayoutStatus.Queued,
-                providerName: "Manual",
-                providerTransferId: null,
-                transferReference: payout.TransferReference,
-                failureReason: null,
-                rawPayload: null));
-            await _context.SaveChangesAsync(cancellationToken);
             return payout;
         }
 
@@ -120,23 +135,20 @@ public sealed class PayoutOrchestrator
             command = await BuildGatewayCommandAsync(payout, cancellationToken);
             ValidateGatewayCommand(command);
 
-            payout.MarkAsProcessing(
-                providerName: gateway.ProviderName,
-                providerSequenceNumber: command.SequenceNumber);
-            payout.Settlement.MarkAsProcessing();
-            await MarkLinkedDriverWithdrawalProcessingAsync(payout.Id, cancellationToken);
+            if (!await ReserveAutomaticSubmissionAsync(
+                    payout,
+                    gateway.ProviderName,
+                    command.SequenceNumber,
+                    isRetry,
+                    cancellationToken))
+            {
+                return await LoadPayoutAsync(payout.Id, cancellationToken);
+            }
 
-            _context.PayoutAttempts.Add(new PayoutAttempt(
-                payout.Id,
-                isRetry ? PayoutAttemptType.Retry : PayoutAttemptType.Trigger,
-                PayoutStatus.Processing,
-                providerName: gateway.ProviderName,
-                transferReference: payout.TransferReference));
-
-            // Persist the sequence before the external POST. If the process dies
-            // after Moyasar accepts the request, retries reuse the same sequence.
-            await _context.SaveChangesAsync(cancellationToken);
-
+            // The reservation is deliberately persisted before the external
+            // POST. A process crash after provider acceptance leaves a durable
+            // submitted reservation for reconciliation, never a retryable
+            // second payout.
             providerSubmitAttempted = true;
             var result = await gateway.CreatePayoutAsync(command, cancellationToken);
 
@@ -226,11 +238,13 @@ public sealed class PayoutOrchestrator
                 return payout;
             }
 
-            payout.MarkAsFailed(ex.Message);
-            payout.Settlement.MarkPayoutFailed();
-            await ReleaseVendorHoldIfApplicableAsync(payout, ex.Message, cancellationToken);
-            await MarkLinkedDriverWithdrawalFailedAsync(payout.Id, ex.Message, cancellationToken);
-            await _context.SaveChangesAsync(cancellationToken);
+            await MarkFailedCoreAsync(
+                payout,
+                ex.Message,
+                payout.ProviderTransferId,
+                payout.ProviderName,
+                payout.ProviderSequenceNumber,
+                cancellationToken);
             await SendPayoutIntegrationFailureAlertAsync(payout, ex, cancellationToken);
             throw;
         }
@@ -240,7 +254,7 @@ public sealed class PayoutOrchestrator
     {
         var payout = await LoadPayoutAsync(payoutId, cancellationToken);
 
-        if (payout.Status is PayoutStatus.Paid or PayoutStatus.Cancelled)
+        if (payout.Status is PayoutStatus.Paid or PayoutStatus.Reversed or PayoutStatus.Cancelled)
         {
             return payout;
         }
@@ -331,6 +345,7 @@ public sealed class PayoutOrchestrator
         var payout = await _context.Payouts
             .Include(item => item.Settlement)
             .Include(item => item.VendorBankAccount)
+            .Include(item => item.ExecutionReservation)
             .FirstOrDefaultAsync(
                 item =>
                     (providerTransferId != null && item.ProviderTransferId == providerTransferId) ||
@@ -342,7 +357,7 @@ public sealed class PayoutOrchestrator
             return null;
         }
 
-        if (payout.Status is PayoutStatus.Paid or PayoutStatus.Cancelled)
+        if (payout.Status is PayoutStatus.Paid or PayoutStatus.Reversed or PayoutStatus.Cancelled)
         {
             return payout;
         }
@@ -400,44 +415,195 @@ public sealed class PayoutOrchestrator
         return payout;
     }
 
-    public async Task<Payout> MarkPaidAsync(
+    [Obsolete("Direct payout completion is disabled. Use the manual claim, bank submission, and confirmation workflow.")]
+    public Task<Payout> MarkPaidAsync(
         Guid payoutId,
         string transferReference,
         string? providerTransferId = null,
         CancellationToken cancellationToken = default)
     {
-        var payout = await LoadPayoutAsync(payoutId, cancellationToken);
+        throw new BusinessRuleException(
+            "PAYOUT_DIRECT_COMPLETION_DISABLED",
+            "Direct payout completion is disabled. Record a manual bank submission and confirm it with an approved proof, or reconcile the provider callback.");
+    }
 
-        if (payout.Status == PayoutStatus.Paid)
+    /// <summary>
+    /// Claims a payout for the manual bank workflow. Claiming is the required
+    /// first step before an administrator leaves the platform to create the
+    /// transfer in the bank portal.
+    /// </summary>
+    public async Task<Payout> ClaimManualAsync(
+        Guid payoutId,
+        Guid claimedByUserId,
+        CancellationToken cancellationToken = default)
+    {
+        if (claimedByUserId == Guid.Empty)
+        {
+            throw new BusinessRuleException("PAYOUT_CLAIMING_USER_REQUIRED", "The administrator claiming a manual payout is required.");
+        }
+
+        if (await IsAutomaticProcessingEnabledAsync(cancellationToken))
+        {
+            throw new BusinessRuleException(
+                "SETTLEMENT_PROCESSING_NOT_MANUAL",
+                "A payout can only be claimed for manual transfer while settlement processing mode is Manual.");
+        }
+
+        var payout = await LoadPayoutAsync(payoutId, cancellationToken);
+        if (payout.Status is PayoutStatus.Paid or PayoutStatus.Reversed or PayoutStatus.Cancelled)
+        {
+            throw new BusinessRuleException("PAYOUT_ALREADY_CLOSED", "Closed payouts cannot be claimed for manual transfer.");
+        }
+
+        EnsureSettlementCanBeTriggered(payout);
+        EnsureManualClaimIsSafe(payout);
+
+        var reservation = payout.ExecutionReservation;
+        if (reservation?.IsActive == true)
+        {
+            if (reservation.Mode == PayoutExecutionMode.Manual &&
+                reservation.ClaimedByUserId == claimedByUserId &&
+                reservation.Status == PayoutExecutionReservationStatus.Claimed)
+            {
+                return payout;
+            }
+
+            throw new BusinessRuleException(
+                "PAYOUT_ALREADY_RESERVED",
+                "This payout is already reserved for execution and cannot be claimed again.");
+        }
+
+        if (reservation is null)
+        {
+            reservation = new PayoutExecutionReservation(
+                payout.Id,
+                PayoutExecutionMode.Manual,
+                claimedByUserId);
+            _context.PayoutExecutionReservations.Add(reservation);
+        }
+        else
+        {
+            reservation.ReclaimManual(claimedByUserId);
+        }
+
+        _context.PayoutAttempts.Add(new PayoutAttempt(
+            payout.Id,
+            PayoutAttemptType.ManualClaim,
+            payout.Status,
+            providerName: "Manual"));
+
+        await SaveReservationChangesAsync(payout.Id, cancellationToken);
+        return payout;
+    }
+
+    /// <summary>
+    /// Records that the claimed payout was submitted in the external bank
+    /// portal. It intentionally happens before confirmation, making a
+    /// submitted transfer non-cancellable and non-retryable.
+    /// </summary>
+    public async Task<Payout> RecordManualBankSubmissionAsync(
+        Guid payoutId,
+        string bankSubmissionReference,
+        Guid submittedByUserId,
+        CancellationToken cancellationToken = default)
+    {
+        if (submittedByUserId == Guid.Empty)
+        {
+            throw new BusinessRuleException("PAYOUT_SUBMITTING_USER_REQUIRED", "The administrator submitting the manual bank transfer is required.");
+        }
+
+        if (string.IsNullOrWhiteSpace(bankSubmissionReference))
+        {
+            throw new BusinessRuleException("BANK_SUBMISSION_REFERENCE_REQUIRED", "Bank submission reference is required.");
+        }
+
+        var payout = await LoadPayoutAsync(payoutId, cancellationToken);
+        if (payout.Status is PayoutStatus.Paid or PayoutStatus.Reversed or PayoutStatus.Cancelled)
+        {
+            throw new BusinessRuleException("PAYOUT_ALREADY_CLOSED", "Closed payouts cannot be submitted to the bank.");
+        }
+
+        EnsureSettlementCanBeTriggered(payout);
+        await EnsureManualConfirmationIsDueTodayAsync(payout, cancellationToken);
+
+        var reservation = payout.ExecutionReservation;
+        if (reservation is null || reservation.Mode != PayoutExecutionMode.Manual)
+        {
+            throw new BusinessRuleException("PAYOUT_MANUAL_CLAIM_REQUIRED", "Claim the payout before recording a manual bank submission.");
+        }
+
+        if (reservation.Status == PayoutExecutionReservationStatus.Submitted)
+        {
+            if (reservation.SubmittedByUserId == submittedByUserId &&
+                string.Equals(reservation.SubmissionReference, bankSubmissionReference.Trim(), StringComparison.Ordinal))
+            {
+                return payout;
+            }
+
+            throw new BusinessRuleException("PAYOUT_ALREADY_SUBMITTED", "This payout has already been submitted to the bank and must be confirmed or reconciled.");
+        }
+
+        reservation.MarkSubmitted(submittedByUserId, bankSubmissionReference);
+        payout.MarkAsProcessing(providerName: "Manual");
+        payout.Settlement.MarkAsProcessing();
+        await MarkLinkedDriverWithdrawalProcessingAsync(payout.Id, cancellationToken);
+        _context.PayoutAttempts.Add(new PayoutAttempt(
+            payout.Id,
+            PayoutAttemptType.ManualBankSubmission,
+            PayoutStatus.Processing,
+            providerName: "Manual",
+            transferReference: bankSubmissionReference.Trim()));
+
+        await SaveReservationChangesAsync(payout.Id, cancellationToken);
+        return payout;
+    }
+
+    /// <summary>
+    /// Releases a claimed payout only before a transfer is submitted. Submitted
+    /// transfers must use reconciliation or a recorded return/reversal instead.
+    /// </summary>
+    public async Task<Payout> ReleaseManualClaimAsync(
+        Guid payoutId,
+        Guid releasedByUserId,
+        string? reason = null,
+        CancellationToken cancellationToken = default)
+    {
+        if (releasedByUserId == Guid.Empty)
+        {
+            throw new BusinessRuleException("PAYOUT_CLAIMING_USER_REQUIRED", "The administrator releasing the manual payout claim is required.");
+        }
+
+        var payout = await LoadPayoutAsync(payoutId, cancellationToken);
+        var reservation = payout.ExecutionReservation;
+        if (reservation is null || reservation.Mode != PayoutExecutionMode.Manual)
+        {
+            throw new BusinessRuleException("PAYOUT_MANUAL_CLAIM_REQUIRED", "This payout does not have a manual claim to release.");
+        }
+
+        if (reservation.Status == PayoutExecutionReservationStatus.Released)
         {
             return payout;
         }
 
-        await MarkPaidCoreAsync(
-            payout,
-            transferReference,
-            providerTransferId ?? payout.ProviderTransferId,
-            payout.ProviderName,
-            payout.ProviderSequenceNumber,
-            cancellationToken);
+        reservation.Release(releasedByUserId, reason ?? "Manual payout claim released before bank submission.");
+        _context.PayoutAttempts.Add(new PayoutAttempt(
+            payout.Id,
+            PayoutAttemptType.ManualClaimRelease,
+            payout.Status,
+            providerName: "Manual",
+            failureReason: reason));
 
+        await SaveReservationChangesAsync(payout.Id, cancellationToken);
         return payout;
     }
 
     public async Task<Payout> ConfirmManualAsync(
         Guid payoutId,
         string transferReference,
-        string proofUrl,
+        Guid proofAttachmentId,
         Guid confirmedByUserId,
         CancellationToken cancellationToken = default)
     {
-        if (await IsAutomaticProcessingEnabledAsync(cancellationToken))
-        {
-            throw new BusinessRuleException(
-                "SETTLEMENT_PROCESSING_NOT_MANUAL",
-                "Manual payout confirmation is only available while settlement processing mode is Manual.");
-        }
-
         var payout = await LoadPayoutAsync(payoutId, cancellationToken);
 
         if (payout.Status == PayoutStatus.Paid)
@@ -455,7 +621,7 @@ public sealed class PayoutOrchestrator
             throw new BusinessRuleException("TRANSFER_REFERENCE_REQUIRED", "Transfer reference is required for manual payout confirmation.");
         }
 
-        if (string.IsNullOrWhiteSpace(proofUrl))
+        if (proofAttachmentId == Guid.Empty)
         {
             throw new BusinessRuleException("PAYOUT_PROOF_REQUIRED", "Transfer proof is required for manual payout confirmation.");
         }
@@ -469,11 +635,38 @@ public sealed class PayoutOrchestrator
         EnsureManualConfirmationIsSafe(payout);
         await EnsureManualConfirmationIsDueTodayAsync(payout, cancellationToken);
 
+        var reservation = payout.ExecutionReservation;
+        if (reservation is null || reservation.Mode != PayoutExecutionMode.Manual)
+        {
+            throw new BusinessRuleException("PAYOUT_MANUAL_CLAIM_REQUIRED", "Claim and submit the payout before confirming the manual bank transfer.");
+        }
+
+        if (reservation.Status != PayoutExecutionReservationStatus.Submitted)
+        {
+            throw new BusinessRuleException("PAYOUT_RESERVATION_NOT_SUBMITTED", "Record the external bank submission before confirming the payout.");
+        }
+
+        if (await RequiresManualPayoutDualControlAsync(cancellationToken) &&
+            reservation.SubmittedByUserId == confirmedByUserId)
+        {
+            throw new BusinessRuleException(
+                "PAYOUT_DUAL_CONTROL_REQUIRED",
+                "A different finance approver must confirm a manually submitted payout.");
+        }
+
+        var proofAttachment = await RequireFinalizableProofAttachmentAsync(
+            payout.Id,
+            proofAttachmentId,
+            PayoutProofKind.ManualTransfer,
+            cancellationToken);
+
         _context.PayoutManualConfirmations.Add(new PayoutManualConfirmation(
             payout.Id,
             transferReference,
-            proofUrl,
+            proofAttachmentId,
             confirmedByUserId));
+        proofAttachment.FinalizeForUse(confirmedByUserId);
+        reservation.Confirm(confirmedByUserId);
 
         await MarkManualPaidCoreAsync(
             payout,
@@ -484,20 +677,140 @@ public sealed class PayoutOrchestrator
         return payout;
     }
 
-    public async Task CancelAsync(Guid payoutId, CancellationToken cancellationToken = default)
+    public Task CancelAsync(Guid payoutId, CancellationToken cancellationToken = default) =>
+        CancelAsync(payoutId, null, cancellationToken);
+
+    public async Task CancelAsync(
+        Guid payoutId,
+        Guid? cancelledByUserId,
+        CancellationToken cancellationToken = default)
     {
         var payout = await LoadPayoutAsync(payoutId, cancellationToken);
 
-        if (payout.Status == PayoutStatus.Paid)
+        if (payout.Status is PayoutStatus.Paid or PayoutStatus.Reversed)
         {
-            throw new BusinessRuleException("PAYOUT_ALREADY_PAID", "Paid payouts cannot be cancelled.");
+            throw new BusinessRuleException("PAYOUT_ALREADY_CLOSED", "Closed payouts cannot be cancelled.");
         }
 
-        payout.Cancel();
-        payout.Settlement.Hold();
-        await CancelLinkedDriverWithdrawalAsync(payout.Id, "Payout cancelled.", cancellationToken);
-        _context.PayoutAttempts.Add(new PayoutAttempt(payout.Id, PayoutAttemptType.Cancel, PayoutStatus.Cancelled));
-        await _context.SaveChangesAsync(cancellationToken);
+        if (payout.Status == PayoutStatus.Cancelled)
+        {
+            return;
+        }
+
+        var reservation = payout.ExecutionReservation;
+        if (reservation?.IsAutomaticActive == true ||
+            reservation?.Status == PayoutExecutionReservationStatus.Submitted)
+        {
+            throw new BusinessRuleException(
+                "PAYOUT_RECONCILIATION_REQUIRED",
+                "A submitted payout cannot be cancelled. Reconcile the execution channel or record a return first.");
+        }
+
+        if (payout.Status is PayoutStatus.Queued or PayoutStatus.Processing)
+        {
+            throw new BusinessRuleException(
+                "PAYOUT_IN_FLIGHT_CANNOT_CANCEL",
+                "An in-flight payout must be reconciled instead of cancelled.");
+        }
+
+        await ExecuteInTransactionAsync(async () =>
+        {
+            if (reservation?.IsManualActive == true)
+            {
+                reservation.ReleaseForCancellation(cancelledByUserId, "Manual payout claim cancelled before bank submission.");
+            }
+
+            payout.Cancel();
+            payout.Settlement.Hold();
+            await ReleaseVendorHoldIfApplicableAsync(payout, "Payout cancelled before execution.", cancellationToken);
+            await CancelLinkedDriverWithdrawalAsync(payout.Id, "Payout cancelled.", cancellationToken);
+            _context.PayoutAttempts.Add(new PayoutAttempt(payout.Id, PayoutAttemptType.Cancel, PayoutStatus.Cancelled));
+            await _context.SaveChangesAsync(cancellationToken);
+        }, cancellationToken);
+    }
+
+    /// <summary>
+    /// Records a verified return of funds for a previously paid payout. This
+    /// never edits the original payment evidence or silently reopens it: it
+    /// creates an immutable return record and posts the accounting reversal.
+    /// Any corrected payout must subsequently be prepared as a new finance
+    /// operation after review.
+    /// </summary>
+    public async Task<Payout> RecordReturnAsync(
+        Guid payoutId,
+        string returnReference,
+        Guid proofAttachmentId,
+        Guid confirmedByUserId,
+        string? reason = null,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(returnReference))
+        {
+            throw new BusinessRuleException("RETURN_REFERENCE_REQUIRED", "Bank return reference is required.");
+        }
+
+        if (proofAttachmentId == Guid.Empty)
+        {
+            throw new BusinessRuleException("PAYOUT_PROOF_REQUIRED", "Return proof is required.");
+        }
+
+        if (confirmedByUserId == Guid.Empty)
+        {
+            throw new BusinessRuleException("PAYOUT_CONFIRMING_USER_REQUIRED", "The confirming administrator is required.");
+        }
+
+        var payout = await LoadPayoutAsync(payoutId, cancellationToken);
+        if (payout.Status == PayoutStatus.Reversed)
+        {
+            if (payout.Reversal is not null)
+            {
+                return payout;
+            }
+
+            throw new BusinessRuleException("PAYOUT_REVERSAL_RECONCILIATION_REQUIRED", "This payout is marked reversed without a return confirmation and needs reconciliation.");
+        }
+
+        if (payout.Status != PayoutStatus.Paid)
+        {
+            throw new BusinessRuleException("PAYOUT_REVERSAL_INVALID_STATUS", "Only a paid payout can be marked as returned.");
+        }
+
+        if (payout.Reversal is not null)
+        {
+            return payout;
+        }
+
+        var proofAttachment = await RequireFinalizableProofAttachmentAsync(
+            payout.Id,
+            proofAttachmentId,
+            PayoutProofKind.ReturnedFunds,
+            cancellationToken);
+
+        _context.PayoutReversals.Add(new PayoutReversal(
+            payout.Id,
+            returnReference,
+            proofAttachmentId,
+            confirmedByUserId,
+            reason));
+        proofAttachment.FinalizeForUse(confirmedByUserId);
+
+        await ExecuteInTransactionAsync(async () =>
+        {
+            payout.MarkAsReversed();
+            payout.Settlement.MarkReversed();
+            _context.PayoutAttempts.Add(new PayoutAttempt(
+                payout.Id,
+                PayoutAttemptType.Reversal,
+                PayoutStatus.Reversed,
+                providerName: "Manual",
+                transferReference: returnReference.Trim(),
+                failureReason: reason));
+
+            await PostPayoutReversedAsync(payout, returnReference.Trim(), cancellationToken);
+            await _context.SaveChangesAsync(cancellationToken);
+        }, cancellationToken);
+
+        return payout;
     }
 
     private async Task<Payout> LoadPayoutAsync(Guid payoutId, CancellationToken cancellationToken)
@@ -506,8 +819,46 @@ public sealed class PayoutOrchestrator
             .Include(item => item.Settlement)
             .Include(item => item.VendorBankAccount)
             .Include(item => item.ManualConfirmation)
+            .Include(item => item.ExecutionReservation)
+            .Include(item => item.Reversal)
             .FirstOrDefaultAsync(item => item.Id == payoutId, cancellationToken)
             ?? throw new NotFoundException("Payout", payoutId);
+    }
+
+    private async Task<PayoutProofAttachment> RequireFinalizableProofAttachmentAsync(
+        Guid payoutId,
+        Guid proofAttachmentId,
+        PayoutProofKind requiredKind,
+        CancellationToken cancellationToken)
+    {
+        var attachment = await _context.PayoutProofAttachments
+            .FirstOrDefaultAsync(item => item.Id == proofAttachmentId, cancellationToken)
+            ?? throw new BusinessRuleException(
+                "PAYOUT_PROOF_NOT_FOUND",
+                "The selected payout proof attachment was not found.");
+
+        if (attachment.PayoutId != payoutId)
+        {
+            throw new BusinessRuleException(
+                "PAYOUT_PROOF_PAYOUT_MISMATCH",
+                "The selected proof attachment belongs to a different payout.");
+        }
+
+        if (attachment.Kind != requiredKind)
+        {
+            throw new BusinessRuleException(
+                "PAYOUT_PROOF_KIND_MISMATCH",
+                "The selected proof attachment cannot be used for this payout action.");
+        }
+
+        if (attachment.IsFinalized)
+        {
+            throw new BusinessRuleException(
+                "PAYOUT_PROOF_ALREADY_FINALIZED",
+                "The selected proof attachment has already been finalized.");
+        }
+
+        return attachment;
     }
 
     private async Task<CreatePayoutCommand> BuildGatewayCommandAsync(Payout payout, CancellationToken cancellationToken)
@@ -522,13 +873,13 @@ public sealed class PayoutOrchestrator
 
     private async Task<CreatePayoutCommand> BuildVendorGatewayCommandAsync(Payout payout, CancellationToken cancellationToken)
     {
-        var bankAccount = payout.VendorBankAccount ??
-            (payout.VendorBankAccountId.HasValue
-                ? await _context.VendorBankAccounts
-                    .AsNoTracking()
-                    .FirstOrDefaultAsync(item => item.Id == payout.VendorBankAccountId.Value, cancellationToken)
-                : null)
-            ?? throw new BusinessRuleException("VENDOR_BANK_ACCOUNT_REQUIRED", "Vendor bank account is required before sending payout.");
+        var destination = PayoutDestinationSnapshotCodec.ParseRequired(payout);
+        if (destination.DestinationType != PayoutDestinationType.VendorBankAccount)
+        {
+            throw new BusinessRuleException(
+                "PAYOUT_DESTINATION_TYPE_INVALID",
+                "Vendor payout has an invalid recipient destination snapshot.");
+        }
 
         var vendor = await _context.Vendors
             .AsNoTracking()
@@ -539,9 +890,9 @@ public sealed class PayoutOrchestrator
 
         return BuildCommand(
             payout,
-            bankAccount.AccountHolderName,
-            bankAccount.IBAN,
-            bankAccount.BankName,
+            destination.AccountHolderName,
+            destination.AccountIdentifier,
+            destination.ProviderOrBankName,
             vendor.ContactPhone,
             vendor.City,
             purpose: null,
@@ -555,15 +906,32 @@ public sealed class PayoutOrchestrator
 
     private async Task<CreatePayoutCommand> BuildDriverGatewayCommandAsync(Payout payout, CancellationToken cancellationToken)
     {
+        var destination = PayoutDestinationSnapshotCodec.ParseRequired(payout);
+        if (destination.DestinationType != PayoutDestinationType.DriverPayoutMethod)
+        {
+            throw new BusinessRuleException(
+                "PAYOUT_DESTINATION_TYPE_INVALID",
+                "Driver payout has an invalid recipient destination snapshot.");
+        }
+
         var withdrawal = await _context.DriverWithdrawalRequests
             .AsNoTracking()
-            .Include(item => item.DriverPayoutMethod)
             .FirstOrDefaultAsync(item => item.PayoutId == payout.Id, cancellationToken)
             ?? throw new BusinessRuleException("DRIVER_WITHDRAWAL_REQUIRED", "Driver payout must be linked to a withdrawal request.");
 
-        if (withdrawal.DriverPayoutMethod.MethodType != DriverPayoutMethodType.BankAccount)
+        if (!string.Equals(
+                destination.MethodType,
+                DriverPayoutMethodType.BankAccount.ToString(),
+                StringComparison.OrdinalIgnoreCase))
         {
             throw new BusinessRuleException("DRIVER_BANK_ACCOUNT_REQUIRED", "Only bank account withdrawal methods can be paid through Moyasar payouts.");
+        }
+
+        if (destination.SourceId != withdrawal.DriverPayoutMethodId)
+        {
+            throw new BusinessRuleException(
+                "PAYOUT_DESTINATION_SNAPSHOT_MISMATCH",
+                "Driver payout recipient snapshot does not match the prepared withdrawal method.");
         }
 
         var driver = await _context.Drivers
@@ -574,9 +942,9 @@ public sealed class PayoutOrchestrator
 
         return BuildCommand(
             payout,
-            withdrawal.DriverPayoutMethod.AccountHolderName,
-            withdrawal.DriverPayoutMethod.AccountIdentifier,
-            withdrawal.DriverPayoutMethod.ProviderName,
+            destination.AccountHolderName,
+            destination.AccountIdentifier,
+            destination.ProviderOrBankName,
             driver.User.PhoneNumber,
             driver.City,
             purpose: null,
@@ -658,22 +1026,30 @@ public sealed class PayoutOrchestrator
         string? providerSequenceNumber,
         CancellationToken cancellationToken)
     {
-        payout.MarkAsPaid(transferReference, providerTransferId, providerName, providerSequenceNumber);
-        payout.Settlement.MarkPaidOut();
-        _context.PayoutAttempts.Add(new PayoutAttempt(
-            payout.Id,
-            PayoutAttemptType.ProviderCallback,
-            PayoutStatus.Paid,
-            providerName: payout.ProviderName,
-            providerTransferId: providerTransferId ?? payout.ProviderTransferId,
-            transferReference: transferReference,
-            failureReason: null,
-            rawPayload: null));
+        await ExecuteInTransactionAsync(async () =>
+        {
+            payout.MarkAsPaid(transferReference, providerTransferId, providerName, providerSequenceNumber);
+            payout.Settlement.MarkPaidOut();
+            if (payout.ExecutionReservation?.IsAutomaticActive == true)
+            {
+                payout.ExecutionReservation.Confirm(Guid.Empty);
+            }
 
-        await PostPayoutPaidAsync(payout, cancellationToken);
-        await SettleVendorHoldIfApplicableAsync(payout, cancellationToken);
-        await MarkLinkedDriverWithdrawalPaidAsync(payout.Id, transferReference, cancellationToken);
-        await _context.SaveChangesAsync(cancellationToken);
+            _context.PayoutAttempts.Add(new PayoutAttempt(
+                payout.Id,
+                PayoutAttemptType.ProviderCallback,
+                PayoutStatus.Paid,
+                providerName: payout.ProviderName,
+                providerTransferId: providerTransferId ?? payout.ProviderTransferId,
+                transferReference: transferReference,
+                failureReason: null,
+                rawPayload: null));
+
+            await PostPayoutPaidAsync(payout, cancellationToken);
+            await SettleVendorHoldIfApplicableAsync(payout, cancellationToken);
+            await MarkLinkedDriverWithdrawalPaidAsync(payout.Id, transferReference, cancellationToken);
+            await _context.SaveChangesAsync(cancellationToken);
+        }, cancellationToken);
 
         // Notify driver or vendor that their settlement/payout is complete
         await NotifyPayoutPaidAsync(payout, cancellationToken);
@@ -685,19 +1061,22 @@ public sealed class PayoutOrchestrator
         Guid confirmedByUserId,
         CancellationToken cancellationToken)
     {
-        payout.MarkAsManuallyPaid(transferReference, confirmedByUserId);
-        payout.Settlement.MarkPaidOut();
-        _context.PayoutAttempts.Add(new PayoutAttempt(
-            payout.Id,
-            PayoutAttemptType.ManualConfirmation,
-            PayoutStatus.Paid,
-            providerName: "Manual",
-            transferReference: transferReference));
+        await ExecuteInTransactionAsync(async () =>
+        {
+            payout.MarkAsManuallyPaid(transferReference, confirmedByUserId);
+            payout.Settlement.MarkPaidOut();
+            _context.PayoutAttempts.Add(new PayoutAttempt(
+                payout.Id,
+                PayoutAttemptType.ManualConfirmation,
+                PayoutStatus.Paid,
+                providerName: "Manual",
+                transferReference: transferReference));
 
-        await PostPayoutPaidAsync(payout, cancellationToken);
-        await SettleVendorHoldIfApplicableAsync(payout, cancellationToken);
-        await MarkLinkedDriverWithdrawalPaidAsync(payout.Id, transferReference, cancellationToken);
-        await _context.SaveChangesAsync(cancellationToken);
+            await PostPayoutPaidAsync(payout, cancellationToken);
+            await SettleVendorHoldIfApplicableAsync(payout, cancellationToken);
+            await MarkLinkedDriverWithdrawalPaidAsync(payout.Id, transferReference, cancellationToken);
+            await _context.SaveChangesAsync(cancellationToken);
+        }, cancellationToken);
 
         await NotifyPayoutPaidAsync(payout, cancellationToken);
     }
@@ -710,11 +1089,19 @@ public sealed class PayoutOrchestrator
         string? providerSequenceNumber,
         CancellationToken cancellationToken)
     {
-        payout.MarkAsFailed(failureReason, providerTransferId, providerName, providerSequenceNumber);
-        payout.Settlement.MarkPayoutFailed();
-        await ReleaseVendorHoldIfApplicableAsync(payout, failureReason, cancellationToken);
-        await MarkLinkedDriverWithdrawalFailedAsync(payout.Id, failureReason, cancellationToken);
-        await _context.SaveChangesAsync(cancellationToken);
+        await ExecuteInTransactionAsync(async () =>
+        {
+            payout.MarkAsFailed(failureReason, providerTransferId, providerName, providerSequenceNumber);
+            payout.Settlement.MarkPayoutFailed();
+            if (payout.ExecutionReservation?.IsAutomaticActive == true)
+            {
+                payout.ExecutionReservation.ReleaseAutomatic(failureReason);
+            }
+
+            await ReleaseVendorHoldIfApplicableAsync(payout, failureReason, cancellationToken);
+            await MarkLinkedDriverWithdrawalFailedAsync(payout.Id, failureReason, cancellationToken);
+            await _context.SaveChangesAsync(cancellationToken);
+        }, cancellationToken);
     }
 
     private async Task MarkPayoutUnknownAsync(
@@ -754,6 +1141,202 @@ public sealed class PayoutOrchestrator
         }
     }
 
+    private async Task<bool> ReserveAutomaticSubmissionAsync(
+        Payout payout,
+        string providerName,
+        string? providerSequenceNumber,
+        bool isRetry,
+        CancellationToken cancellationToken)
+    {
+        // Re-read the persisted setting at the execution boundary.  Trigger
+        // can spend time building the gateway command, during which finance
+        // may switch the platform to Manual.  The durable reservation is the
+        // final automatic-dispatch boundary: after it is saved the payout is
+        // reconciliation-only, so it can never be submitted twice.
+        if (!await IsAutomaticProcessingEnabledAsync(cancellationToken))
+        {
+            return false;
+        }
+
+        var reservation = payout.ExecutionReservation;
+        if (reservation?.IsActive == true)
+        {
+            return false;
+        }
+
+        if (reservation is null)
+        {
+            reservation = new PayoutExecutionReservation(payout.Id, PayoutExecutionMode.Automatic);
+            _context.PayoutExecutionReservations.Add(reservation);
+        }
+        else
+        {
+            reservation.ReclaimAutomatic();
+        }
+
+        // Submitted is intentionally persisted before the provider POST. This
+        // is the durable "do not submit again" barrier if a process terminates
+        // after the bank gateway accepts the command but before it responds.
+        reservation.MarkSubmitted();
+        payout.MarkAsProcessing(
+            providerName: providerName,
+            providerSequenceNumber: providerSequenceNumber);
+        payout.Settlement.MarkAsProcessing();
+        await MarkLinkedDriverWithdrawalProcessingAsync(payout.Id, cancellationToken);
+
+        _context.PayoutAttempts.Add(new PayoutAttempt(
+            payout.Id,
+            isRetry ? PayoutAttemptType.Retry : PayoutAttemptType.Trigger,
+            PayoutStatus.Processing,
+            providerName: providerName,
+            transferReference: payout.TransferReference));
+
+        try
+        {
+            await _context.SaveChangesAsync(cancellationToken);
+            return true;
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            // Another worker/admin acquired the payout between the initial
+            // read and this save. Most importantly, do not call the gateway.
+            DetachExecutionChanges(payout.Id);
+            return false;
+        }
+        catch (DbUpdateException ex) when (IsExecutionReservationUniqueConflict(ex))
+        {
+            // The unique PayoutId reservation index is the database-level
+            // backstop for concurrent initial claims.
+            DetachExecutionChanges(payout.Id);
+            return false;
+        }
+    }
+
+    private static void EnsureManualClaimIsSafe(Payout payout)
+    {
+        if (!string.IsNullOrWhiteSpace(payout.ProviderTransferId) ||
+            (payout.Status is PayoutStatus.Queued or PayoutStatus.Processing &&
+             !string.Equals(payout.ProviderName, "Manual", StringComparison.OrdinalIgnoreCase)))
+        {
+            throw new BusinessRuleException(
+                "PAYOUT_PROVIDER_RECONCILIATION_REQUIRED",
+                "A gateway payout must be reconciled before it can be claimed for manual transfer.");
+        }
+
+        if (payout.Status is not (PayoutStatus.Pending or PayoutStatus.Failed))
+        {
+            throw new BusinessRuleException(
+                "PAYOUT_INVALID_STATUS",
+                $"Cannot claim payout from status {payout.Status}.");
+        }
+    }
+
+    private async Task SaveReservationChangesAsync(Guid payoutId, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await _context.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            DetachExecutionChanges(payoutId);
+            throw new BusinessRuleException(
+                "PAYOUT_CONCURRENTLY_UPDATED",
+                "This payout was changed by another finance operation. Refresh it before trying again.");
+        }
+        catch (DbUpdateException ex) when (IsExecutionReservationUniqueConflict(ex))
+        {
+            DetachExecutionChanges(payoutId);
+            throw new BusinessRuleException(
+                "PAYOUT_ALREADY_RESERVED",
+                "This payout was claimed by another finance operation. Refresh it before trying again.");
+        }
+    }
+
+    private async Task<bool> RequiresManualPayoutDualControlAsync(CancellationToken cancellationToken)
+    {
+        if (_settlementProcessingSettingsService is null)
+        {
+            return true;
+        }
+
+        return (await _settlementProcessingSettingsService.GetAsync(cancellationToken))
+            .RequireManualPayoutDualControl;
+    }
+
+    private async Task ExecuteInTransactionAsync(Func<Task> action, CancellationToken cancellationToken)
+    {
+        if (_context is not DbContext dbContext)
+        {
+            await action();
+            return;
+        }
+
+        // The unit-test context uses EF InMemory, which deliberately does not
+        // implement transactions. SQL Server/SQLite providers both expose a
+        // provider name other than InMemory and use the real transaction path.
+        if (string.Equals(
+                dbContext.Database.ProviderName,
+                "Microsoft.EntityFrameworkCore.InMemory",
+                StringComparison.OrdinalIgnoreCase))
+        {
+            await action();
+            return;
+        }
+
+        await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
+        try
+        {
+            await action();
+            await transaction.CommitAsync(cancellationToken);
+        }
+        catch
+        {
+            await transaction.RollbackAsync(cancellationToken);
+            throw;
+        }
+    }
+
+    private void DetachExecutionChanges(Guid payoutId)
+    {
+        if (_context is not DbContext dbContext)
+        {
+            return;
+        }
+
+        // A failed reservation save may have changed the tracked settlement
+        // to Processing.  Detach it with the payout graph as well, otherwise a
+        // later unrelated SaveChanges in the same request could accidentally
+        // persist a stale status after another worker won the reservation.
+        var settlementIds = dbContext.ChangeTracker.Entries<Payout>()
+            .Where(entry => entry.Entity.Id == payoutId)
+            .Select(entry => entry.Entity.SettlementId)
+            .ToHashSet();
+
+        foreach (var entry in dbContext.ChangeTracker.Entries()
+                     .Where(entry =>
+                         entry.Entity is Payout payout && payout.Id == payoutId ||
+                         entry.Entity is Settlement settlement && settlementIds.Contains(settlement.Id) ||
+                         entry.Entity is PayoutExecutionReservation reservation && reservation.PayoutId == payoutId ||
+                         entry.Entity is PayoutAttempt attempt && attempt.PayoutId == payoutId ||
+                         entry.Entity is PayoutManualConfirmation confirmation && confirmation.PayoutId == payoutId ||
+                         entry.Entity is PayoutReversal reversal && reversal.PayoutId == payoutId ||
+                         entry.Entity is PayoutProofAttachment attachment && attachment.PayoutId == payoutId ||
+                         entry.Entity is DriverWithdrawalRequest withdrawal && withdrawal.PayoutId == payoutId)
+                     .ToList())
+        {
+            entry.State = EntityState.Detached;
+        }
+    }
+
+    private static bool IsExecutionReservationUniqueConflict(DbUpdateException exception) =>
+        exception.InnerException?.Message.Contains(
+            "IX_PayoutExecutionReservations_PayoutId",
+            StringComparison.OrdinalIgnoreCase) == true ||
+        exception.Message.Contains(
+            "PayoutExecutionReservations.PayoutId",
+            StringComparison.OrdinalIgnoreCase);
+
     private static void EnsureSettlementCanBeTriggered(Payout payout)
     {
         if (payout.Settlement.Origin == SettlementOrigin.DirectPerOrder)
@@ -762,6 +1345,17 @@ public sealed class PayoutOrchestrator
         }
 
         if (payout.Settlement.Status is SettlementStatus.Approved or SettlementStatus.PayoutFailed)
+        {
+            return;
+        }
+
+        // Once a manual transfer has been recorded as submitted, the
+        // settlement is intentionally Processing. It remains eligible only for
+        // its owning manual reservation to complete; this is not a gateway
+        // retry escape hatch.
+        if (payout.Settlement.Status == SettlementStatus.Processing &&
+            payout.ExecutionReservation?.Mode == PayoutExecutionMode.Manual &&
+            payout.ExecutionReservation.Status == PayoutExecutionReservationStatus.Submitted)
         {
             return;
         }
@@ -805,14 +1399,80 @@ public sealed class PayoutOrchestrator
         CancellationToken cancellationToken)
     {
         var today = SaudiTime.Today;
-        if (today.DayOfWeek is not DayOfWeek.Monday and not DayOfWeek.Thursday)
+        var enabledPayoutDays = _settlementProcessingSettingsService is null
+            ? PayoutScheduleDayPolicy.DefaultPayoutDays
+            : await _settlementProcessingSettingsService.GetEnabledPayoutDaysAsync(cancellationToken);
+        var todayPayoutDay = (PayoutScheduleDay)today.DayOfWeek;
+        if (!enabledPayoutDays.Contains(todayPayoutDay))
         {
             throw new BusinessRuleException(
                 "PAYOUT_CONFIRMATION_DAY_INVALID",
-                "Manual payout confirmation is only allowed on Monday or Thursday.");
+                "Manual payout confirmation is only allowed on an enabled payout day.");
         }
 
-        var payoutDay = payout.Settlement.OwnerType switch
+        var payoutDay = await ResolvePayoutDayAsync(payout, cancellationToken);
+
+        if (!payoutDay.HasValue)
+        {
+            throw new BusinessRuleException(
+                "PAYOUT_OWNER_NOT_FOUND",
+                "The payout owner could not be found while checking the payout day.");
+        }
+
+        if (!enabledPayoutDays.Contains(payoutDay.Value))
+        {
+            throw new BusinessRuleException(
+                "PAYOUT_DAY_DISABLED",
+                "The payout owner's selected day is not enabled by the platform.");
+        }
+
+        if (!PayoutScheduleDayPolicy.IsPayoutDay(today, payoutDay.Value))
+        {
+            throw new BusinessRuleException(
+                "PAYOUT_NOT_DUE_TODAY",
+                $"This payout is scheduled for {payoutDay.Value}.");
+        }
+    }
+
+    private async Task<bool> IsAutomaticPayoutDueTodayAsync(
+        Payout payout,
+        CancellationToken cancellationToken)
+    {
+        var enabledPayoutDays = _settlementProcessingSettingsService is null
+            ? PayoutScheduleDayPolicy.DefaultPayoutDays
+            : await _settlementProcessingSettingsService.GetEnabledPayoutDaysAsync(cancellationToken);
+        var today = SaudiTime.Today;
+        var todayPayoutDay = (PayoutScheduleDay)today.DayOfWeek;
+        if (!enabledPayoutDays.Contains(todayPayoutDay))
+        {
+            return false;
+        }
+
+        var payoutDay = await ResolvePayoutDayAsync(payout, cancellationToken);
+
+        // A missing owner remains pending for operational review. This guard
+        // stays non-throwing so workers do not emit repeated error logs for an
+        // off-cycle or orphaned pending payout.
+        return payoutDay.HasValue &&
+               enabledPayoutDays.Contains(payoutDay.Value) &&
+               PayoutScheduleDayPolicy.IsPayoutDay(today, payoutDay.Value);
+    }
+
+    /// <summary>
+    /// New payouts own an immutable schedule snapshot. The owner lookup is a
+    /// backwards-compatible fallback for legacy rows created before that field
+    /// existed; it must never override an already prepared payout.
+    /// </summary>
+    private async Task<PayoutScheduleDay?> ResolvePayoutDayAsync(
+        Payout payout,
+        CancellationToken cancellationToken)
+    {
+        if (payout.ScheduledPayoutDay.HasValue)
+        {
+            return payout.ScheduledPayoutDay.Value;
+        }
+
+        return payout.Settlement.OwnerType switch
         {
             SettlementOwnerType.Vendor => await _context.Vendors
                 .AsNoTracking()
@@ -826,20 +1486,6 @@ public sealed class PayoutOrchestrator
                 .FirstOrDefaultAsync(cancellationToken),
             _ => null
         };
-
-        if (!payoutDay.HasValue)
-        {
-            throw new BusinessRuleException(
-                "PAYOUT_OWNER_NOT_FOUND",
-                "The payout owner could not be found while checking the payout day.");
-        }
-
-        if (!PayoutScheduleDayPolicy.IsPayoutDay(today, payoutDay.Value))
-        {
-            throw new BusinessRuleException(
-                "PAYOUT_NOT_DUE_TODAY",
-                $"This payout is scheduled for {payoutDay.Value}.");
-        }
     }
 
     private async Task MarkLinkedDriverWithdrawalPaidAsync(Guid payoutId, string transferReference, CancellationToken cancellationToken)
@@ -986,6 +1632,54 @@ public sealed class PayoutOrchestrator
             payoutId: payout.Id,
             currencyCode: CurrencyPolicy.OfficialCurrency,
             description: $"Payout paid {payout.Id}",
+            cancellationToken: cancellationToken);
+
+        await _walletProjectionUpdater.ApplyJournalEntryAsync(result.JournalEntryId, cancellationToken);
+    }
+
+    private async Task PostPayoutReversedAsync(
+        Payout payout,
+        string returnReference,
+        CancellationToken cancellationToken)
+    {
+        var settlement = payout.Settlement;
+        var payableAccount = settlement.OwnerType == SettlementOwnerType.Driver
+            ? FinancialAccountCode.DriverPayable
+            : FinancialAccountCode.VendorPayable;
+        var ownerType = settlement.OwnerType == SettlementOwnerType.Driver
+            ? FinancialOwnerType.Driver
+            : FinancialOwnerType.Vendor;
+        var eventType = settlement.OwnerType == SettlementOwnerType.Driver
+            ? FinancialEventType.DriverPayoutReversed
+            : FinancialEventType.VendorPayoutReversed;
+
+        var result = await _postingService.PostAsync(
+            eventType,
+            $"payout-reversal:{payout.Id:N}",
+            [
+                new JournalLineDraft(
+                    FinancialAccountCode.PlatformCash,
+                    payout.Amount,
+                    0m,
+                    FinancialOwnerType.Platform,
+                    _settings.PlatformWalletOwnerId,
+                    SettlementId: settlement.Id,
+                    PayoutId: payout.Id,
+                    Memo: $"Returned payout {payout.Id}"),
+                new JournalLineDraft(
+                    payableAccount,
+                    0m,
+                    payout.Amount,
+                    ownerType,
+                    settlement.OwnerId,
+                    SettlementId: settlement.Id,
+                    PayoutId: payout.Id,
+                    Memo: $"Payout return payable restoration {payout.Id}")
+            ],
+            settlementId: settlement.Id,
+            payoutId: payout.Id,
+            currencyCode: CurrencyPolicy.OfficialCurrency,
+            description: $"Payout return recorded {payout.Id}",
             cancellationToken: cancellationToken);
 
         await _walletProjectionUpdater.ApplyJournalEntryAsync(result.JournalEntryId, cancellationToken);

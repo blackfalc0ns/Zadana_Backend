@@ -77,6 +77,25 @@ public record AdminProcessWithdrawalRequest(
     string? TransferReference,
     string? FailureReason);
 
+/// <summary>
+/// Result of an administrator's withdrawal decision.  A manual approval only
+/// prepares the financial records; it is deliberately not a payment
+/// confirmation. The caller must use <see cref="PayoutId"/> to claim the
+/// payout, record the external bank submission, and then confirm it with its
+/// reference and proof.
+/// </summary>
+public record AdminProcessWithdrawalResultDto(
+    Guid WithdrawalId,
+    string WithdrawalStatus,
+    Guid? PayoutId,
+    string? PayoutStatus,
+    bool ManualWorkflowRequired,
+    string? ManualClaimEndpoint,
+    string? ManualBankSubmissionEndpoint,
+    string? ManualConfirmationEndpoint,
+    string? TransferReference,
+    string? FailureReason);
+
 public record AdminPlatformBankAccountDto(
     Guid? Id,
     string BankName,

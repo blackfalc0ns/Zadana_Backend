@@ -5,6 +5,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Common.Settings;
+using Zadana.Application.Modules.Finances.Services;
 using Zadana.Application.Modules.Wallets.Services;
 using Zadana.Domain.Modules.Vendors.Enums;
 using Zadana.Domain.Modules.Wallets.Entities;
@@ -53,6 +54,10 @@ public sealed class VendorSettlementCycleWorker : BackgroundService
         var context = scope.ServiceProvider.GetRequiredService<IApplicationDbContext>();
         var settings = scope.ServiceProvider.GetRequiredService<IOptions<FinancialSettingsOptions>>().Value;
         var vendorPayoutWalletService = scope.ServiceProvider.GetRequiredService<VendorPayoutWalletService>();
+        var settlementProcessingSettingsService = scope.ServiceProvider
+            .GetRequiredService<ISettlementProcessingSettingsService>();
+        var enabledPayoutDays = await settlementProcessingSettingsService
+            .GetEnabledPayoutDaysAsync(cancellationToken);
 
         var today = SaudiTime.Today;
         var vendors = await context.Vendors
@@ -61,7 +66,13 @@ public sealed class VendorSettlementCycleWorker : BackgroundService
             .ToListAsync(cancellationToken);
 
         var eligibleVendors = vendors
-            .Select(v => ResolveSchedule(v.Id, v.FinancialLifecycleMode, v.PayoutDay, today, settings))
+            .Select(v => ResolveSchedule(
+                v.Id,
+                v.FinancialLifecycleMode,
+                v.PayoutDay,
+                today,
+                settings,
+                enabledPayoutDays))
             .Where(schedule => schedule is not null)
             .Select(schedule => schedule!)
             .ToList();
@@ -127,6 +138,7 @@ public sealed class VendorSettlementCycleWorker : BackgroundService
                         t.TxnType == WalletTxnType.OrderRevenue && 
                         t.Direction == "IN")
             .Where(t => !context.SettlementItems.Any(si => si.WalletTransactionId == t.Id))
+            .OrderBy(t => t.CreatedAtUtc)
             .ToListAsync(cancellationToken);
 
         if (!unsettledTxns.Any())
@@ -150,39 +162,81 @@ public sealed class VendorSettlementCycleWorker : BackgroundService
 
         var totalNet = unsettledTxns.Sum(t => t.Amount);
 
-        // It shouldn't exceed CurrentBalance unless there were manual debits
-        var amountToSettle = Math.Min(totalNet, wallet.CurrentBalance);
+        // CurrentBalance can be lower than the revenue lines that have not yet
+        // been placed in a settlement (for example, because of a recovery or a
+        // posted debit).  We must still link every revenue line exactly once;
+        // otherwise a partial payout would make the unpaid portion disappear
+        // from future cycles.  The difference is represented as a recovery on
+        // this settlement and allocated deterministically (oldest revenue
+        // first), so Gross - Recovery always equals the actual payout amount.
+        var amountToSettle = Math.Min(totalNet, Math.Max(0m, wallet.CurrentBalance));
 
         if (amountToSettle <= 0)
         {
             return;
         }
 
+        var recoveryAmount = totalNet - amountToSettle;
         var settlement = new Settlement(
             SettlementOwnerType.Vendor,
             vendorId,
             schedule.PeriodFrom,
             schedule.PeriodTo,
             SettlementOrigin.ScheduledCycle);
-        settlement.UpdateTotals(amountToSettle, 0m); // In scheduled, Commission is already deducted during per-order distribution
+        settlement.UpdateTotals(
+            totalNet,
+            0m,
+            recovery: recoveryAmount); // Commission is deducted during per-order distribution.
         context.Settlements.Add(settlement);
 
+        var remainingRecovery = recoveryAmount;
         foreach (var txn in unsettledTxns)
         {
-            if (txn.OrderId.HasValue)
-            {
-                context.SettlementItems.Add(new SettlementItem(
-                    settlement.Id, 
-                    txn.OrderId.Value, 
-                    txn.Amount, 
-                    0m, 
-                    0m, 
+            var settlementItem = txn.OrderId.HasValue
+                ? new SettlementItem(
+                    settlement.Id,
+                    txn.OrderId.Value,
+                    txn.Amount,
                     0m,
-                    txn.Id));
+                    0m,
+                    0m,
+                    txn.Id)
+                : new SettlementItem(
+                    settlement.Id,
+                    SettlementItemLineType.Adjustment,
+                    txn.Id,
+                    orderId: null,
+                    amount: txn.Amount,
+                    commission: 0m,
+                    refund: 0m,
+                    adjustment: 0m,
+                    recovery: 0m,
+                    netAmount: txn.Amount,
+                    walletTransactionId: txn.Id);
+
+            if (remainingRecovery > 0m)
+            {
+                var itemRecovery = Math.Min(settlementItem.VendorAmount, remainingRecovery);
+                settlementItem.ApplyVendorRecovery(itemRecovery);
+                remainingRecovery -= itemRecovery;
             }
+
+            context.SettlementItems.Add(settlementItem);
+        }
+
+        if (remainingRecovery > 0m)
+        {
+            throw new InvalidOperationException(
+                $"Unable to allocate vendor recovery {remainingRecovery} for scheduled settlement {settlement.Id}.");
         }
 
         var payout = new Payout(settlement.Id, amountToSettle, primaryBankAccount.Id);
+        payout.SetScheduledPayoutDay(schedule.PayoutDay);
+        // Capture the verified destination now. A later edit to the vendor's
+        // bank profile must never redirect an already prepared settlement.
+        payout.PrepareDestination(
+            PayoutDestinationType.VendorBankAccount,
+            PayoutDestinationSnapshotCodec.CreateVendorBankAccount(primaryBankAccount));
         context.Payouts.Add(payout);
 
         await vendorPayoutWalletService.EnsureHoldAsync(
@@ -219,9 +273,11 @@ public sealed class VendorSettlementCycleWorker : BackgroundService
         VendorFinancialLifecycleMode financialLifecycleMode,
         PayoutScheduleDay payoutDay,
         DateTime today,
-        FinancialSettingsOptions settings)
+        FinancialSettingsOptions settings,
+        IReadOnlyCollection<PayoutScheduleDay> enabledPayoutDays)
     {
         if (!PayoutScheduleDayPolicy.IsAllowed(payoutDay) ||
+            !enabledPayoutDays.Contains(payoutDay) ||
             !PayoutScheduleDayPolicy.IsPayoutDay(today, payoutDay))
         {
             return null;
@@ -243,7 +299,7 @@ public sealed class VendorSettlementCycleWorker : BackgroundService
 
         return period is null
             ? null
-            : new VendorSettlementSchedule(vendorId, period.Value.From, period.Value.To);
+            : new VendorSettlementSchedule(vendorId, payoutDay, period.Value.From, period.Value.To);
     }
 
     private static (DateTime From, DateTime To) ResolveWeeklyPeriod(
@@ -316,5 +372,9 @@ public sealed class VendorSettlementCycleWorker : BackgroundService
         return new DateTime(year, month, day);
     }
 
-    private sealed record VendorSettlementSchedule(Guid VendorId, DateTime PeriodFrom, DateTime PeriodTo);
+    private sealed record VendorSettlementSchedule(
+        Guid VendorId,
+        PayoutScheduleDay PayoutDay,
+        DateTime PeriodFrom,
+        DateTime PeriodTo);
 }

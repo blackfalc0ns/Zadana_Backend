@@ -1,6 +1,7 @@
 using FluentValidation;
 using MediatR;
 using Zadana.Application.Common.Interfaces;
+using Zadana.Application.Modules.Finances.Services;
 using Zadana.Application.Modules.Vendors.DTOs;
 using Zadana.Application.Modules.Vendors.Interfaces;
 using Zadana.Domain.Modules.Wallets.Enums;
@@ -23,7 +24,7 @@ public sealed class UpdateVendorPayoutPreferenceCommandValidator
             .NotEmpty()
             .Must(value => PayoutScheduleDayPolicy.TryParse(value, out _))
             .WithErrorCode("INVALID_PAYOUT_DAY")
-            .WithMessage("Payout day must be either Monday or Thursday.");
+            .WithMessage("Payout day must be a valid day of the week.");
     }
 }
 
@@ -33,15 +34,18 @@ public sealed class UpdateVendorPayoutPreferenceCommandHandler
     private readonly IVendorRepository _vendorRepository;
     private readonly IUnitOfWork _unitOfWork;
     private readonly ICurrentUserService _currentUserService;
+    private readonly ISettlementProcessingSettingsService _settlementProcessingSettingsService;
 
     public UpdateVendorPayoutPreferenceCommandHandler(
         IVendorRepository vendorRepository,
         IUnitOfWork unitOfWork,
-        ICurrentUserService currentUserService)
+        ICurrentUserService currentUserService,
+        ISettlementProcessingSettingsService settlementProcessingSettingsService)
     {
         _vendorRepository = vendorRepository;
         _unitOfWork = unitOfWork;
         _currentUserService = currentUserService;
+        _settlementProcessingSettingsService = settlementProcessingSettingsService;
     }
 
     public async Task<VendorPayoutPreferenceDto> Handle(
@@ -52,8 +56,12 @@ public sealed class UpdateVendorPayoutPreferenceCommandHandler
         {
             throw new BadRequestException(
                 "INVALID_PAYOUT_DAY",
-                "Payout day must be either Monday or Thursday.");
+                "Payout day must be a valid day of the week.");
         }
+
+        await _settlementProcessingSettingsService.EnsurePayoutDayEnabledAsync(
+            payoutDay,
+            cancellationToken);
 
         var userId = _currentUserService.UserId
             ?? throw new UnauthorizedException("USER_NOT_AUTHENTICATED");
@@ -66,6 +74,10 @@ public sealed class UpdateVendorPayoutPreferenceCommandHandler
         vendor.UpdatePayoutDay(payoutDay);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
-        return new VendorPayoutPreferenceDto(vendor.PayoutDay.ToString());
+        return new VendorPayoutPreferenceDto(
+            vendor.PayoutDay.ToString(),
+            (await _settlementProcessingSettingsService.GetEnabledPayoutDaysAsync(cancellationToken))
+                .Select(day => day.ToString())
+                .ToArray());
     }
 }

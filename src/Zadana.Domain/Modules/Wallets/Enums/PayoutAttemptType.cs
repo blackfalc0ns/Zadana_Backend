@@ -5,6 +5,10 @@ public enum PayoutAttemptType
     Trigger,
     Retry,
     ProviderCallback,
+    ManualClaim,
+    ManualBankSubmission,
+    ManualClaimRelease,
     ManualConfirmation,
+    Reversal,
     Cancel
 }

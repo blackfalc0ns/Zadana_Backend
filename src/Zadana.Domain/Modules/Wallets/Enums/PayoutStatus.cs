@@ -6,6 +6,7 @@ public enum PayoutStatus
     Queued,
     Processing,
     Paid,
+    Reversed,
     Failed,
     Cancelled
 }

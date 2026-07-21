@@ -8,42 +8,40 @@ namespace Zadana.UnitTests.Modules.Finance;
 
 public sealed class CompleteVendorPayoutCommandValidatorTests
 {
-    [Theory]
-    [InlineData("ftp://files.zadna0.com/payout-proof.pdf")]
-    [InlineData("/payout-proof.pdf")]
-    [InlineData("not-a-url")]
-    public void Validate_rejects_non_http_proof_urls(string proofUrl)
+    [Fact]
+    public void Validate_rejects_missing_or_empty_protected_proof_attachment()
+    {
+        var validator = new CompleteVendorPayoutCommandValidator(CreateLocalizer());
+
+        var missing = validator.Validate(new CompleteVendorPayoutCommand(
+            Guid.NewGuid(),
+            Guid.NewGuid(),
+            "BANK-REF-123",
+            null));
+        var empty = validator.Validate(new CompleteVendorPayoutCommand(
+            Guid.NewGuid(),
+            Guid.NewGuid(),
+            "BANK-REF-124",
+            Guid.Empty));
+
+        missing.IsValid.Should().BeFalse();
+        empty.IsValid.Should().BeFalse();
+        missing.Errors.Should().Contain(error => error.ErrorCode == "PAYOUT_PROOF_REQUIRED");
+        empty.Errors.Should().Contain(error => error.ErrorCode == "PAYOUT_PROOF_REQUIRED");
+    }
+
+    [Fact]
+    public void Validate_accepts_a_protected_proof_attachment_id()
     {
         var validator = new CompleteVendorPayoutCommandValidator(CreateLocalizer());
 
         var result = validator.Validate(new CompleteVendorPayoutCommand(
             Guid.NewGuid(),
             Guid.NewGuid(),
-            "BANK-REF-123",
-            proofUrl));
-
-        result.IsValid.Should().BeFalse();
-        result.Errors.Should().Contain(error => error.ErrorCode == "PAYOUT_PROOF_URL_INVALID");
-    }
-
-    [Fact]
-    public void Validate_accepts_http_or_https_proof_urls()
-    {
-        var validator = new CompleteVendorPayoutCommandValidator(CreateLocalizer());
-
-        var httpResult = validator.Validate(new CompleteVendorPayoutCommand(
-            Guid.NewGuid(),
-            Guid.NewGuid(),
-            "BANK-REF-HTTP",
-            "http://files.zadna0.com/payout-proof.pdf"));
-        var httpsResult = validator.Validate(new CompleteVendorPayoutCommand(
-            Guid.NewGuid(),
-            Guid.NewGuid(),
             "BANK-REF-HTTPS",
-            "https://files.zadna0.com/payout-proof.pdf"));
+            Guid.NewGuid()));
 
-        httpResult.IsValid.Should().BeTrue();
-        httpsResult.IsValid.Should().BeTrue();
+        result.IsValid.Should().BeTrue();
     }
 
     private static IStringLocalizer<SharedResource> CreateLocalizer()

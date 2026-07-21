@@ -313,6 +313,10 @@ builder.Services.AddOptions<Zadana.Infrastructure.Settings.ImageKitSettings>()
     .Bind(builder.Configuration.GetSection(Zadana.Infrastructure.Settings.ImageKitSettings.SectionName))
     .ValidateDataAnnotations();
 
+// Payout evidence is stored as protected database attachments rather than a
+// generic/public media URL. Keep this scoped with the request DbContext.
+builder.Services.AddScoped<Zadana.Api.Modules.Finances.Services.PayoutProofAttachmentService>();
+
 var fileStorageOptionsBuilder = builder.Services.AddOptions<FileStorageSettings>()
     .Bind(builder.Configuration.GetSection(FileStorageSettings.SectionName))
     .Validate(

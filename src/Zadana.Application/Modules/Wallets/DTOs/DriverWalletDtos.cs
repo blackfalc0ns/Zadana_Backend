@@ -14,7 +14,9 @@ public record DriverWalletSummaryDto(
     DriverWithdrawalSummaryDto WithdrawalSummary,
     string PayoutDay = "Monday");
 
-public record DriverPayoutPreferenceDto(string PayoutDay);
+public record DriverPayoutPreferenceDto(
+    string PayoutDay,
+    IReadOnlyList<string> AvailablePayoutDays);
 
 public record DriverWalletTransactionListDto(
     IReadOnlyList<DriverWalletTransactionDto> Items,

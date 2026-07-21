@@ -1,7 +1,9 @@
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 using Zadana.Application.Common.Interfaces;
+using Zadana.Application.Modules.Finances.Services;
 using Zadana.Domain.Modules.Wallets.Entities;
+using Zadana.Domain.Modules.Wallets.Enums;
 
 namespace Zadana.Application.Modules.Wallets.Commands.CreatePayout;
 
@@ -40,6 +42,18 @@ public class CreatePayoutCommandHandler : IRequestHandler<CreatePayoutCommand, G
         }
 
         var payout = new Payout(request.SettlementId, request.Amount, request.VendorBankAccountId);
+        payout.PrepareDestination(
+            PayoutDestinationType.VendorBankAccount,
+            PayoutDestinationSnapshotCodec.CreateVendorBankAccount(bankAccount));
+        var payoutDay = await _context.Vendors
+            .AsNoTracking()
+            .Where(item => item.Id == settlement.OwnerId)
+            .Select(item => (PayoutScheduleDay?)item.PayoutDay)
+            .FirstOrDefaultAsync(cancellationToken);
+        if (payoutDay.HasValue)
+        {
+            payout.SetScheduledPayoutDay(payoutDay.Value);
+        }
 
         _context.Payouts.Add(payout);
         await _context.SaveChangesAsync(cancellationToken);

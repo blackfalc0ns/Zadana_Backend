@@ -66,7 +66,8 @@ public class SettlementItem
         decimal refund,
         decimal adjustment,
         decimal recovery,
-        decimal netAmount)
+        decimal netAmount,
+        Guid? walletTransactionId = null)
     {
         SettlementId = settlementId;
         LineType = lineType;
@@ -82,6 +83,7 @@ public class SettlementItem
         DriverAmount = 0;
         PlatformCommission = commission;
         CodCollectedAmount = 0;
+        WalletTransactionId = walletTransactionId;
     }
 
     public void ApplyVendorRecovery(decimal amount)

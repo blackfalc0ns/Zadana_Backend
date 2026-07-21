@@ -8,6 +8,7 @@ using Zadana.Api.Modules.Delivery.Requests;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Modules.Delivery.Support;
 using Zadana.Application.Modules.Delivery.Interfaces;
+using Zadana.Application.Modules.Finances.Services;
 using Zadana.Application.Modules.Wallets.DTOs;
 using Zadana.Application.Modules.Wallets.Interfaces;
 using Zadana.Domain.Modules.Social.Enums;
@@ -38,10 +39,11 @@ public class DriverWalletController : ApiControllerBase
     public async Task<ActionResult<DriverPayoutPreferenceDto>> GetPayoutPreference(
         [FromServices] ICurrentUserService currentUserService,
         [FromServices] IDriverRepository driverRepository,
+        [FromServices] ISettlementProcessingSettingsService settlementProcessingSettingsService,
         CancellationToken cancellationToken = default)
     {
         var driver = await GetDriverAsync(currentUserService, driverRepository, cancellationToken);
-        return Ok(new DriverPayoutPreferenceDto(driver.PayoutDay.ToString()));
+        return Ok(await ToPayoutPreferenceDtoAsync(driver, settlementProcessingSettingsService, cancellationToken));
     }
 
     [HttpPut("payout-preference")]
@@ -50,20 +52,25 @@ public class DriverWalletController : ApiControllerBase
         [FromServices] ICurrentUserService currentUserService,
         [FromServices] IDriverRepository driverRepository,
         [FromServices] IApplicationDbContext context,
+        [FromServices] ISettlementProcessingSettingsService settlementProcessingSettingsService,
         CancellationToken cancellationToken = default)
     {
         if (request is null || !PayoutScheduleDayPolicy.TryParse(request.PayoutDay, out var payoutDay))
         {
             throw new BadRequestException(
                 "INVALID_PAYOUT_DAY",
-                "Payout day must be either Monday or Thursday.");
+                "Payout day must be a valid day of the week.");
         }
+
+        await settlementProcessingSettingsService.EnsurePayoutDayEnabledAsync(
+            payoutDay,
+            cancellationToken);
 
         var driver = await GetDriverAsync(currentUserService, driverRepository, cancellationToken);
         driver.UpdatePayoutDay(payoutDay);
         await context.SaveChangesAsync(cancellationToken);
 
-        return Ok(new DriverPayoutPreferenceDto(driver.PayoutDay.ToString()));
+        return Ok(await ToPayoutPreferenceDtoAsync(driver, settlementProcessingSettingsService, cancellationToken));
     }
 
     [HttpGet("transactions")]
@@ -459,6 +466,18 @@ public class DriverWalletController : ApiControllerBase
         }
 
         return driver;
+    }
+
+    private static async Task<DriverPayoutPreferenceDto> ToPayoutPreferenceDtoAsync(
+        Domain.Modules.Delivery.Entities.Driver driver,
+        ISettlementProcessingSettingsService settlementProcessingSettingsService,
+        CancellationToken cancellationToken)
+    {
+        var enabledDays = await settlementProcessingSettingsService
+            .GetEnabledPayoutDaysAsync(cancellationToken);
+        return new DriverPayoutPreferenceDto(
+            driver.PayoutDay.ToString(),
+            enabledDays.Select(day => day.ToString()).ToArray());
     }
 
     private static async Task<Wallet> GetOrCreateWalletAsync(

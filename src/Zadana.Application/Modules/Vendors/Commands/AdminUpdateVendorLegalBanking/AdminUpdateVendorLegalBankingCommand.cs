@@ -3,6 +3,7 @@ using MediatR;
 using Microsoft.Extensions.Localization;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Common.Localization;
+using Zadana.Application.Modules.Finances.Services;
 using Zadana.Application.Modules.Vendors.DTOs;
 using Zadana.Application.Modules.Vendors.Interfaces;
 using Zadana.Domain.Modules.Vendors.Entities;
@@ -57,17 +58,20 @@ public class AdminUpdateVendorLegalBankingCommandHandler : IRequestHandler<Admin
     private readonly IVendorReadService _vendorReadService;
     private readonly IVendorCommunicationService _vendorCommunicationService;
     private readonly IUnitOfWork _unitOfWork;
+    private readonly ISettlementProcessingSettingsService _settlementProcessingSettingsService;
 
     public AdminUpdateVendorLegalBankingCommandHandler(
         IVendorRepository vendorRepository,
         IVendorReadService vendorReadService,
         IVendorCommunicationService vendorCommunicationService,
-        IUnitOfWork unitOfWork)
+        IUnitOfWork unitOfWork,
+        ISettlementProcessingSettingsService settlementProcessingSettingsService)
     {
         _vendorRepository = vendorRepository;
         _vendorReadService = vendorReadService;
         _vendorCommunicationService = vendorCommunicationService;
         _unitOfWork = unitOfWork;
+        _settlementProcessingSettingsService = settlementProcessingSettingsService;
     }
 
     public async Task<VendorDetailDto> Handle(AdminUpdateVendorLegalBankingCommand request, CancellationToken cancellationToken)
@@ -83,9 +87,13 @@ public class AdminUpdateVendorLegalBankingCommandHandler : IRequestHandler<Admin
             request.CommercialRegisterDocumentUrl,
             request.TaxDocumentUrl,
             request.LicenseDocumentUrl);
+        var payoutDay = await _settlementProcessingSettingsService.ResolveConfiguredPayoutDayAsync(
+            request.PayoutDay,
+            vendor.PayoutDay,
+            cancellationToken);
         vendor.UpdateBanking(
             request.PayoutCycle,
-            PayoutScheduleDayPolicy.ParseOrDefault(request.PayoutDay, vendor.PayoutDay));
+            payoutDay);
 
         foreach (var account in vendor.BankAccounts)
         {

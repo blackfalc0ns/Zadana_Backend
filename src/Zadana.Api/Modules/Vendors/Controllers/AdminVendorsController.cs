@@ -338,7 +338,7 @@ public class AdminVendorsController : ApiControllerBase
             vendorId,
             payoutId,
             request?.TransferReference,
-            request?.ProofUrl));
+            request?.ProofAttachmentId));
         return Ok(new { Message = _localizer["VENDOR_PAYOUT_COMPLETED_SUCCESS"].Value });
     }
 

@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Localization;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Common.Localization;
+using Zadana.Application.Modules.Finances.Services;
 using Zadana.Application.Modules.Wallets.Services;
 using Zadana.Domain.Modules.Wallets.Enums;
 using Zadana.SharedKernel.Exceptions;
@@ -24,16 +25,16 @@ public class SuspendVendorPayoutCommandValidator : AbstractValidator<SuspendVend
 public class SuspendVendorPayoutCommandHandler : IRequestHandler<SuspendVendorPayoutCommand, Guid>
 {
     private readonly IApplicationDbContext _context;
-    private readonly VendorPayoutWalletService _vendorPayoutWalletService;
+    private readonly PayoutOrchestrator _payoutOrchestrator;
     private readonly IAdminAlertService _adminAlertService;
 
     public SuspendVendorPayoutCommandHandler(
         IApplicationDbContext context,
-        VendorPayoutWalletService vendorPayoutWalletService,
+        PayoutOrchestrator payoutOrchestrator,
         IAdminAlertService adminAlertService)
     {
         _context = context;
-        _vendorPayoutWalletService = vendorPayoutWalletService;
+        _payoutOrchestrator = payoutOrchestrator;
         _adminAlertService = adminAlertService;
     }
 
@@ -50,26 +51,15 @@ public class SuspendVendorPayoutCommandHandler : IRequestHandler<SuspendVendorPa
             throw new InvalidOperationException("Vendor payout was not found.");
         }
 
-        if (payout.Status == PayoutStatus.Paid)
+        if (payout.Status is PayoutStatus.Paid or PayoutStatus.Reversed)
         {
             throw new BusinessRuleException("PAYOUT_INVALID_STATUS", "Paid payouts cannot be suspended.");
         }
 
-        payout.Cancel();
-        if (payout.Settlement.Status != SettlementStatus.Settled)
-        {
-            payout.Settlement.MarkAsFailed();
-        }
-
-        await _vendorPayoutWalletService.ReleaseHoldAsync(
-            request.VendorId,
-            payout.SettlementId,
-            payout.Amount,
-            "PayoutSuspendedRelease",
-            $"Hold released after payout suspension {payout.Id}",
-            cancellationToken);
-
-        await _context.SaveChangesAsync(cancellationToken);
+        // Route every suspension through the orchestrator so an in-flight
+        // gateway payout or a submitted manual transfer cannot be silently
+        // cancelled while its bank operation may still complete.
+        await _payoutOrchestrator.CancelAsync(payout.Id, cancellationToken);
 
         await _adminAlertService.SendAsync(
             new AdminAlertRequest(

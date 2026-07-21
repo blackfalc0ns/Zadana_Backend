@@ -19,14 +19,24 @@ public sealed class GetVendorPayoutsQueryTests
         settlement.Approve();
 
         var payout = new Payout(settlement.Id, settlement.NetAmount);
+        var proofAttachment = new PayoutProofAttachment(
+            payout.Id,
+            PayoutProofKind.ManualTransfer,
+            "proof.pdf",
+            "application/pdf",
+            1,
+            new string('A', 64),
+            [0x01],
+            confirmedByUserId);
         var confirmation = new PayoutManualConfirmation(
             payout.Id,
             "BANK-REF-123",
-            "https://files.zadna0.com/payout-proofs/BANK-REF-123.pdf",
+            proofAttachment.Id,
             confirmedByUserId);
 
         context.Settlements.Add(settlement);
         context.Payouts.Add(payout);
+        context.PayoutProofAttachments.Add(proofAttachment);
         context.PayoutManualConfirmations.Add(confirmation);
         await context.SaveChangesAsync();
 
@@ -38,7 +48,8 @@ public sealed class GetVendorPayoutsQueryTests
         dto.SettlementStatus.Should().Be(nameof(SettlementStatus.Approved));
         dto.ManualConfirmation.Should().NotBeNull();
         dto.ManualConfirmation!.TransferReference.Should().Be("BANK-REF-123");
-        dto.ManualConfirmation.ProofUrl.Should().Be("https://files.zadna0.com/payout-proofs/BANK-REF-123.pdf");
+        dto.ManualConfirmation.ProofAttachmentId.Should().Be(proofAttachment.Id);
+        dto.ManualConfirmation.HasLegacyProof.Should().BeFalse();
         dto.ManualConfirmation.ConfirmedByUserId.Should().Be(confirmedByUserId);
         dto.ManualConfirmation.ConfirmedAtUtc.Should().BeCloseTo(DateTime.UtcNow, TimeSpan.FromMinutes(1));
     }

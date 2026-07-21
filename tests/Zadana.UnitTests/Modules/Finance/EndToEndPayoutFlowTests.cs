@@ -25,6 +25,7 @@ using Zadana.Domain.Modules.Wallets.Entities;
 using Zadana.Domain.Modules.Wallets.Enums;
 using Zadana.SharedKernel.Exceptions;
 using Zadana.SharedKernel.Finance;
+using Zadana.SharedKernel.Serialization;
 using Zadana.UnitTests.Common;
 
 namespace Zadana.UnitTests.Modules.Finance;
@@ -86,10 +87,18 @@ public class EndToEndPayoutFlowTests
     {
         await using var context = TestDbContextFactory.Create();
         var gateway = new FakePaidPayoutGateway();
-        var orchestrator = CreatePayoutOrchestrator(context, gateway);
+        var settlementSettings = new Mock<ISettlementProcessingSettingsService>();
+        settlementSettings
+            .Setup(item => item.IsAutomaticAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true);
+        settlementSettings
+            .Setup(item => item.GetEnabledPayoutDaysAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Enum.GetValues<PayoutScheduleDay>());
+        var orchestrator = CreatePayoutOrchestrator(context, gateway, settlementSettings.Object);
 
         var vendor = CreatePerOrderVendor();
         vendor.UpdateFinanceSettings(VendorFinancialLifecycleMode.Weekly);
+        vendor.UpdatePayoutDay((PayoutScheduleDay)SaudiTime.Today.DayOfWeek);
         var vendorBank = CreateVerifiedPrimaryBankAccount(vendor.Id, "Vendor Owner");
         var settlement = new Settlement(vendor.Id, null, SettlementOrigin.ScheduledCycle);
         settlement.UpdateTotals(100m, 0m);
@@ -120,7 +129,8 @@ public class EndToEndPayoutFlowTests
 
     private static PayoutOrchestrator CreatePayoutOrchestrator(
         IApplicationDbContext context,
-        IPayoutGateway gateway)
+        IPayoutGateway gateway,
+        ISettlementProcessingSettingsService? settlementProcessingSettingsService = null)
     {
         var postingService = new FinancialEventPostingService(
             context,
@@ -138,7 +148,8 @@ public class EndToEndPayoutFlowTests
             Options.Create(new FinancialSettingsOptions()),
             new NoOpAdminAlertService(),
             Mock.Of<INotificationService>(),
-            Mock.Of<IOneSignalPushService>());
+            Mock.Of<IOneSignalPushService>(),
+            settlementProcessingSettingsService);
     }
 
     private static Vendor CreatePerOrderVendor()
