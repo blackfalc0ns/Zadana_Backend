@@ -732,6 +732,11 @@ builder.Services.AddCors(options =>
                     "Accept",
                     "Accept-Language",
                     "Cache-Control",
+                    // Settlement-processing settings use optimistic concurrency.
+                    // Without this header the production CORS preflight rejects
+                    // the save request and Angular reports a misleading network
+                    // error instead of a normal API response.
+                    "If-Match",
                     "X-Requested-With",
                     "X-SignalR-User-Agent",
                     "X-Device-Id",
@@ -741,6 +746,7 @@ builder.Services.AddCors(options =>
                     "X-Forwarded-For",
                     "X-XSRF-TOKEN",
                     RegistrationUploadTokenService.HeaderName)
+                .WithExposedHeaders("ETag")
                 .WithMethods("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS")
                 .AllowCredentials();
             return;
