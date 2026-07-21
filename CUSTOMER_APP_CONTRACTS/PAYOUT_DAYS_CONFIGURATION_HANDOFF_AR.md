@@ -125,6 +125,31 @@
 
 تسجل هذه الخطوة أن التحويل أُدخل في بوابة البنك. بعد ذلك لا يمكن إلغاء الدفعة أو إعادة تشغيلها تلقائيًا؛ يجب تأكيدها أو تسويتها/عكسها.
 
+### رفع إثبات التحويل بشكل آمن
+
+`POST /api/admin/payouts/{payoutId}/proofs`
+
+يرسل الطلب بصيغة `multipart/form-data` بعد تسجيل الإرسال البنكي، وبالقيم التالية:
+
+- `kind`: القيمة الثابتة `ManualTransfer`.
+- `file`: ملف PDF أو JPEG أو PNG أو WebP. الحد الأقصى 10 MB للـ PDF و5 MB للصور.
+
+مثال على الاستجابة:
+
+```json
+{
+  "id": "dd15d84e-9a82-48e6-aad0-03cf5a1e16d5",
+  "payoutId": "1233f3d4-9d26-4e91-bfe2-ec25fd8408f5",
+  "kind": "ManualTransfer",
+  "fileName": "bank-receipt.pdf",
+  "isFinalized": false
+}
+```
+
+لا يُنشئ الخادم رابطًا عامًا لملف الإثبات. بعد التأكيد يمكن لأدمن المالية تنزيله فقط من:
+
+`GET /api/admin/payouts/{payoutId}/proofs/{proofAttachmentId}`
+
 ### تأكيد التحويل البنكي بعد تنفيذه خارج المنصة
 
 `POST /api/admin/payouts/{payoutId}/confirm-manual`
@@ -132,12 +157,18 @@
 ```json
 {
   "transferReference": "BANK-REFERENCE-123",
-  "proofUrl": "https://api.example.sa/uploads/settlements/proofs/receipt.pdf"
+  "proofAttachmentId": "dd15d84e-9a82-48e6-aad0-03cf5a1e16d5"
 }
 ```
 
-تتطلب هذه الخطوة مرجع البنك وإثبات التحويل، وتأتي بعد claim ثم bank submission. لا تعرض للسائق حالة `Paid` قبل نجاحها. افتراضيًا يجب أن يكون الأدمن المؤكد مختلفًا عن الأدمن الذي سجل الإرسال البنكي.
+تتطلب هذه الخطوة مرجع البنك و`proofAttachmentId` الناتج من خطوة الرفع الآمنة، وتأتي بعد claim ثم bank submission. لا تعرض للسائق حالة `Paid` قبل نجاحها. افتراضيًا يجب أن يكون الأدمن المؤكد مختلفًا عن الأدمن الذي سجل الإرسال البنكي.
 
 ### الوضع التلقائي بلا بوابة تحويل
 
 إذا كان الوضع `Automatic` ولا توجد بوابة payout مهيأة، يعيد الخادم `PAYOUT_GATEWAY_UNAVAILABLE` ولا ينشئ payout ولا يغيّر طلب السحب إلى مدفوع، حتى إن أرسل العميل `transferReference`. للتحويل الخارجي يجب أن تحوّل الإدارة الوضع إلى `Manual` ثم تستخدم خطتي التجهيز والتأكيد أعلاه.
+
+## متطلبات التشغيل قبل النشر
+
+- طبّق migrations حتى `20260721195706_CompleteManualSettlementOperationalHardening` بعد أخذ نسخة احتياطية من قاعدة البيانات.
+- في الإنتاج اضبط `DataProtection__KeysPath` على volume دائم ومشترك بين كل نسخ الـ API، مثل `/var/lib/zadana/data-protection-keys`. لا تستخدم مسارًا داخل image أو مجلدًا يُستبدل عند إعادة النشر؛ إذ سيمنع ذلك فك تشفير إثباتات التحويل القديمة.
+- احصر صلاحيات مسار المفاتيح على مستخدم تشغيل الـ API، وتحقق من إمكان الكتابة فيه قبل تشغيل الخدمة.

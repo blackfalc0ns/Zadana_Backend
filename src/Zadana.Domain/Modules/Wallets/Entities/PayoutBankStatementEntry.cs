@@ -82,6 +82,13 @@ public sealed class PayoutBankStatementEntry : BaseEntity
 
     public void MarkIgnored(Guid resolvedByUserId, string? note = null)
     {
+        if (Status is PayoutBankStatementEntryStatus.Matched or PayoutBankStatementEntryStatus.Ignored)
+        {
+            throw new BusinessRuleException(
+                "BANK_STATEMENT_ENTRY_ALREADY_RESOLVED",
+                "A resolved bank statement row cannot be silently changed.");
+        }
+
         EnsureResolver(resolvedByUserId);
         Status = PayoutBankStatementEntryStatus.Ignored;
         PayoutId = null;
@@ -95,6 +102,13 @@ public sealed class PayoutBankStatementEntry : BaseEntity
         if (payoutId == Guid.Empty)
         {
             throw new BusinessRuleException("PAYOUT_REQUIRED", "Payout is required for a bank statement match.");
+        }
+
+        if (Status is PayoutBankStatementEntryStatus.Matched or PayoutBankStatementEntryStatus.Ignored)
+        {
+            throw new BusinessRuleException(
+                "BANK_STATEMENT_ENTRY_ALREADY_RESOLVED",
+                "A resolved bank statement row cannot be silently changed.");
         }
 
         EnsureResolver(resolvedByUserId);

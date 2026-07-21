@@ -162,6 +162,22 @@ public sealed class PayoutBankReconciliationService
             throw new BusinessRuleException("BANK_STATEMENT_ENTRY_IGNORED", "An ignored bank statement row cannot be matched.");
         }
 
+        // HTTP retries for the same successful decision are safe, but a
+        // completed reconciliation row is otherwise immutable. Reassigning it
+        // would erase the original reviewer and timestamp without any audit
+        // trail, so it must go through a future explicit correction flow.
+        if (entry.Status == PayoutBankStatementEntryStatus.Matched)
+        {
+            if (entry.PayoutId == payoutId)
+            {
+                return entry;
+            }
+
+            throw new BusinessRuleException(
+                "BANK_STATEMENT_ENTRY_ALREADY_RESOLVED",
+                "This bank statement row is already matched to another payout and cannot be reassigned.");
+        }
+
         var payout = await _context.Payouts
             .AsNoTracking()
             .Include(item => item.ManualConfirmation)
@@ -205,6 +221,18 @@ public sealed class PayoutBankReconciliationService
         var entry = await _context.PayoutBankStatementEntries
             .FirstOrDefaultAsync(item => item.Id == entryId, cancellationToken)
             ?? throw new NotFoundException("PayoutBankStatementEntry", entryId);
+
+        if (entry.Status == PayoutBankStatementEntryStatus.Ignored)
+        {
+            return entry;
+        }
+
+        if (entry.Status == PayoutBankStatementEntryStatus.Matched)
+        {
+            throw new BusinessRuleException(
+                "BANK_STATEMENT_ENTRY_ALREADY_RESOLVED",
+                "A matched bank statement row cannot be ignored or changed.");
+        }
 
         entry.MarkIgnored(resolvedByUserId, note ?? "Resolved outside payout reconciliation.");
         await RefreshImportSummaryAsync(entry.ImportId, cancellationToken);
