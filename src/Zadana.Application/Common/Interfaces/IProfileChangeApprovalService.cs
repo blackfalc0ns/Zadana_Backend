@@ -86,7 +86,8 @@ public sealed record VendorBankingProfileChangePayload(
     [property: JsonPropertyName("accountHolderName")] string AccountHolderName,
     [property: JsonPropertyName("iban")] string Iban,
     [property: JsonPropertyName("swiftCode")] string? SwiftCode,
-    [property: JsonPropertyName("payoutCycle")] string? PayoutCycle);
+    [property: JsonPropertyName("payoutCycle")] string? PayoutCycle,
+    [property: JsonPropertyName("payoutDay")] string? PayoutDay = null);
 
 public sealed record DriverPersonalProfileChangePayload(
     [property: JsonPropertyName("driverId")] Guid DriverId,

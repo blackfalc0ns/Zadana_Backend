@@ -7,6 +7,7 @@ using Zadana.Application.Common.Localization;
 using Zadana.Application.Modules.Vendors.DTOs;
 using Zadana.Application.Modules.Vendors.Interfaces;
 using Zadana.Domain.Modules.Vendors.Enums;
+using Zadana.Domain.Modules.Wallets.Enums;
 using Zadana.SharedKernel.Exceptions;
 
 namespace Zadana.Application.Modules.Vendors.Commands.AdminUpdateVendorFinanceSettings;
@@ -14,7 +15,8 @@ namespace Zadana.Application.Modules.Vendors.Commands.AdminUpdateVendorFinanceSe
 public record AdminUpdateVendorFinanceSettingsCommand(
     Guid VendorId,
     string FinancialLifecycleMode,
-    string? PayoutCycle) : IRequest<VendorDetailDto>;
+    string? PayoutCycle,
+    string? PayoutDay = null) : IRequest<VendorDetailDto>;
 
 public class AdminUpdateVendorFinanceSettingsCommandValidator : AbstractValidator<AdminUpdateVendorFinanceSettingsCommand>
 {
@@ -22,8 +24,7 @@ public class AdminUpdateVendorFinanceSettingsCommandValidator : AbstractValidato
     [
         "weekly",
         "biweekly",
-        "monthly",
-        "per_order_direct_payout"
+        "monthly"
     ];
 
     public AdminUpdateVendorFinanceSettingsCommandValidator(IStringLocalizer<SharedResource> localizer)
@@ -35,9 +36,18 @@ public class AdminUpdateVendorFinanceSettingsCommandValidator : AbstractValidato
 
         RuleFor(x => x.PayoutCycle)
             .MaximumLength(50)
+            .Must(IsSupportedPayoutCycle)
             .When(x => !string.IsNullOrWhiteSpace(x.PayoutCycle))
             .WithMessage(x => localizer["MaxLength"]);
+
+        RuleFor(x => x.PayoutDay)
+            .Must(value => string.IsNullOrWhiteSpace(value) || PayoutScheduleDayPolicy.TryParse(value, out _))
+            .WithMessage(x => localizer["InvalidValue"]);
     }
+
+    private static bool IsSupportedPayoutCycle(string? payoutCycle) =>
+        string.IsNullOrWhiteSpace(payoutCycle) ||
+        payoutCycle.Trim().ToLowerInvariant() is "weekly" or "biweekly" or "monthly";
 }
 
 public class AdminUpdateVendorFinanceSettingsCommandHandler : IRequestHandler<AdminUpdateVendorFinanceSettingsCommand, VendorDetailDto>
@@ -67,35 +77,15 @@ public class AdminUpdateVendorFinanceSettingsCommandHandler : IRequestHandler<Ad
 
         if (mode == VendorFinancialLifecycleMode.PerOrderDirectPayout)
         {
-            var primaryBankAccount = vendor.BankAccounts
-                .OrderByDescending(item => item.IsPrimary)
-                .ThenByDescending(item => item.VerifiedAtUtc)
-                .ThenByDescending(item => item.CreatedAtUtc)
-                .FirstOrDefault();
-
-            if (primaryBankAccount is null)
-            {
-                throw new BusinessRuleException(
-                    "PrimaryBankAccountRequiredForDirectPayout",
-                    "A primary bank account is required before enabling direct per-order payouts.");
-            }
-
-            if (primaryBankAccount.Status != BankAccountStatus.Verified)
-            {
-                throw new BusinessRuleException(
-                    "VerifiedPrimaryBankAccountRequiredForDirectPayout",
-                    "A verified primary bank account is required before enabling direct per-order payouts.");
-            }
-
-            if (!IsValidSaudiIban(primaryBankAccount.IBAN))
-            {
-                throw new BusinessRuleException(
-                    "ValidSaudiIbanRequiredForDirectPayout",
-                    "A valid Saudi IBAN is required before enabling direct per-order payouts.");
-            }
+            throw new BusinessRuleException(
+                "PER_ORDER_DIRECT_PAYOUT_UNAVAILABLE",
+                "Per-order direct payout is not available. Choose a scheduled payout cycle.");
         }
 
-        vendor.UpdateFinanceSettings(mode, request.PayoutCycle);
+        vendor.UpdateFinanceSettings(
+            mode,
+            request.PayoutCycle,
+            PayoutScheduleDayPolicy.ParseOrDefault(request.PayoutDay, vendor.PayoutDay));
         await _context.SaveChangesAsync(cancellationToken);
 
         await _vendorCommunicationService.SendAsync(
@@ -122,17 +112,4 @@ public class AdminUpdateVendorFinanceSettingsCommandHandler : IRequestHandler<Ad
             "per_order_direct_payout" => VendorFinancialLifecycleMode.PerOrderDirectPayout,
             _ => VendorFinancialLifecycleMode.Weekly
         };
-
-    private static bool IsValidSaudiIban(string? iban)
-    {
-        if (string.IsNullOrWhiteSpace(iban))
-        {
-            return false;
-        }
-
-        var clean = new string(iban.Where(char.IsLetterOrDigit).ToArray()).ToUpperInvariant();
-        return clean.Length == 24 &&
-            clean.StartsWith("SA", StringComparison.OrdinalIgnoreCase) &&
-            clean.Skip(2).All(char.IsDigit);
-    }
 }

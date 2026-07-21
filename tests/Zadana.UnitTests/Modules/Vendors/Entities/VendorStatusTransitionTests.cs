@@ -1,6 +1,7 @@
 using FluentAssertions;
 using Zadana.Domain.Modules.Vendors.Entities;
 using Zadana.Domain.Modules.Vendors.Enums;
+using Zadana.Domain.Modules.Wallets.Enums;
 
 namespace Zadana.UnitTests.Modules.Vendors.Entities;
 
@@ -49,5 +50,27 @@ public class VendorStatusTransitionTests
         vendor.SuspendedAtUtc.Should().BeNull();
         vendor.LockReason.Should().BeNull();
         vendor.LockedAtUtc.Should().BeNull();
+    }
+
+    [Fact]
+    public void LegacyPerOrderFinanceMode_IsNormalizedToWeeklyMonday()
+    {
+        var vendor = new Vendor(Guid.NewGuid(), "Ar", "En", "Retail", "CR", "vendor@test.com", "123");
+
+        vendor.UpdateFinanceSettings(VendorFinancialLifecycleMode.PerOrderDirectPayout);
+
+        vendor.FinancialLifecycleMode.Should().Be(VendorFinancialLifecycleMode.Weekly);
+        vendor.PayoutCycle.Should().Be("weekly");
+        vendor.PayoutDay.Should().Be(PayoutScheduleDay.Monday);
+    }
+
+    [Fact]
+    public void UpdatePayoutDay_AllowsThursday()
+    {
+        var vendor = new Vendor(Guid.NewGuid(), "Ar", "En", "Retail", "CR", "vendor@test.com", "123");
+
+        vendor.UpdatePayoutDay(PayoutScheduleDay.Thursday);
+
+        vendor.PayoutDay.Should().Be(PayoutScheduleDay.Thursday);
     }
 }

@@ -57,52 +57,58 @@ public sealed class PayoutStatusSyncWorker : BackgroundService
             return;
         }
 
-        var pendingPayoutIds = await context.Payouts
-            .AsNoTracking()
-            .Where(item => item.Status == PayoutStatus.Pending && item.DestinationType != PayoutDestinationType.Manual)
-            .OrderBy(item => item.CreatedAtUtc)
-            .Select(item => item.Id)
-            .Take(50)
-            .ToListAsync(cancellationToken);
-
-        foreach (var payoutId in pendingPayoutIds)
+        if (await payoutOrchestrator.IsAutomaticProcessingEnabledAsync(cancellationToken))
         {
-            try
+            var pendingPayoutIds = await context.Payouts
+                .AsNoTracking()
+                .Where(item => item.Status == PayoutStatus.Pending && item.DestinationType != PayoutDestinationType.Manual)
+                .OrderBy(item => item.CreatedAtUtc)
+                .Select(item => item.Id)
+                .Take(50)
+                .ToListAsync(cancellationToken);
+
+            foreach (var payoutId in pendingPayoutIds)
             {
-                await payoutOrchestrator.TriggerAsync(payoutId, cancellationToken: cancellationToken);
+                try
+                {
+                    await payoutOrchestrator.TriggerAsync(payoutId, cancellationToken: cancellationToken);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Failed to trigger pending payout {PayoutId}", payoutId);
+                }
             }
-            catch (Exception ex)
+
+            var unknownRetryCutoff = DateTime.UtcNow.AddSeconds(-Math.Max(_settings.Payouts.UnknownRetryDelaySeconds, 60));
+            var unknownPayoutIds = await context.Payouts
+                .AsNoTracking()
+                .Where(item =>
+                    (item.Status == PayoutStatus.Queued || item.Status == PayoutStatus.Processing) &&
+                    item.ProviderTransferId == null &&
+                    item.ProviderName != "Manual" &&
+                    item.TriggeredAtUtc != null &&
+                    item.TriggeredAtUtc <= unknownRetryCutoff)
+                .OrderBy(item => item.TriggeredAtUtc ?? item.CreatedAtUtc)
+                .Select(item => item.Id)
+                .Take(25)
+                .ToListAsync(cancellationToken);
+
+            foreach (var payoutId in unknownPayoutIds)
             {
-                _logger.LogError(ex, "Failed to trigger pending payout {PayoutId}", payoutId);
+                try
+                {
+                    await payoutOrchestrator.TriggerAsync(payoutId, isRetry: true, cancellationToken: cancellationToken);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Failed to retry unknown payout {PayoutId}", payoutId);
+                }
             }
         }
 
-        var unknownRetryCutoff = DateTime.UtcNow.AddSeconds(-Math.Max(_settings.Payouts.UnknownRetryDelaySeconds, 60));
-        var unknownPayoutIds = await context.Payouts
-            .AsNoTracking()
-            .Where(item =>
-                (item.Status == PayoutStatus.Queued || item.Status == PayoutStatus.Processing) &&
-                item.ProviderTransferId == null &&
-                item.ProviderName != "Manual" &&
-                item.TriggeredAtUtc != null &&
-                item.TriggeredAtUtc <= unknownRetryCutoff)
-            .OrderBy(item => item.TriggeredAtUtc ?? item.CreatedAtUtc)
-            .Select(item => item.Id)
-            .Take(25)
-            .ToListAsync(cancellationToken);
-
-        foreach (var payoutId in unknownPayoutIds)
-        {
-            try
-            {
-                await payoutOrchestrator.TriggerAsync(payoutId, isRetry: true, cancellationToken: cancellationToken);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Failed to retry unknown payout {PayoutId}", payoutId);
-            }
-        }
-
+        // Provider status refresh remains active in Manual mode. It only
+        // reconciles transfers that were submitted before the switch and never
+        // creates a new payout or retry.
         var activePayoutIds = await context.Payouts
             .AsNoTracking()
             .Where(item =>

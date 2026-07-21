@@ -64,7 +64,8 @@ public record VendorWorkspaceDto(
     IReadOnlyList<VendorWorkspaceRequiredActionDto> RequiredActions,
     IReadOnlyList<VendorWorkspaceReviewAuditEntryDto> ReviewAuditEntries,
     int MissingDocumentsCount,
-    bool CanSubmitForReview);
+    bool CanSubmitForReview,
+    string PayoutDay = "Monday");
 
 public record VendorWorkspaceReviewSummaryDto(
     int TotalItems,

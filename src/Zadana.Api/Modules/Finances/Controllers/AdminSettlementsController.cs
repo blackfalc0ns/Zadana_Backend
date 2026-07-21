@@ -18,7 +18,8 @@ namespace Zadana.Api.Modules.Finances.Controllers;
 public sealed class AdminSettlementsController(
     IApplicationDbContext context,
     PayoutOrchestrator payoutOrchestrator,
-    VendorPayoutWalletService vendorPayoutWalletService) : ControllerBase
+    VendorPayoutWalletService vendorPayoutWalletService,
+    ISettlementProcessingSettingsService? settlementProcessingSettingsService = null) : ControllerBase
 {
     [HttpGet]
     public async Task<ActionResult<AdminSettlementListDto>> GetSettlements(
@@ -66,6 +67,7 @@ public sealed class AdminSettlementsController(
             .AsNoTracking()
             .Include(item => item.Items)
             .Include(item => item.Payouts)
+                .ThenInclude(item => item.ManualConfirmation)
             .FirstOrDefaultAsync(item => item.Id == id, cancellationToken);
 
         if (settlement is null)
@@ -91,7 +93,16 @@ public sealed class AdminSettlementsController(
                 item.Amount,
                 item.Status.ToString(),
                 item.ProviderTransferId,
-                item.TransferReference)).ToList()));
+                item.TransferReference,
+                item.ManualConfirmation is null
+                    ? null
+                    : new AdminManualPayoutConfirmationDto(
+                        item.ManualConfirmation.Id,
+                        item.ManualConfirmation.TransferReference,
+                        item.ManualConfirmation.ProofUrl,
+                        item.ManualConfirmation.ConfirmedByUserId,
+                        item.ManualConfirmation.ConfirmedAtUtc))).ToList(),
+            await GetSettlementProcessingModeAsync(cancellationToken)));
     }
 
     [HttpPost("generate")]
@@ -179,7 +190,9 @@ public sealed class AdminSettlementsController(
 
         await context.SaveChangesAsync(cancellationToken);
 
-        if (payout is not null && request?.TriggerPayout != false)
+        if (payout is not null &&
+            request?.TriggerPayout != false &&
+            await payoutOrchestrator.IsAutomaticProcessingEnabledAsync(cancellationToken))
         {
             await payoutOrchestrator.TriggerAsync(payout.Id, cancellationToken: cancellationToken);
         }
@@ -272,6 +285,7 @@ public sealed class AdminSettlementsController(
             .AsNoTracking()
             .Include(item => item.Items)
             .Include(item => item.Payouts)
+                .ThenInclude(item => item.ManualConfirmation)
             .FirstAsync(item => item.Id == id, cancellationToken);
 
         return new AdminSettlementDetailDto(
@@ -292,8 +306,22 @@ public sealed class AdminSettlementsController(
                 item.Amount,
                 item.Status.ToString(),
                 item.ProviderTransferId,
-                item.TransferReference)).ToList());
+                item.TransferReference,
+                item.ManualConfirmation is null
+                    ? null
+                    : new AdminManualPayoutConfirmationDto(
+                        item.ManualConfirmation.Id,
+                        item.ManualConfirmation.TransferReference,
+                        item.ManualConfirmation.ProofUrl,
+                        item.ManualConfirmation.ConfirmedByUserId,
+                        item.ManualConfirmation.ConfirmedAtUtc))).ToList(),
+            await GetSettlementProcessingModeAsync(cancellationToken));
     }
+
+    private async Task<string> GetSettlementProcessingModeAsync(CancellationToken cancellationToken) =>
+        settlementProcessingSettingsService is null
+            ? SettlementProcessingMode.Automatic.ToString()
+            : (await settlementProcessingSettingsService.GetAsync(cancellationToken)).Mode.ToString();
 
     private static SettlementResolutionType? ParseResolution(string? value) =>
         Enum.TryParse<SettlementResolutionType>(value, true, out var parsed) ? parsed : null;
@@ -360,7 +388,8 @@ public sealed record AdminSettlementDto(
 public sealed record AdminSettlementDetailDto(
     AdminSettlementDto Settlement,
     IReadOnlyList<AdminSettlementItemDto> Items,
-    IReadOnlyList<AdminSettlementPayoutDto> Payouts);
+    IReadOnlyList<AdminSettlementPayoutDto> Payouts,
+    string SettlementProcessingMode);
 
 public sealed record AdminSettlementItemDto(
     Guid Id,
@@ -379,4 +408,5 @@ public sealed record AdminSettlementPayoutDto(
     decimal Amount,
     string Status,
     string? ProviderTransferId,
-    string? TransferReference);
+    string? TransferReference,
+    AdminManualPayoutConfirmationDto? ManualConfirmation);

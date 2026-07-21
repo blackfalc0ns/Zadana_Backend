@@ -154,6 +154,9 @@ public class ApplicationDbContext : IdentityDbContext<User, IdentityRole<Guid>, 
     public DbSet<SettlementItem> SettlementItems => Set<SettlementItem>();
     public DbSet<Payout> Payouts => Set<Payout>();
     public DbSet<PayoutAttempt> PayoutAttempts => Set<PayoutAttempt>();
+    public DbSet<PayoutManualConfirmation> PayoutManualConfirmations => Set<PayoutManualConfirmation>();
+    public DbSet<SettlementProcessingSettings> SettlementProcessingSettings => Set<SettlementProcessingSettings>();
+    public DbSet<SettlementProcessingModeAudit> SettlementProcessingModeAudits => Set<SettlementProcessingModeAudit>();
     public DbSet<VendorRecovery> VendorRecoveries => Set<VendorRecovery>();
     public DbSet<DriverRecovery> DriverRecoveries => Set<DriverRecovery>();
     public DbSet<DriverPayoutMethod> DriverPayoutMethods => Set<DriverPayoutMethod>();

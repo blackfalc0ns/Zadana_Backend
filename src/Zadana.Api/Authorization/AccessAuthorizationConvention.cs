@@ -70,7 +70,13 @@ public sealed class AccessAuthorizationConvention : IApplicationModelConvention
             ["AdminPayouts"] = new(
                 [PermissionKeys.Admin.FinancesView],
                 edit: [PermissionKeys.Admin.FinancesEdit],
-                approve: [PermissionKeys.Admin.FinancesApprove]),
+                approve: [PermissionKeys.Admin.FinancesApprove],
+                overrides: new Dictionary<string, string[]>(StringComparer.Ordinal)
+                {
+                    ["GetProcessingSettings"] = [PermissionKeys.Admin.FinancesManageSettings],
+                    ["UpdateProcessingSettings"] = [PermissionKeys.Admin.FinancesManageSettings],
+                    ["GetProcessingSettingsAudit"] = [PermissionKeys.Admin.FinancesManageSettings]
+                }),
             ["BankTransfer"] = new(
                 [PermissionKeys.Admin.FinancesView],
                 edit: [PermissionKeys.Admin.FinancesEdit],

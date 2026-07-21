@@ -268,6 +268,10 @@ public class VendorReadService : IVendorReadService
         var notifications = reviewNotifications ?? [];
         var reviewDocuments = MapReviewDocuments(vendor, MapBankAccount(primaryBankAccount), user);
         var workspaceReview = BuildWorkspaceReview(vendor, reviewDocuments, notifications);
+        var financialLifecycleMode = NormalizeFinancialLifecycleMode(vendor.FinancialLifecycleMode);
+        var payoutCycle = vendor.FinancialLifecycleMode == VendorFinancialLifecycleMode.PerOrderDirectPayout
+            ? "weekly"
+            : vendor.PayoutCycle;
 
         return new VendorWorkspaceDto(
             vendor.Id,
@@ -292,8 +296,8 @@ public class VendorReadService : IVendorReadService
             vendor.OwnerPhone ?? user?.PhoneNumber,
             vendor.IdNumber,
             vendor.Nationality,
-            vendor.PayoutCycle,
-            vendor.FinancialLifecycleMode.ToString(),
+            payoutCycle,
+            financialLifecycleMode.ToString(),
             vendor.CommissionRate,
             vendor.Status == VendorStatus.Active && vendor.CommercialRegistrationExpiryDate.HasValue && vendor.CommercialRegistrationExpiryDate.Value.Date < SaudiTime.Today ? "Suspended" : NormalizeVendorStatus(vendor.Status),
             user?.AccountStatus.ToString() ?? "Pending",
@@ -340,7 +344,8 @@ public class VendorReadService : IVendorReadService
             workspaceReview.RequiredActions,
             workspaceReview.AuditEntries,
             workspaceReview.MissingDocumentsCount,
-            workspaceReview.CanSubmitForReview);
+            workspaceReview.CanSubmitForReview,
+            vendor.PayoutDay.ToString());
     }
 
     private static WorkspaceReviewProjection BuildWorkspaceReview(
@@ -775,7 +780,8 @@ public class VendorReadService : IVendorReadService
             reviewNotes,
             riskIndicators,
             workspace.BranchesCount,
-            workspace.BankAccountsCount);
+            workspace.BankAccountsCount,
+            vendor.PayoutDay.ToString());
     }
 
     private static IReadOnlyList<VendorReviewDocumentDto> MapReviewDocuments(
@@ -923,6 +929,12 @@ public class VendorReadService : IVendorReadService
 
     private static string NormalizeVendorStatus(VendorStatus status) =>
         status == VendorStatus.PendingReview ? "Pending" : status.ToString();
+
+    private static VendorFinancialLifecycleMode NormalizeFinancialLifecycleMode(
+        VendorFinancialLifecycleMode mode) =>
+        mode == VendorFinancialLifecycleMode.PerOrderDirectPayout
+            ? VendorFinancialLifecycleMode.Weekly
+            : mode;
 
     private static string GetReviewKind(string? type) => GetReviewMeta(type).Kind;
 

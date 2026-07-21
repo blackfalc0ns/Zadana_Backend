@@ -11,7 +11,10 @@ public record DriverWalletSummaryDto(
     decimal MonthEarnings,
     IReadOnlyList<DriverWalletTransactionDto> RecentTransactions,
     IReadOnlyList<DriverPayoutMethodDto> PaymentMethods,
-    DriverWithdrawalSummaryDto WithdrawalSummary);
+    DriverWithdrawalSummaryDto WithdrawalSummary,
+    string PayoutDay = "Monday");
+
+public record DriverPayoutPreferenceDto(string PayoutDay);
 
 public record DriverWalletTransactionListDto(
     IReadOnlyList<DriverWalletTransactionDto> Items,

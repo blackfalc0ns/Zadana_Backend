@@ -27,6 +27,7 @@ public class Payout : BaseEntity
     public Settlement Settlement { get; private set; } = null!;
     public VendorBankAccount? VendorBankAccount { get; private set; }
     public ICollection<PayoutAttempt> Attempts { get; private set; } = [];
+    public PayoutManualConfirmation? ManualConfirmation { get; private set; }
 
     private Payout() { }
 
@@ -87,6 +88,29 @@ public class Payout : BaseEntity
         ProviderTransferId = string.IsNullOrWhiteSpace(providerTransferId) ? ProviderTransferId : providerTransferId.Trim();
         ProviderSequenceNumber = string.IsNullOrWhiteSpace(providerSequenceNumber) ? ProviderSequenceNumber : providerSequenceNumber.Trim();
         TransferReference = transferReference.Trim();
+        CompletedAtUtc = DateTime.UtcNow;
+        ProcessedAtUtc = DateTime.UtcNow;
+        FailureReason = null;
+    }
+
+    public void MarkAsManuallyPaid(string transferReference, Guid processedByUserId)
+    {
+        if (string.IsNullOrWhiteSpace(transferReference))
+        {
+            throw new BusinessRuleException("TRANSFER_REFERENCE_REQUIRED", "Transfer reference is required for manual payout completion.");
+        }
+
+        if (processedByUserId == Guid.Empty)
+        {
+            throw new BusinessRuleException("PAYOUT_CONFIRMING_USER_REQUIRED", "The confirming administrator is required.");
+        }
+
+        Status = PayoutStatus.Paid;
+        ProviderName = "Manual";
+        ProviderTransferId = null;
+        ProviderSequenceNumber = null;
+        TransferReference = transferReference.Trim();
+        ProcessedByUserId = processedByUserId;
         CompletedAtUtc = DateTime.UtcNow;
         ProcessedAtUtc = DateTime.UtcNow;
         FailureReason = null;

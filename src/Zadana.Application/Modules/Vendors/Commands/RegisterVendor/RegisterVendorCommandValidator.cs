@@ -1,5 +1,6 @@
 using FluentValidation;
 using Zadana.Application.Common.Validation;
+using Zadana.Domain.Modules.Wallets.Enums;
 
 namespace Zadana.Application.Modules.Vendors.Commands.RegisterVendor;
 
@@ -88,7 +89,11 @@ public class RegisterVendorCommandValidator : AbstractValidator<RegisterVendorCo
         RuleFor(x => x.SwiftCode)
             .MaximumLength(11).WithMessage(localizer["MaxLength"].Value);
         RuleFor(x => x.PayoutCycle)
-            .MaximumLength(50).WithMessage(localizer["MaxLength"].Value);
+            .MaximumLength(50).WithMessage(localizer["MaxLength"].Value)
+            .Must(IsSupportedPayoutCycle).WithMessage(localizer["InvalidValue"].Value);
+        RuleFor(x => x.PayoutDay)
+            .Must(value => string.IsNullOrWhiteSpace(value) || PayoutScheduleDayPolicy.TryParse(value, out _))
+            .WithMessage(localizer["InvalidValue"].Value);
 
         // Branch
         RuleFor(x => x.BranchName)
@@ -113,4 +118,8 @@ public class RegisterVendorCommandValidator : AbstractValidator<RegisterVendorCo
             .GreaterThan(0).WithMessage(localizer["GreaterThanZero"].Value)
             .WithName(localizer["BranchDeliveryRadiusKm"].Value);
     }
+
+    private static bool IsSupportedPayoutCycle(string? payoutCycle) =>
+        string.IsNullOrWhiteSpace(payoutCycle) ||
+        payoutCycle.Trim().ToLowerInvariant() is "weekly" or "biweekly" or "monthly";
 }

@@ -700,7 +700,9 @@ public class AdminAccessController(
             .FirstOrDefaultAsync(item => item.Id == payload.VendorId, cancellationToken)
             ?? throw new NotFoundException("Vendor", payload.VendorId);
 
-        vendor.UpdateBanking(payload.PayoutCycle);
+        vendor.UpdateBanking(
+            payload.PayoutCycle,
+            PayoutScheduleDayPolicy.ParseOrDefault(payload.PayoutDay, vendor.PayoutDay));
 
         var primaryAccount = vendor.BankAccounts
             .FirstOrDefault(account => account.IsPrimary)

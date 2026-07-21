@@ -32,7 +32,7 @@ namespace Zadana.UnitTests.Modules.Finance;
 public class EndToEndPayoutFlowTests
 {
     [Fact]
-    public async Task Delivered_order_and_driver_withdrawal_complete_through_payout_gateway()
+    public async Task Delivered_order_does_not_trigger_legacy_per_order_payout()
     {
         await using var context = TestDbContextFactory.Create();
         var gateway = new FakePaidPayoutGateway();
@@ -68,79 +68,17 @@ public class EndToEndPayoutFlowTests
 
         await distributionService.DistributeAsync(order.Id, CancellationToken.None);
 
-        var vendorPayout = await context.Payouts
+        var vendorPayouts = await context.Payouts
             .Include(item => item.Settlement)
-            .SingleAsync(item => item.Settlement.OwnerType == SettlementOwnerType.Vendor);
-        vendorPayout.Status.Should().Be(PayoutStatus.Paid);
-        vendorPayout.ProviderName.Should().Be(FakePaidPayoutGateway.Provider);
-        vendorPayout.ProviderTransferId.Should().NotBeNullOrWhiteSpace();
-        vendorPayout.Settlement.Status.Should().Be(SettlementStatus.PaidOut);
+            .Where(item => item.Settlement.OwnerType == SettlementOwnerType.Vendor)
+            .ToListAsync();
+        vendorPayouts.Should().BeEmpty();
 
         var vendorWallet = await context.Wallets.SingleAsync(item =>
             item.OwnerType == WalletOwnerType.Vendor && item.OwnerId == vendor.Id);
-        vendorWallet.CurrentBalance.Should().Be(0m);
-
-        var driverUser = new User("Driver User", "driver.e2e@test.com", "0500000002", UserRole.Driver);
-        var driver = new Driver(driverUser.Id, null, null, null, region: "RIYADH", city: "Riyadh");
-        var driverWallet = new Wallet(WalletOwnerType.Driver, driver.Id);
-        driverWallet.Credit(100m);
-        var payoutMethod = new DriverPayoutMethod(
-            driver.Id,
-            DriverPayoutMethodType.BankAccount,
-            "Driver User",
-            "SA1234567890123456789012",
-            "Saudi Bank",
-            isPrimary: true);
-        var withdrawal = new DriverWithdrawalRequest(driver.Id, driverWallet.Id, payoutMethod.Id, 40m);
-        var withdrawalHold = new WalletHold(
-            WalletOwnerType.Driver,
-            driver.Id,
-            withdrawal.Amount,
-            WalletHoldReason.Withdrawal,
-            $"driver-withdrawal:{withdrawal.Id:N}",
-            walletId: driverWallet.Id,
-            referenceType: "DriverWithdrawalRequest",
-            referenceId: withdrawal.Id);
-
-        context.Users.Add(driverUser);
-        context.Drivers.Add(driver);
-        context.Wallets.Add(driverWallet);
-        context.DriverPayoutMethods.Add(payoutMethod);
-        context.DriverWithdrawalRequests.Add(withdrawal);
-        context.WalletHolds.Add(withdrawalHold);
-        await context.SaveChangesAsync();
-
-        var adminWalletsController = new AdminWalletsController();
-        var result = await adminWalletsController.ProcessWithdrawal(
-            withdrawal.Id,
-            new AdminProcessWithdrawalRequest(true, null, null),
-            context,
-            postingService,
-            walletProjectionUpdater,
-            financeSettings,
-            Mock.Of<INotificationService>(),
-            Mock.Of<IOneSignalPushService>(),
-            CancellationToken.None,
-            orchestrator);
-
-        result.Should().BeOfType<NoContentResult>();
-
-        var driverWithdrawal = await context.DriverWithdrawalRequests
-            .Include(item => item.Payout)
-            .SingleAsync(item => item.Id == withdrawal.Id);
-        driverWithdrawal.Status.Should().Be(DriverWithdrawalStatus.Paid);
-        driverWithdrawal.PayoutId.Should().NotBeNull();
-        driverWithdrawal.Payout!.Status.Should().Be(PayoutStatus.Paid);
-        driverWithdrawal.Payout.ProviderTransferId.Should().NotBeNullOrWhiteSpace();
-
-        var consumedHold = await context.WalletHolds.SingleAsync(item => item.Id == withdrawalHold.Id);
-        consumedHold.Status.Should().Be(WalletHoldStatus.Consumed);
-
-        var refreshedDriverWallet = await context.Wallets.SingleAsync(item => item.Id == driverWallet.Id);
-        refreshedDriverWallet.CurrentBalance.Should().Be(60m);
-
-        gateway.CreatedCommands.Should().HaveCount(2);
-        gateway.CreatedCommands.Select(item => item.OwnerType).Should().Contain(["Vendor", "Driver"]);
+        vendorWallet.CurrentBalance.Should().BeGreaterThan(0m);
+        vendor.FinancialLifecycleMode.Should().Be(VendorFinancialLifecycleMode.Weekly);
+        gateway.CreatedCommands.Should().BeEmpty();
     }
 
     [Fact]

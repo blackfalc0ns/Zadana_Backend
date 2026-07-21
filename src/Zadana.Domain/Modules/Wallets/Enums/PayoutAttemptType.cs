@@ -5,5 +5,6 @@ public enum PayoutAttemptType
     Trigger,
     Retry,
     ProviderCallback,
+    ManualConfirmation,
     Cancel
 }

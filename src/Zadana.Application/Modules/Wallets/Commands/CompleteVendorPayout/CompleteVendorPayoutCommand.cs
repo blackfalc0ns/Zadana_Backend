@@ -10,7 +10,11 @@ using Zadana.SharedKernel.Exceptions;
 
 namespace Zadana.Application.Modules.Wallets.Commands.CompleteVendorPayout;
 
-public record CompleteVendorPayoutCommand(Guid VendorId, Guid PayoutId, string? TransferReference) : IRequest<Guid>;
+public record CompleteVendorPayoutCommand(
+    Guid VendorId,
+    Guid PayoutId,
+    string? TransferReference,
+    string? ProofUrl) : IRequest<Guid>;
 
 public class CompleteVendorPayoutCommandValidator : AbstractValidator<CompleteVendorPayoutCommand>
 {
@@ -19,7 +23,12 @@ public class CompleteVendorPayoutCommandValidator : AbstractValidator<CompleteVe
         RuleFor(x => x.VendorId).NotEmpty().WithMessage(x => localizer["RequiredField"]);
         RuleFor(x => x.PayoutId).NotEmpty().WithMessage(x => localizer["RequiredField"]);
         RuleFor(x => x.TransferReference)
+            .NotEmpty().WithMessage(x => localizer["RequiredField"])
             .MaximumLength(200)
+            .WithMessage(x => localizer["MaxLength"]);
+        RuleFor(x => x.ProofUrl)
+            .NotEmpty().WithMessage(x => localizer["RequiredField"])
+            .MaximumLength(2000)
             .WithMessage(x => localizer["MaxLength"]);
     }
 }
@@ -28,13 +37,16 @@ public class CompleteVendorPayoutCommandHandler : IRequestHandler<CompleteVendor
 {
     private readonly IApplicationDbContext _context;
     private readonly PayoutOrchestrator _payoutOrchestrator;
+    private readonly ICurrentUserService _currentUserService;
 
     public CompleteVendorPayoutCommandHandler(
         IApplicationDbContext context,
-        PayoutOrchestrator payoutOrchestrator)
+        PayoutOrchestrator payoutOrchestrator,
+        ICurrentUserService currentUserService)
     {
         _context = context;
         _payoutOrchestrator = payoutOrchestrator;
+        _currentUserService = currentUserService;
     }
 
     public async Task<Guid> Handle(CompleteVendorPayoutCommand request, CancellationToken cancellationToken)
@@ -60,14 +72,24 @@ public class CompleteVendorPayoutCommandHandler : IRequestHandler<CompleteVendor
             throw new BusinessRuleException("TRANSFER_REFERENCE_REQUIRED", "Transfer reference is required for manual vendor payout completion.");
         }
 
+        if (string.IsNullOrWhiteSpace(request.ProofUrl))
+        {
+            throw new BusinessRuleException("PAYOUT_PROOF_REQUIRED", "Transfer proof is required for manual vendor payout completion.");
+        }
+
+        var confirmedByUserId = _currentUserService.UserId
+            ?? throw new UnauthorizedException("USER_NOT_AUTHENTICATED");
+
         if (payout.Status is PayoutStatus.Cancelled or PayoutStatus.Failed)
         {
             throw new BusinessRuleException("PAYOUT_INVALID_STATUS", $"Cannot complete payout from status {payout.Status}.");
         }
 
-        await _payoutOrchestrator.MarkPaidAsync(
+        await _payoutOrchestrator.ConfirmManualAsync(
             payout.Id,
             request.TransferReference.Trim(),
+            request.ProofUrl.Trim(),
+            confirmedByUserId,
             cancellationToken: cancellationToken);
 
         return payout.Id;

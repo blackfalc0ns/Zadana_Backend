@@ -43,6 +43,7 @@ public static class DependencyInjection
         services.AddScoped<WalletProjectionUpdater>();
         services.AddScoped<OnlinePaymentCaptureService>();
         services.AddScoped<RevenueReconciliationService>();
+        services.AddScoped<ISettlementProcessingSettingsService, SettlementProcessingSettingsService>();
         services.AddScoped<PayoutOrchestrator>();
         services.AddScoped<ICurrentVendorService, CurrentVendorService>();
         services.AddScoped<IOrderStatusNotificationDispatcher, OrderStatusNotificationDispatcher>();

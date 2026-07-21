@@ -1,6 +1,7 @@
 using Zadana.Domain.Modules.Vendors.Enums;
 using Zadana.Domain.Modules.Social.Support;
 using Zadana.Domain.Modules.Identity.Services;
+using Zadana.Domain.Modules.Wallets.Enums;
 using Zadana.SharedKernel.Exceptions;
 using Zadana.SharedKernel.Primitives;
 
@@ -30,6 +31,7 @@ public class Vendor : BaseEntity
     public DateTime? CommercialRegistrationExpiryDate { get; private set; }
     public string? LicenseNumber { get; private set; }
     public string? PayoutCycle { get; private set; }
+    public PayoutScheduleDay PayoutDay { get; private set; } = PayoutScheduleDay.Monday;
     public VendorFinancialLifecycleMode FinancialLifecycleMode { get; private set; }
     public decimal? CommissionRate { get; private set; }
     public VendorStatus Status { get; private set; }
@@ -88,7 +90,8 @@ public class Vendor : BaseEntity
         string? logoUrl = null,
         string? commercialRegisterDocumentUrl = null,
         string? taxDocumentUrl = null,
-        string? licenseDocumentUrl = null)
+        string? licenseDocumentUrl = null,
+        PayoutScheduleDay payoutDay = PayoutScheduleDay.Monday)
     {
         if (userId == Guid.Empty)
             throw new BusinessRuleException("INVALID_USER_ID", "User ID is required.");
@@ -126,8 +129,9 @@ public class Vendor : BaseEntity
         CommercialRegistrationExpiryDate = commercialRegistrationExpiryDate;
         LicenseNumber = NormalizeOptional(licenseNumber);
         TaxId = taxId?.Trim();
-        PayoutCycle = NormalizeOptional(payoutCycle);
+        PayoutCycle = NormalizePayoutCycle(payoutCycle);
         FinancialLifecycleMode = ResolveFinancialLifecycleMode(PayoutCycle);
+        PayoutDay = PayoutScheduleDayPolicy.EnsureAllowed(payoutDay);
         LogoUrl = logoUrl;
         CommercialRegisterDocumentUrl = commercialRegisterDocumentUrl;
         TaxDocumentUrl = NormalizeOptional(taxDocumentUrl);
@@ -259,26 +263,42 @@ public class Vendor : BaseEntity
         UpdatedAtUtc = DateTime.UtcNow;
     }
 
-    public void UpdateBanking(string? payoutCycle)
+    public void UpdateBanking(string? payoutCycle, PayoutScheduleDay? payoutDay = null)
     {
-        PayoutCycle = NormalizeOptional(payoutCycle);
+        PayoutCycle = NormalizePayoutCycle(payoutCycle);
         FinancialLifecycleMode = ResolveFinancialLifecycleMode(PayoutCycle);
+
+        if (payoutDay.HasValue)
+        {
+            PayoutDay = PayoutScheduleDayPolicy.EnsureAllowed(payoutDay.Value);
+        }
+
         UpdatedAtUtc = DateTime.UtcNow;
     }
 
-    public void UpdateFinanceSettings(VendorFinancialLifecycleMode financialLifecycleMode, string? payoutCycle = null)
+    public void UpdateFinanceSettings(
+        VendorFinancialLifecycleMode financialLifecycleMode,
+        string? payoutCycle = null,
+        PayoutScheduleDay? payoutDay = null)
     {
-        FinancialLifecycleMode = financialLifecycleMode;
+        // Per-order payouts are a legacy setting. New writes always fall back to
+        // the scheduled weekly lifecycle so they cannot invoke a gateway payout.
+        FinancialLifecycleMode = financialLifecycleMode == VendorFinancialLifecycleMode.PerOrderDirectPayout
+            ? VendorFinancialLifecycleMode.Weekly
+            : financialLifecycleMode;
+        PayoutCycle = NormalizePayoutCycle(payoutCycle) ?? MapFinancialLifecycleModeToPayoutCycle(FinancialLifecycleMode);
 
-        if (financialLifecycleMode == VendorFinancialLifecycleMode.PerOrderDirectPayout)
+        if (payoutDay.HasValue)
         {
-            PayoutCycle = null;
-        }
-        else
-        {
-            PayoutCycle = NormalizeOptional(payoutCycle) ?? MapFinancialLifecycleModeToPayoutCycle(financialLifecycleMode);
+            PayoutDay = PayoutScheduleDayPolicy.EnsureAllowed(payoutDay.Value);
         }
 
+        UpdatedAtUtc = DateTime.UtcNow;
+    }
+
+    public void UpdatePayoutDay(PayoutScheduleDay payoutDay)
+    {
+        PayoutDay = PayoutScheduleDayPolicy.EnsureAllowed(payoutDay);
         UpdatedAtUtc = DateTime.UtcNow;
     }
 
@@ -516,13 +536,21 @@ public class Vendor : BaseEntity
     private static string? ComputeCommercialRegistrationHash(string? value) =>
         SearchableHashProvider.Compute(value?.Trim().ToUpperInvariant());
 
-    private static VendorFinancialLifecycleMode ResolveFinancialLifecycleMode(string? payoutCycle)
+    private static string? NormalizePayoutCycle(string? payoutCycle)
     {
         var normalized = NormalizeOptional(payoutCycle)?.ToLowerInvariant();
 
+        return normalized is "per_order_direct_payout" or "perorderdirectpayout" or "per-order-direct-payout" or "order_by_order" or "orderbyorder"
+            ? "weekly"
+            : normalized;
+    }
+
+    private static VendorFinancialLifecycleMode ResolveFinancialLifecycleMode(string? payoutCycle)
+    {
+        var normalized = NormalizePayoutCycle(payoutCycle);
+
         return normalized switch
         {
-            "per_order_direct_payout" or "perorderdirectpayout" or "per-order-direct-payout" or "order_by_order" or "orderbyorder" => VendorFinancialLifecycleMode.PerOrderDirectPayout,
             "biweekly" => VendorFinancialLifecycleMode.Biweekly,
             "monthly" => VendorFinancialLifecycleMode.Monthly,
             _ => VendorFinancialLifecycleMode.Weekly
@@ -532,7 +560,6 @@ public class Vendor : BaseEntity
     private static string MapFinancialLifecycleModeToPayoutCycle(VendorFinancialLifecycleMode mode) =>
         mode switch
         {
-            VendorFinancialLifecycleMode.PerOrderDirectPayout => "per_order_direct_payout",
             VendorFinancialLifecycleMode.Biweekly => "biweekly",
             VendorFinancialLifecycleMode.Monthly => "monthly",
             _ => "weekly"

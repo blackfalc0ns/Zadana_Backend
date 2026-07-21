@@ -9,9 +9,6 @@ using Zadana.Domain.Modules.Finances.Enums;
 using Zadana.Domain.Modules.Orders.Entities;
 using Zadana.Domain.Modules.Orders.Enums;
 using Zadana.Domain.Modules.Payments.Enums;
-using Zadana.Domain.Modules.Vendors.Enums;
-using Zadana.Domain.Modules.Wallets.Entities;
-using Zadana.Domain.Modules.Wallets.Enums;
 
 namespace Zadana.Application.Modules.Wallets.Services;
 
@@ -19,11 +16,9 @@ public class OrderRevenueDistributionService
 {
     private readonly IApplicationDbContext _context;
     private readonly FinancialSettingsOptions _settings;
-    private readonly VendorPayoutWalletService _vendorPayoutWalletService;
     private readonly VendorRecoveryService? _vendorRecoveryService;
     private readonly FinancialEventPostingService _financialEventPostingService;
     private readonly WalletProjectionUpdater _walletProjectionUpdater;
-    private readonly PayoutOrchestrator? _payoutOrchestrator;
     private readonly ILogger<OrderRevenueDistributionService> _logger;
 
     public OrderRevenueDistributionService(
@@ -38,12 +33,12 @@ public class OrderRevenueDistributionService
     {
         _context = context;
         _settings = settings.Value;
-        _vendorPayoutWalletService = vendorPayoutWalletService;
         _financialEventPostingService = financialEventPostingService;
         _walletProjectionUpdater = walletProjectionUpdater;
         _logger = logger;
         _vendorRecoveryService = vendorRecoveryService;
-        _payoutOrchestrator = payoutOrchestrator;
+        _ = vendorPayoutWalletService;
+        _ = payoutOrchestrator;
     }
 
     /// <summary>
@@ -84,14 +79,14 @@ public class OrderRevenueDistributionService
             return;
         }
 
-        // 4. Load vendor financial mode
+        // 4. Confirm the vendor exists. Payout timing is handled by the
+        // scheduled settlement worker, never from this per-order path.
         var vendor = await _context.Vendors
             .AsNoTracking()
             .Where(v => v.Id == order.VendorId)
             .Select(v => new
             {
-                v.Id,
-                v.FinancialLifecycleMode
+                v.Id
             })
             .FirstOrDefaultAsync(cancellationToken);
 
@@ -165,13 +160,8 @@ public class OrderRevenueDistributionService
 
         await _walletProjectionUpdater.ApplyJournalEntryAsync(postingResult.JournalEntryId, cancellationToken);
 
-        // 8. Handle per-order direct payout for vendor
-        if (vendor.FinancialLifecycleMode == VendorFinancialLifecycleMode.PerOrderDirectPayout && distribution.VendorNet > 0)
-        {
-            var payoutId = await CreateDirectPayoutAsync(vendor.Id, orderId, order, distribution, cancellationToken);
-            await _context.SaveChangesAsync(cancellationToken);
-            await TryAutoTriggerPayoutAsync(payoutId, cancellationToken);
-        }
+        // Vendor revenue remains in the wallet until its scheduled settlement.
+        // Legacy per-order flags are intentionally not allowed to trigger payouts.
 
         _logger.LogInformation("[RevenueDistribution] Order {OrderId} distributed successfully.", orderId);
     }
@@ -282,88 +272,6 @@ public class OrderRevenueDistributionService
         }
 
         return lines;
-    }
-
-    private async Task<Guid?> CreateDirectPayoutAsync(
-        Guid vendorId,
-        Guid orderId,
-        Order order,
-        RevenueDistribution distribution,
-        CancellationToken cancellationToken)
-    {
-        var primaryBankAccount = await _context.VendorBankAccounts
-            .AsNoTracking()
-            .Where(b => b.VendorId == vendorId && b.IsPrimary && b.Status == BankAccountStatus.Verified)
-            .OrderByDescending(b => b.IsPrimary)
-            .ThenByDescending(b => b.VerifiedAtUtc)
-            .ThenByDescending(b => b.CreatedAtUtc)
-            .FirstOrDefaultAsync(cancellationToken);
-
-        if (primaryBankAccount is null)
-        {
-            _logger.LogWarning("[RevenueDistribution] No verified primary bank account for vendor {VendorId}. Payout skipped.", vendorId);
-            return null;
-        }
-
-        if (!IsValidSaudiIban(primaryBankAccount.IBAN))
-        {
-            _logger.LogWarning("[RevenueDistribution] Invalid Saudi IBAN for vendor {VendorId}. Payout skipped.", vendorId);
-            return null;
-        }
-
-        var settlement = new Settlement(vendorId, null, SettlementOrigin.DirectPerOrder);
-        settlement.UpdateTotals(
-            order.ProductNet,
-            order.VendorCommissionAmount > 0m ? order.VendorCommissionAmount : order.CommissionAmount,
-            recovery: distribution.VendorRecoveryApplied);
-        _context.Settlements.Add(settlement);
-
-        _context.SettlementItems.Add(new SettlementItem(
-            settlement.Id, orderId, distribution.VendorNet, distribution.DriverNet, distribution.PlatformRevenue,
-            order.PaymentMethod == PaymentMethodType.CashOnDelivery ? order.TotalAmount : 0m));
-
-        var payout = new Payout(settlement.Id, distribution.VendorNet, primaryBankAccount.Id);
-        _context.Payouts.Add(payout);
-
-        await _vendorPayoutWalletService.EnsureHoldAsync(
-            vendorId,
-            settlement.Id,
-            distribution.VendorNet,
-            "PayoutHold",
-            $"Hold for direct payout on order {orderId}",
-            cancellationToken);
-
-        return payout.Id;
-    }
-
-    private static bool IsValidSaudiIban(string? iban)
-    {
-        if (string.IsNullOrWhiteSpace(iban))
-        {
-            return false;
-        }
-
-        var clean = new string(iban.Where(char.IsLetterOrDigit).ToArray()).ToUpperInvariant();
-        return clean.Length == 24 &&
-            clean.StartsWith("SA", StringComparison.OrdinalIgnoreCase) &&
-            clean.Skip(2).All(char.IsDigit);
-    }
-
-    private async Task TryAutoTriggerPayoutAsync(Guid? payoutId, CancellationToken cancellationToken)
-    {
-        if (!payoutId.HasValue || _payoutOrchestrator?.HasEnabledGateway != true)
-        {
-            return;
-        }
-
-        try
-        {
-            await _payoutOrchestrator.TriggerAsync(payoutId.Value, cancellationToken: cancellationToken);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "[RevenueDistribution] Failed to auto-trigger payout {PayoutId}.", payoutId.Value);
-        }
     }
 
     private decimal ResolveLegacyDriverCommission(Order order)

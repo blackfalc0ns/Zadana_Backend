@@ -34,6 +34,38 @@ public class DriverWalletController : ApiControllerBase
         return Ok(await driverWalletReadService.GetWalletSummaryAsync(userId, cancellationToken));
     }
 
+    [HttpGet("payout-preference")]
+    public async Task<ActionResult<DriverPayoutPreferenceDto>> GetPayoutPreference(
+        [FromServices] ICurrentUserService currentUserService,
+        [FromServices] IDriverRepository driverRepository,
+        CancellationToken cancellationToken = default)
+    {
+        var driver = await GetDriverAsync(currentUserService, driverRepository, cancellationToken);
+        return Ok(new DriverPayoutPreferenceDto(driver.PayoutDay.ToString()));
+    }
+
+    [HttpPut("payout-preference")]
+    public async Task<ActionResult<DriverPayoutPreferenceDto>> UpdatePayoutPreference(
+        [FromBody] UpdateDriverPayoutPreferenceRequest? request,
+        [FromServices] ICurrentUserService currentUserService,
+        [FromServices] IDriverRepository driverRepository,
+        [FromServices] IApplicationDbContext context,
+        CancellationToken cancellationToken = default)
+    {
+        if (request is null || !PayoutScheduleDayPolicy.TryParse(request.PayoutDay, out var payoutDay))
+        {
+            throw new BadRequestException(
+                "INVALID_PAYOUT_DAY",
+                "Payout day must be either Monday or Thursday.");
+        }
+
+        var driver = await GetDriverAsync(currentUserService, driverRepository, cancellationToken);
+        driver.UpdatePayoutDay(payoutDay);
+        await context.SaveChangesAsync(cancellationToken);
+
+        return Ok(new DriverPayoutPreferenceDto(driver.PayoutDay.ToString()));
+    }
+
     [HttpGet("transactions")]
     public async Task<ActionResult<DriverWalletTransactionListDto>> GetTransactions(
         [FromServices] ICurrentUserService currentUserService,

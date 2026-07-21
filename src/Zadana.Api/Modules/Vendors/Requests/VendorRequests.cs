@@ -38,7 +38,8 @@ public record RegisterVendorRequest(
     decimal BranchLatitude,
     decimal BranchLongitude,
     string BranchContactPhone,
-    decimal BranchDeliveryRadiusKm);
+    decimal BranchDeliveryRadiusKm,
+    string? PayoutDay = null);
 
 public record UpdateVendorProfileRequest(
     string BusinessNameAr,
@@ -91,7 +92,8 @@ public record UpdateVendorBankingRequest(
     string AccountHolderName,
     string Iban,
     string? SwiftCode,
-    string? PayoutCycle);
+    string? PayoutCycle,
+    string? PayoutDay = null);
 
 public record UpdateVendorOperatingHourRequest(
     int DayOfWeek,
@@ -158,7 +160,8 @@ public record AdminUpdateVendorLegalBankingRequest(
     string? PayoutCycle,
     string? CommercialRegisterDocumentUrl,
     string? TaxDocumentUrl,
-    string? LicenseDocumentUrl);
+    string? LicenseDocumentUrl,
+    string? PayoutDay = null);
 
 public record AdminUpdateVendorContactRequest(
     string Region,
@@ -185,11 +188,12 @@ public record AdminCreateVendorSettlementRequest(
     decimal CommissionAmount,
     decimal NetAmount);
 
-public record AdminCompleteVendorPayoutRequest(string? TransferReference);
+public record AdminCompleteVendorPayoutRequest(string? TransferReference, string? ProofUrl);
 
 public record AdminUpdateVendorFinanceSettingsRequest(
     string FinancialLifecycleMode,
-    string? PayoutCycle);
+    string? PayoutCycle,
+    string? PayoutDay = null);
 
 public record AdminRequestVendorDocumentsRequest(string Note);
 

@@ -4,6 +4,7 @@ using Zadana.Domain.Modules.Identity.Entities;
 using Zadana.Domain.Modules.Social.Support;
 using Zadana.Domain.Modules.Vendors.Entities;
 using Zadana.Domain.Modules.Vendors.Enums;
+using Zadana.Domain.Modules.Wallets.Enums;
 
 namespace Zadana.Infrastructure.Persistence.Configurations;
 
@@ -82,6 +83,12 @@ public class VendorConfiguration : IEntityTypeConfiguration<Vendor>
 
         builder.Property(v => v.PayoutCycle)
             .HasMaxLength(50);
+
+        builder.Property(v => v.PayoutDay)
+            .IsRequired()
+            .HasMaxLength(20)
+            .HasConversion<string>()
+            .HasDefaultValue(PayoutScheduleDay.Monday);
 
         builder.Property(v => v.FinancialLifecycleMode)
             .IsRequired()

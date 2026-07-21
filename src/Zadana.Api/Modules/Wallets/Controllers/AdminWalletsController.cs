@@ -20,6 +20,7 @@ using Zadana.Domain.Modules.Wallets.Entities;
 using Zadana.Domain.Modules.Wallets.Enums;
 using Zadana.Infrastructure.Settings;
 using Zadana.SharedKernel.Exceptions;
+using Zadana.SharedKernel.Serialization;
 
 namespace Zadana.Api.Modules.Wallets.Controllers;
 
@@ -246,7 +247,10 @@ public class AdminWalletsController : ApiControllerBase
         var drivers = await context.Drivers.AsNoTracking()
             .Include(d => d.User)
             .Where(d => driverIds.Contains(d.Id))
-            .ToDictionaryAsync(d => d.Id, d => new { Name = d.User.FullName, Phone = d.User.PhoneNumber ?? "" }, cancellationToken);
+            .ToDictionaryAsync(
+                d => d.Id,
+                d => new { Name = d.User.FullName, Phone = d.User.PhoneNumber ?? "", PayoutDay = d.PayoutDay.ToString() },
+                cancellationToken);
 
         var items = wallets.Select(w =>
         {
@@ -512,7 +516,10 @@ public class AdminWalletsController : ApiControllerBase
         var drivers = await context.Drivers.AsNoTracking()
             .Include(d => d.User)
             .Where(d => driverIds.Contains(d.Id))
-            .ToDictionaryAsync(d => d.Id, d => new { Name = d.User.FullName, Phone = d.User.PhoneNumber ?? "" }, cancellationToken);
+            .ToDictionaryAsync(
+                d => d.Id,
+                d => new { Name = d.User.FullName, Phone = d.User.PhoneNumber ?? "", PayoutDay = d.PayoutDay.ToString() },
+                cancellationToken);
 
         var items = withdrawals.Select(w =>
         {
@@ -537,7 +544,8 @@ public class AdminWalletsController : ApiControllerBase
                 ),
                 w.PayoutId,
                 w.Payout?.ProviderName,
-                w.Payout?.ProviderTransferId
+                w.Payout?.ProviderTransferId,
+                driverInfo?.PayoutDay
             );
         }).ToList();
 
@@ -556,7 +564,8 @@ public class AdminWalletsController : ApiControllerBase
         [FromServices] IOneSignalPushService oneSignalPushService,
         CancellationToken cancellationToken = default,
         [FromServices] PayoutOrchestrator? payoutOrchestrator = null,
-        [FromServices] IOptions<MoyasarSettings>? moyasarSettings = null)
+        [FromServices] IOptions<MoyasarSettings>? moyasarSettings = null,
+        [FromServices] ISettlementProcessingSettingsService? settlementProcessingSettingsService = null)
     {
         var withdrawal = await context.DriverWithdrawalRequests
             .Include(w => w.Wallet)
@@ -573,6 +582,28 @@ public class AdminWalletsController : ApiControllerBase
 
         if (request.IsApproved)
         {
+            if (settlementProcessingSettingsService is not null &&
+                !await settlementProcessingSettingsService.IsAutomaticAsync(cancellationToken))
+            {
+                throw new BusinessRuleException(
+                    "MANUAL_PAYOUT_CONFIRMATION_REQUIRED",
+                    "Manual processing is enabled. Confirm the linked payout through the manual confirmation endpoint with a transfer reference and proof.");
+            }
+
+            var payoutDay = await context.Drivers
+                .AsNoTracking()
+                .Where(driver => driver.Id == withdrawal.DriverId)
+                .Select(driver => (PayoutScheduleDay?)driver.PayoutDay)
+                .FirstOrDefaultAsync(cancellationToken)
+                ?? throw new NotFoundException("Driver", withdrawal.DriverId);
+
+            if (!PayoutScheduleDayPolicy.IsPayoutDay(SaudiTime.Today, payoutDay))
+            {
+                throw new BusinessRuleException(
+                    "DRIVER_WITHDRAWAL_NOT_DUE",
+                    $"This driver selected {payoutDay}; withdrawals can only be paid on that day.");
+            }
+
             if (payoutOrchestrator is null)
             {
                 throw new BusinessRuleException("PAYOUT_ORCHESTRATOR_REQUIRED", "Payout orchestration service is required.");

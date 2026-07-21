@@ -13,6 +13,7 @@ using Zadana.Domain.Modules.Wallets.Entities;
 using Zadana.Domain.Modules.Wallets.Enums;
 using Zadana.SharedKernel.Exceptions;
 using Zadana.SharedKernel.Finance;
+using Zadana.SharedKernel.Serialization;
 
 namespace Zadana.Application.Modules.Finances.Services;
 
@@ -27,6 +28,7 @@ public sealed class PayoutOrchestrator
     private readonly IAdminAlertService _adminAlertService;
     private readonly INotificationService _notificationService;
     private readonly IOneSignalPushService _oneSignalPushService;
+    private readonly ISettlementProcessingSettingsService? _settlementProcessingSettingsService;
 
     public PayoutOrchestrator(
         IApplicationDbContext context,
@@ -37,7 +39,8 @@ public sealed class PayoutOrchestrator
         IOptions<FinancialSettingsOptions> settings,
         IAdminAlertService adminAlertService,
         INotificationService notificationService,
-        IOneSignalPushService oneSignalPushService)
+        IOneSignalPushService oneSignalPushService,
+        ISettlementProcessingSettingsService? settlementProcessingSettingsService = null)
     {
         _context = context;
         _payoutGateways = payoutGateways;
@@ -48,9 +51,19 @@ public sealed class PayoutOrchestrator
         _adminAlertService = adminAlertService;
         _notificationService = notificationService;
         _oneSignalPushService = oneSignalPushService;
+        _settlementProcessingSettingsService = settlementProcessingSettingsService;
     }
 
     public bool HasEnabledGateway => GetEnabledGateway() is not null;
+
+    /// <summary>
+    /// Returns whether new gateway submissions are enabled. Existing in-flight
+    /// payouts are deliberately not affected; their status can still be read
+    /// through <see cref="RefreshStatusAsync"/> in Manual mode.
+    /// </summary>
+    public Task<bool> IsAutomaticProcessingEnabledAsync(CancellationToken cancellationToken = default) =>
+        _settlementProcessingSettingsService?.IsAutomaticAsync(cancellationToken)
+        ?? Task.FromResult(true);
 
     public async Task<Payout> TriggerAsync(Guid payoutId, Guid? processedByUserId = null, bool isRetry = false, CancellationToken cancellationToken = default)
     {
@@ -63,6 +76,15 @@ public sealed class PayoutOrchestrator
         }
 
         if (!isRetry && payout.Status is PayoutStatus.Queued or PayoutStatus.Processing)
+        {
+            return payout;
+        }
+
+        // Do not create a new provider transfer or retry an unknown one while
+        // finance has selected Manual mode. The payout remains pending for the
+        // administrator to complete after the bank transfer is made outside
+        // the platform.
+        if (!await IsAutomaticProcessingEnabledAsync(cancellationToken))
         {
             return payout;
         }
@@ -402,6 +424,66 @@ public sealed class PayoutOrchestrator
         return payout;
     }
 
+    public async Task<Payout> ConfirmManualAsync(
+        Guid payoutId,
+        string transferReference,
+        string proofUrl,
+        Guid confirmedByUserId,
+        CancellationToken cancellationToken = default)
+    {
+        if (await IsAutomaticProcessingEnabledAsync(cancellationToken))
+        {
+            throw new BusinessRuleException(
+                "SETTLEMENT_PROCESSING_NOT_MANUAL",
+                "Manual payout confirmation is only available while settlement processing mode is Manual.");
+        }
+
+        var payout = await LoadPayoutAsync(payoutId, cancellationToken);
+
+        if (payout.Status == PayoutStatus.Paid)
+        {
+            if (payout.ManualConfirmation is not null)
+            {
+                return payout;
+            }
+
+            throw new BusinessRuleException("PAYOUT_ALREADY_PAID", "This payout was already completed outside the manual confirmation workflow.");
+        }
+
+        if (string.IsNullOrWhiteSpace(transferReference))
+        {
+            throw new BusinessRuleException("TRANSFER_REFERENCE_REQUIRED", "Transfer reference is required for manual payout confirmation.");
+        }
+
+        if (string.IsNullOrWhiteSpace(proofUrl))
+        {
+            throw new BusinessRuleException("PAYOUT_PROOF_REQUIRED", "Transfer proof is required for manual payout confirmation.");
+        }
+
+        if (confirmedByUserId == Guid.Empty)
+        {
+            throw new BusinessRuleException("PAYOUT_CONFIRMING_USER_REQUIRED", "The confirming administrator is required.");
+        }
+
+        EnsureSettlementCanBeTriggered(payout);
+        EnsureManualConfirmationIsSafe(payout);
+        await EnsureManualConfirmationIsDueTodayAsync(payout, cancellationToken);
+
+        _context.PayoutManualConfirmations.Add(new PayoutManualConfirmation(
+            payout.Id,
+            transferReference,
+            proofUrl,
+            confirmedByUserId));
+
+        await MarkManualPaidCoreAsync(
+            payout,
+            transferReference.Trim(),
+            confirmedByUserId,
+            cancellationToken);
+
+        return payout;
+    }
+
     public async Task CancelAsync(Guid payoutId, CancellationToken cancellationToken = default)
     {
         var payout = await LoadPayoutAsync(payoutId, cancellationToken);
@@ -423,6 +505,7 @@ public sealed class PayoutOrchestrator
         return await _context.Payouts
             .Include(item => item.Settlement)
             .Include(item => item.VendorBankAccount)
+            .Include(item => item.ManualConfirmation)
             .FirstOrDefaultAsync(item => item.Id == payoutId, cancellationToken)
             ?? throw new NotFoundException("Payout", payoutId);
     }
@@ -596,6 +679,29 @@ public sealed class PayoutOrchestrator
         await NotifyPayoutPaidAsync(payout, cancellationToken);
     }
 
+    private async Task MarkManualPaidCoreAsync(
+        Payout payout,
+        string transferReference,
+        Guid confirmedByUserId,
+        CancellationToken cancellationToken)
+    {
+        payout.MarkAsManuallyPaid(transferReference, confirmedByUserId);
+        payout.Settlement.MarkPaidOut();
+        _context.PayoutAttempts.Add(new PayoutAttempt(
+            payout.Id,
+            PayoutAttemptType.ManualConfirmation,
+            PayoutStatus.Paid,
+            providerName: "Manual",
+            transferReference: transferReference));
+
+        await PostPayoutPaidAsync(payout, cancellationToken);
+        await SettleVendorHoldIfApplicableAsync(payout, cancellationToken);
+        await MarkLinkedDriverWithdrawalPaidAsync(payout.Id, transferReference, cancellationToken);
+        await _context.SaveChangesAsync(cancellationToken);
+
+        await NotifyPayoutPaidAsync(payout, cancellationToken);
+    }
+
     private async Task MarkFailedCoreAsync(
         Payout payout,
         string failureReason,
@@ -663,6 +769,77 @@ public sealed class PayoutOrchestrator
         throw new BusinessRuleException(
             "SETTLEMENT_APPROVAL_REQUIRED",
             "Scheduled and manual settlements must be approved by finance before payout can be triggered.");
+    }
+
+    private static void EnsureManualConfirmationIsSafe(Payout payout)
+    {
+        if (!string.IsNullOrWhiteSpace(payout.ProviderTransferId))
+        {
+            throw new BusinessRuleException(
+                "PAYOUT_PROVIDER_RECONCILIATION_REQUIRED",
+                "This payout already has a gateway transfer reference and must be reconciled with the provider before manual confirmation.");
+        }
+
+        var isEligibleStatus = payout.Status is PayoutStatus.Pending or PayoutStatus.Failed ||
+            (payout.Status is PayoutStatus.Queued or PayoutStatus.Processing &&
+             string.Equals(payout.ProviderName, "Manual", StringComparison.OrdinalIgnoreCase));
+
+        if (!isEligibleStatus)
+        {
+            throw new BusinessRuleException(
+                "PAYOUT_INVALID_STATUS",
+                $"Cannot manually confirm payout from status {payout.Status}.");
+        }
+
+        if (payout.Status is PayoutStatus.Queued or PayoutStatus.Processing &&
+            !string.Equals(payout.ProviderName, "Manual", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new BusinessRuleException(
+                "PAYOUT_PROVIDER_RECONCILIATION_REQUIRED",
+                "An in-flight gateway payout must be reconciled with the provider before manual confirmation.");
+        }
+    }
+
+    private async Task EnsureManualConfirmationIsDueTodayAsync(
+        Payout payout,
+        CancellationToken cancellationToken)
+    {
+        var today = SaudiTime.Today;
+        if (today.DayOfWeek is not DayOfWeek.Monday and not DayOfWeek.Thursday)
+        {
+            throw new BusinessRuleException(
+                "PAYOUT_CONFIRMATION_DAY_INVALID",
+                "Manual payout confirmation is only allowed on Monday or Thursday.");
+        }
+
+        var payoutDay = payout.Settlement.OwnerType switch
+        {
+            SettlementOwnerType.Vendor => await _context.Vendors
+                .AsNoTracking()
+                .Where(item => item.Id == payout.Settlement.OwnerId)
+                .Select(item => (PayoutScheduleDay?)item.PayoutDay)
+                .FirstOrDefaultAsync(cancellationToken),
+            SettlementOwnerType.Driver => await _context.Drivers
+                .AsNoTracking()
+                .Where(item => item.Id == payout.Settlement.OwnerId)
+                .Select(item => (PayoutScheduleDay?)item.PayoutDay)
+                .FirstOrDefaultAsync(cancellationToken),
+            _ => null
+        };
+
+        if (!payoutDay.HasValue)
+        {
+            throw new BusinessRuleException(
+                "PAYOUT_OWNER_NOT_FOUND",
+                "The payout owner could not be found while checking the payout day.");
+        }
+
+        if (!PayoutScheduleDayPolicy.IsPayoutDay(today, payoutDay.Value))
+        {
+            throw new BusinessRuleException(
+                "PAYOUT_NOT_DUE_TODAY",
+                $"This payout is scheduled for {payoutDay.Value}.");
+        }
     }
 
     private async Task MarkLinkedDriverWithdrawalPaidAsync(Guid payoutId, string transferReference, CancellationToken cancellationToken)

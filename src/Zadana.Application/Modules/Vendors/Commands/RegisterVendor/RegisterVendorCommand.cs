@@ -46,5 +46,6 @@ public record RegisterVendorCommand(
     decimal BranchLatitude,
     decimal BranchLongitude,
     string BranchContactPhone,
-    decimal BranchDeliveryRadiusKm
+    decimal BranchDeliveryRadiusKm,
+    string? PayoutDay = null
 ) : IRequest<AuthResponseDto>;

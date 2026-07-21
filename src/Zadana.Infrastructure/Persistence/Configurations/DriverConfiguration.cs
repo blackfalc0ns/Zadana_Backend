@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using Zadana.Domain.Modules.Delivery.Entities;
 using Zadana.Domain.Modules.Delivery.Enums;
+using Zadana.Domain.Modules.Wallets.Enums;
 
 namespace Zadana.Infrastructure.Persistence.Configurations;
 
@@ -23,6 +24,11 @@ public class DriverConfiguration : IEntityTypeConfiguration<Driver>
         builder.Property(x => x.LicenseNumber).HasMaxLength(512);
         builder.Property(x => x.VehicleLicenseNumber).HasMaxLength(512);
         builder.Property(x => x.Address).HasMaxLength(500);
+        builder.Property(x => x.PayoutDay)
+            .IsRequired()
+            .HasMaxLength(20)
+            .HasConversion<string>()
+            .HasDefaultValue(PayoutScheduleDay.Monday);
         builder.Property(x => x.NationalIdFrontImageUrl).HasMaxLength(500);
         builder.Property(x => x.NationalIdBackImageUrl).HasMaxLength(500);
         builder.Property(x => x.LicenseImageUrl).HasMaxLength(500);

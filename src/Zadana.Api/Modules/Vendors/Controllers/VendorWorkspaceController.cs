@@ -330,7 +330,7 @@ public class VendorWorkspaceController : ApiControllerBase
         var vendorDetails = await _dbContext.Vendors
             .AsNoTracking()
             .Where(v => v.Id == vendorId)
-            .Select(v => v.FinancialLifecycleMode)
+            .Select(v => new { v.FinancialLifecycleMode, v.PayoutDay })
             .FirstOrDefaultAsync(cancellationToken);
 
         var activeHoldAmount = await GetActiveVendorHoldAmountAsync(vendorId, cancellationToken);
@@ -338,8 +338,12 @@ public class VendorWorkspaceController : ApiControllerBase
         var availableBalance = Math.Max(0m, (vendorWallet?.CurrentBalance ?? 0m) - holdAmount);
         var pendingSettlement = settlements.Where(settlement => settlement.Status is SettlementStatus.Pending or SettlementStatus.PendingReview or SettlementStatus.Processing).Sum(settlement => settlement.NetAmount);
 
-        var financialLifecycleModeStr = vendorDetails.ToString();
-        var nextSettlementAt = CalculateNextSettlementDate(vendorDetails);
+        var effectiveFinancialLifecycleMode = NormalizeFinancialLifecycleMode(
+            vendorDetails?.FinancialLifecycleMode ?? VendorFinancialLifecycleMode.Weekly);
+        var financialLifecycleModeStr = effectiveFinancialLifecycleMode.ToString();
+        var nextSettlementAt = CalculateNextSettlementDate(
+            effectiveFinancialLifecycleMode,
+            vendorDetails?.PayoutDay ?? PayoutScheduleDay.Monday);
         var etaProfile = await DeliveryEtaTelemetry.LoadOperationalProfileAsync(_dbContext, vendorId, null, null, null, cancellationToken);
         var paidOrdersByBranch = paidOrders
             .GroupBy(order => order.VendorBranchId)
@@ -912,10 +916,10 @@ public class VendorWorkspaceController : ApiControllerBase
             .Select(account => new { account.BankName })
             .FirstOrDefaultAsync(cancellationToken);
 
-        var vendorFinancialMode = await _dbContext.Vendors
+        var vendorPayoutSettings = await _dbContext.Vendors
             .AsNoTracking()
             .Where(vendor => vendor.Id == vendorId)
-            .Select(vendor => vendor.FinancialLifecycleMode)
+            .Select(vendor => new { vendor.FinancialLifecycleMode, vendor.PayoutDay })
             .FirstOrDefaultAsync(cancellationToken);
 
         var vendorWallet = await _dbContext.Wallets
@@ -958,7 +962,12 @@ public class VendorWorkspaceController : ApiControllerBase
             .Select(txn => MapFinanceLedgerEntry(txn.Id, txn.OrderId, txn.TxnType, txn.Direction, txn.Amount, txn.CreatedAtUtc, txn.Description, txn.ReferenceType, txn.ReferenceId))
             .ToList();
 
-        var nextPayoutDate = ResolveNextPayoutDate(vendorFinancialMode, settlements);
+        var effectivePayoutMode = NormalizeFinancialLifecycleMode(
+            vendorPayoutSettings?.FinancialLifecycleMode ?? VendorFinancialLifecycleMode.Weekly);
+        var nextPayoutDate = ResolveNextPayoutDate(
+            effectivePayoutMode,
+            settlements,
+            vendorPayoutSettings?.PayoutDay ?? PayoutScheduleDay.Monday);
         var branchSections = financeAccess.CanSelectBranch && !selectedBranchId.HasValue
             ? BuildFinanceBranchSections(financeAccess.Branches, deliveredOrders, orderProfitLookup)
             : [];
@@ -969,7 +978,7 @@ public class VendorWorkspaceController : ApiControllerBase
             nextPayoutDate.ToString("yyyy-MM-dd"),
             primaryBank is null ? "Bank transfer" : $"Bank Transfer - {primaryBank.BankName}",
             holdAmount,
-            vendorFinancialMode.ToString(),
+            effectivePayoutMode.ToString(),
             [
                 new VendorFinanceKpiResponse("gross-sales", "VENDOR_FINANCE.KPIS.GROSS_SALES", grossSales, 0, "up", "primary"),
                 new VendorFinanceKpiResponse("vendor-profit", "VENDOR_FINANCE.KPIS.VENDOR_PROFIT", vendorProfit, 0, "up", "success"),
@@ -993,7 +1002,8 @@ public class VendorWorkspaceController : ApiControllerBase
                     branch.Id.ToString(),
                     branch.Name,
                     branch.IsPrimary)).ToList()),
-            branchSections));
+            branchSections,
+            (vendorPayoutSettings?.PayoutDay ?? PayoutScheduleDay.Monday).ToString()));
     }
 
     [HttpGet("finance/ledger")]
@@ -1093,22 +1103,32 @@ public class VendorWorkspaceController : ApiControllerBase
         };
     }
 
-    private static DateTime? CalculateNextSettlementDate(VendorFinancialLifecycleMode mode)
+    private static DateTime? CalculateNextSettlementDate(
+        VendorFinancialLifecycleMode mode,
+        PayoutScheduleDay payoutDay)
     {
         var now = SaudiTime.Today;
-        return mode switch
+        var cycleClose = mode switch
         {
-            VendorFinancialLifecycleMode.PerOrderDirectPayout => null,
             VendorFinancialLifecycleMode.Weekly => now.AddDays((7 - (int)now.DayOfWeek) % 7), // Sunday (assuming 0 is Sunday, so if today is Sunday, adds 0 or 7 depending on logic. Let's just say end of week)
             VendorFinancialLifecycleMode.Biweekly => now.Day <= 15 ? new DateTime(now.Year, now.Month, 16) : new DateTime(now.Year, now.Month, 1).AddMonths(1),
             VendorFinancialLifecycleMode.Monthly => new DateTime(now.Year, now.Month, DateTime.DaysInMonth(now.Year, now.Month)),
-            _ => null
+            _ => now
         };
+
+        return PayoutScheduleDayPolicy.NextOnOrAfter(cycleClose, payoutDay);
     }
+
+    private static VendorFinancialLifecycleMode NormalizeFinancialLifecycleMode(
+        VendorFinancialLifecycleMode mode) =>
+        mode == VendorFinancialLifecycleMode.PerOrderDirectPayout
+            ? VendorFinancialLifecycleMode.Weekly
+            : mode;
 
     private static DateTime ResolveNextPayoutDate(
         VendorFinancialLifecycleMode mode,
-        IReadOnlyCollection<dynamic> settlements)
+        IReadOnlyCollection<dynamic> settlements,
+        PayoutScheduleDay payoutDay)
     {
         var pendingDate = settlements
             .Where(settlement => settlement.Status is SettlementStatus.Pending or SettlementStatus.PendingReview or SettlementStatus.Processing)
@@ -1121,9 +1141,7 @@ public class VendorWorkspaceController : ApiControllerBase
             return pendingDate.Value;
         }
 
-        return mode == VendorFinancialLifecycleMode.PerOrderDirectPayout
-            ? SaudiTime.Today
-            : CalculateNextSettlementDate(mode) ?? SaudiTime.Today;
+        return CalculateNextSettlementDate(mode, payoutDay) ?? SaudiTime.Today;
     }
 
     private static string MapLedgerEntryType(WalletTxnType txnType) =>
@@ -1811,7 +1829,8 @@ public record VendorFinanceSnapshotResponse(
     List<VendorLedgerEntryResponse> Ledger,
     List<VendorFinanceAlertResponse> Alerts,
     VendorFinanceBranchScopeResponse BranchScope,
-    List<VendorFinanceBranchSectionResponse> BranchSections);
+    List<VendorFinanceBranchSectionResponse> BranchSections,
+    string PayoutDay = "Monday");
 
 public record VendorFinanceBranchScopeResponse(
     bool CanSelectBranch,

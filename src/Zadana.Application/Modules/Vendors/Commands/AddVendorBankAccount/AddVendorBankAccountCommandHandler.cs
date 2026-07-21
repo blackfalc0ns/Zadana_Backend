@@ -38,7 +38,8 @@ public class AddVendorBankAccountCommandHandler : IRequestHandler<AddVendorBankA
                 request.AccountHolderName,
                 request.Iban,
                 request.SwiftCode,
-                vendor.PayoutCycle),
+                vendor.PayoutCycle,
+                vendor.PayoutDay.ToString()),
             new ProfileChangeApprovalAlert(
                 AdminAlertTypes.VendorCriticalChangeSubmitted,
                 AdminAlertCategories.Vendors,

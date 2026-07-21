@@ -99,6 +99,9 @@ public interface IApplicationDbContext
     DbSet<SettlementItem> SettlementItems { get; }
     DbSet<Payout> Payouts { get; }
     DbSet<PayoutAttempt> PayoutAttempts { get; }
+    DbSet<PayoutManualConfirmation> PayoutManualConfirmations { get; }
+    DbSet<SettlementProcessingSettings> SettlementProcessingSettings { get; }
+    DbSet<SettlementProcessingModeAudit> SettlementProcessingModeAudits { get; }
     DbSet<VendorRecovery> VendorRecoveries { get; }
     DbSet<DriverRecovery> DriverRecoveries { get; }
     DbSet<DriverPayoutMethod> DriverPayoutMethods { get; }

@@ -82,7 +82,8 @@ public class VendorsController : ApiControllerBase
             request.BranchLatitude,
             request.BranchLongitude,
             request.BranchContactPhone,
-            request.BranchDeliveryRadiusKm);
+            request.BranchDeliveryRadiusKm,
+            request.PayoutDay);
 
         var result = await Sender.Send(command);
         WriteVendorRefreshCookie(result.Tokens);
@@ -205,7 +206,8 @@ public class VendorsController : ApiControllerBase
             request.AccountHolderName,
             request.Iban,
             request.SwiftCode,
-            request.PayoutCycle));
+            request.PayoutCycle,
+            request.PayoutDay));
 
         return Ok(new { Data = result, Message = _localizer["VendorProfileUpdated"].Value });
     }

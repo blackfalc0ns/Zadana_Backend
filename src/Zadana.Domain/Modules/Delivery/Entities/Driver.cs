@@ -2,6 +2,7 @@ using Zadana.Domain.Modules.Delivery.Enums;
 using Zadana.Domain.Modules.Identity.Entities;
 using Zadana.Domain.Modules.Identity.Enums;
 using Zadana.Domain.Modules.Identity.Services;
+using Zadana.Domain.Modules.Wallets.Enums;
 using Zadana.SharedKernel.Primitives;
 using Zadana.SharedKernel.Serialization;
 
@@ -25,6 +26,7 @@ public class Driver : BaseEntity
     public string? VehicleLicenseNumber { get; private set; }
     public DateTime? VehicleLicenseExpiryDate { get; private set; }
     public string? Address { get; private set; }
+    public PayoutScheduleDay PayoutDay { get; private set; } = PayoutScheduleDay.Monday;
     public string? NationalIdFrontImageUrl { get; private set; }
     public string? NationalIdBackImageUrl { get; private set; }
     public string? LicenseImageUrl { get; private set; }
@@ -144,6 +146,12 @@ public class Driver : BaseEntity
     public void UpdateAddress(string? address)
     {
         Address = string.IsNullOrWhiteSpace(address) ? null : address.Trim();
+    }
+
+    public void UpdatePayoutDay(PayoutScheduleDay payoutDay)
+    {
+        PayoutDay = PayoutScheduleDayPolicy.EnsureAllowed(payoutDay);
+        UpdatedAtUtc = DateTime.UtcNow;
     }
 
     public void UpdateServiceArea(string? region, string? city)

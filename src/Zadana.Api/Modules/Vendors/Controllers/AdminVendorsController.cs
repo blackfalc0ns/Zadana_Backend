@@ -334,7 +334,11 @@ public class AdminVendorsController : ApiControllerBase
         Guid payoutId,
         [FromBody] AdminCompleteVendorPayoutRequest? request)
     {
-        await Sender.Send(new CompleteVendorPayoutCommand(vendorId, payoutId, request?.TransferReference));
+        await Sender.Send(new CompleteVendorPayoutCommand(
+            vendorId,
+            payoutId,
+            request?.TransferReference,
+            request?.ProofUrl));
         return Ok(new { Message = _localizer["VENDOR_PAYOUT_COMPLETED_SUCCESS"].Value });
     }
 
@@ -483,7 +487,8 @@ public class AdminVendorsController : ApiControllerBase
             request.PayoutCycle,
             request.CommercialRegisterDocumentUrl,
             request.TaxDocumentUrl,
-            request.LicenseDocumentUrl));
+            request.LicenseDocumentUrl,
+            request.PayoutDay));
 
         return Ok(result);
     }
@@ -494,7 +499,8 @@ public class AdminVendorsController : ApiControllerBase
         var result = await Sender.Send(new AdminUpdateVendorFinanceSettingsCommand(
             vendorId,
             request.FinancialLifecycleMode,
-            request.PayoutCycle));
+            request.PayoutCycle,
+            request.PayoutDay));
 
         return Ok(result);
     }

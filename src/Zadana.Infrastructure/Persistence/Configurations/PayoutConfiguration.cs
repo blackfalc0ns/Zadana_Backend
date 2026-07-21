@@ -36,5 +36,10 @@ public class PayoutConfiguration : IEntityTypeConfiguration<Payout>
             .WithOne(x => x.Payout)
             .HasForeignKey(x => x.PayoutId)
             .OnDelete(DeleteBehavior.Cascade);
+
+        builder.HasOne(x => x.ManualConfirmation)
+            .WithOne(x => x.Payout)
+            .HasForeignKey<PayoutManualConfirmation>(x => x.PayoutId)
+            .OnDelete(DeleteBehavior.Cascade);
     }
 }

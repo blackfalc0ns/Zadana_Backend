@@ -61,4 +61,5 @@ public record VendorDetailDto(
     IReadOnlyList<VendorRiskIndicatorDto> RiskIndicators,
     // Counts
     int BranchesCount,
-    int BankAccountsCount);
+    int BankAccountsCount,
+    string PayoutDay = "Monday");

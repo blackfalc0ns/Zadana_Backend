@@ -22,7 +22,6 @@ public class ApplicationDbContextInitialiser
     private const string DefaultAdminPassword = "Admin@123";
     private const string TestPlatformIban = "SA0380000000608010167519";
     private const string TestPlatformAccountNumber = "608010167519";
-    private const string TestVendorPayoutIban = "SA8280000000608010164545";
     private static readonly string[] TestDriverPayoutIbans =
     [
         "SA5580000000608010164546",
@@ -128,7 +127,7 @@ public class ApplicationDbContextInitialiser
             .FirstOrDefaultAsync();
 
         await RepairPlatformBankAccountAsync();
-        await RepairPerOrderVendorBankAccountsAsync(superAdminId);
+        await NormalizeLegacyPerOrderVendorPayoutsAsync();
         await SeedDriverTestingPayoutMethodsAsync();
 
         await _context.SaveChangesAsync();
@@ -164,58 +163,18 @@ public class ApplicationDbContextInitialiser
             account.Notes ?? "Testing platform bank account.");
     }
 
-    private async Task RepairPerOrderVendorBankAccountsAsync(Guid verifiedBy)
+    private async Task NormalizeLegacyPerOrderVendorPayoutsAsync()
     {
         var perOrderVendors = await _context.Vendors
-            .Include(vendor => vendor.BankAccounts)
             .Where(vendor => vendor.FinancialLifecycleMode == VendorFinancialLifecycleMode.PerOrderDirectPayout)
             .ToListAsync();
 
         foreach (var vendor in perOrderVendors)
         {
-            var primary = vendor.BankAccounts
-                .OrderByDescending(account => account.IsPrimary)
-                .ThenByDescending(account => account.CreatedAtUtc)
-                .FirstOrDefault();
-
-            if (primary is null)
-            {
-                primary = new VendorBankAccount(
-                    vendor.Id,
-                    "Test Bank",
-                    ResolveVendorAccountHolderName(vendor),
-                    TestVendorPayoutIban,
-                    "RJHISARI");
-                _context.VendorBankAccounts.Add(primary);
-            }
-            else if (!IsValidSaudiIban(primary.IBAN))
-            {
-                primary.UpdateDetails(
-                    string.IsNullOrWhiteSpace(primary.BankName) ? "Test Bank" : primary.BankName,
-                    string.IsNullOrWhiteSpace(primary.AccountHolderName) ? ResolveVendorAccountHolderName(vendor) : primary.AccountHolderName,
-                    TestVendorPayoutIban,
-                    string.IsNullOrWhiteSpace(primary.SwiftCode) ? "RJHISARI" : primary.SwiftCode);
-            }
-
-            if (primary.Status == BankAccountStatus.PendingVerification && verifiedBy != Guid.Empty)
-            {
-                primary.Verify(verifiedBy);
-            }
-
-            if (primary.Status == BankAccountStatus.Verified && !primary.IsPrimary)
-            {
-                foreach (var other in vendor.BankAccounts.Where(account => account.Id != primary.Id && account.IsPrimary))
-                {
-                    other.UnsetPrimary();
-                }
-
-                primary.SetAsPrimary();
-            }
-
-            if (primary.Status == BankAccountStatus.Verified && IsValidSaudiIban(primary.IBAN))
-            {
-                vendor.UpdateFinanceSettings(VendorFinancialLifecycleMode.PerOrderDirectPayout);
-            }
+            vendor.UpdateFinanceSettings(
+                VendorFinancialLifecycleMode.Weekly,
+                "weekly",
+                PayoutScheduleDay.Monday);
         }
     }
 
@@ -276,11 +235,6 @@ public class ApplicationDbContextInitialiser
             primaryBankMethod.SetPrimary();
         }
     }
-
-    private static string ResolveVendorAccountHolderName(Vendor vendor) =>
-        string.IsNullOrWhiteSpace(vendor.OwnerName)
-            ? vendor.BusinessNameEn
-            : vendor.OwnerName;
 
     private static bool IsValidSaudiIban(string? iban)
     {

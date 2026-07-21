@@ -45,6 +45,105 @@ Root-level fields:
 
 These root fields describe **only the currently selected variant** (`is_current: true`), not the whole group.
 
+## رسالة للموبايل — ليه زر «أضف للسلة» بيظهر مع حجم غير نشط؟
+
+### المشكلة الحالية في التطبيق
+
+لما المستخدم يفتح منتج فيه أكثر من حجم:
+
+1. الصفحة بتفتح على **حجم نشط** (مثلاً 1L).
+2. الـ API بيرجع `is_available_for_purchase: true` على مستوى **root**.
+3. المستخدم يختار **حجم غير نشط** (مثلاً 2L) من الـ selector.
+4. الحجم **يظهر** في الاختيارات (ده صح — مش المفروض يتخفى).
+5. لكن زر «أضف للسلة» **يفضل مفعّل** — وده **غلط**.
+
+### السبب
+
+التطبيق حالياً غالباً بيعمل كده:
+
+```text
+فتح الصفحة على 1L  →  root.is_available_for_purchase = true  →  الزر مفعّل
+اختيار 2L (غير نشط)  →  التطبيق ما قرأش variant_options[2L]  →  الزر فضل مفعّل ❌
+```
+
+يعني: بعد تغيير الحجم، التطبيق **لسه بيعتمد على** `is_available_for_purchase` من **root** (اللي جاي من الحجم الأول)، **مش** من الحجم المختار داخل `variant_options[]`.
+
+### إيه اللي الـ Backend بيرسل للحجم غير النشط؟
+
+```json
+{
+  "id": "cccccccc-cccc-cccc-cccc-cccccccccccc",
+  "display_size_ar": "2 لتر",
+  "is_available_for_purchase": false,
+  "unavailable_reason": "product_inactive",
+  "default_vendor_product_id": null,
+  "price": null,
+  "vendor_prices": []
+}
+```
+
+الـ API بيقول بوضوح: الحجم **غير قابل للشراء**. المشكلة في **قراءة التطبيق** للبيانات بعد اختيار الحجم.
+
+### لو المستخدم ضغط «أضف للسلة» فعلاً؟
+
+| السيناريو | النتيجة |
+|---|---|
+| بعت `master_product_id` للحجم **غير النشط** | الـ Backend **يرفض** — المنتج لازم يكون `Active` |
+| لسه بيبعت id الحجم **النشط** رغم إن الشاشة تعرض حجم تاني | ممكن يضيف للسلة **الحجم النشط** — bug في الـ UI/state |
+
+### المطلوب تنفيذه (إلزامي)
+
+عند **كل** تغيير للحجم، حدّث حالة الشاشة من **الحجم المختار** في `variant_options[]`:
+
+```dart
+final selected = variantOptions.firstWhere((v) => v.id == selectedVariantId);
+
+final canAddToCart =
+    selected.isAvailableForPurchase;
+
+// استخدم selected.price / selected.vendorPrices للعرض
+// لا تستخدم root.isAvailableForPurchase بعد تغيير الحجم
+```
+
+**قاعدة بسيطة:**
+
+- `selected.is_available_for_purchase == true` → زر «أضف للسلة» **مفعّل**
+- `selected.is_available_for_purchase == false` → الزر **معطّل** + اعرض سبب من `unavailable_reason` إن أمكن
+
+### مهم: المعرف المرسل إلى السلة
+
+Endpoint السلة:
+
+```http
+POST /api/cart/items
+```
+
+يقبل **Master Product ID فقط**. عند الإضافة، أرسل `id` للحجم المختار من
+`variant_options[]`، ولا ترسل `default_vendor_product_id`.
+
+```dart
+await dio.post(
+  '/api/cart/items',
+  data: {
+    'productId': selected.id, // Master Product ID
+    'quantity': quantity,
+  },
+);
+```
+
+`default_vendor_product_id` هو معرّف عرض السعر/المتجر، وليس معرّف إضافة المنتج
+إلى السلة. إرساله في `productId` ينتج عنه `404 MASTERPRODUCT_NOT_FOUND` حتى لو
+كان المنتج ظاهراً في شاشة التفاصيل.
+
+### Acceptance (للاختبار)
+
+1. منتج فيه 1L نشط + 2L غير نشط.
+2. اختيار 1L → الزر مفعّل.
+3. اختيار 2L → الزر **معطّل فوراً** (حتى لو root لسه `true` من أول response).
+4. 2L يفضل **ظاهر** في الـ selector لكن disabled/greyed out.
+5. عند إضافة 1L للسلة، body يرسل `productId: selected.id` وليس
+   `selected.defaultVendorProductId`.
+
 ## Mobile Rules
 
 ### 1. When user selects a size/type
@@ -56,7 +155,6 @@ final selected = variantOptions.firstWhere((v) => v.id == selectedVariantId);
 
 final canBuy = selected.isAvailableForPurchase;
 final reason = selected.unavailableReason;
-final vendorProductId = selected.defaultVendorProductId;
 final price = selected.price;
 ```
 
@@ -68,7 +166,6 @@ Enable only when:
 
 ```text
 selectedVariant.is_available_for_purchase == true
-AND selectedVariant.default_vendor_product_id != null
 ```
 
 ### 3. Show all sizes in the selector
@@ -163,7 +260,7 @@ root fields will match that variant. Still prefer `variant_options[]` when switc
    - inactive size → buy button disabled
 2. Switching between sizes updates buy button state immediately
 3. Inactive size remains visible in size selector
-4. Add to cart uses `default_vendor_product_id` of the selected available variant
+4. Add to cart uses `id` (the selected available variant's `master_product_id`)
 
 ## Backend Source
 

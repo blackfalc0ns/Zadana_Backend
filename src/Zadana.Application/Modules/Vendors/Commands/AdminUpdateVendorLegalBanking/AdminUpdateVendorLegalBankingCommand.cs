@@ -6,6 +6,7 @@ using Zadana.Application.Common.Localization;
 using Zadana.Application.Modules.Vendors.DTOs;
 using Zadana.Application.Modules.Vendors.Interfaces;
 using Zadana.Domain.Modules.Vendors.Entities;
+using Zadana.Domain.Modules.Wallets.Enums;
 using Zadana.SharedKernel.Exceptions;
 
 namespace Zadana.Application.Modules.Vendors.Commands.AdminUpdateVendorLegalBanking;
@@ -23,7 +24,8 @@ public record AdminUpdateVendorLegalBankingCommand(
     string? PayoutCycle,
     string? CommercialRegisterDocumentUrl,
     string? TaxDocumentUrl,
-    string? LicenseDocumentUrl) : IRequest<VendorDetailDto>;
+    string? LicenseDocumentUrl,
+    string? PayoutDay = null) : IRequest<VendorDetailDto>;
 
 public class AdminUpdateVendorLegalBankingCommandValidator : AbstractValidator<AdminUpdateVendorLegalBankingCommand>
 {
@@ -37,8 +39,16 @@ public class AdminUpdateVendorLegalBankingCommandValidator : AbstractValidator<A
         RuleFor(x => x.AccountHolderName).NotEmpty().MaximumLength(200);
         RuleFor(x => x.Iban).NotEmpty().MaximumLength(34);
         RuleFor(x => x.SwiftCode).MaximumLength(11);
-        RuleFor(x => x.PayoutCycle).MaximumLength(50);
+        RuleFor(x => x.PayoutCycle)
+            .MaximumLength(50)
+            .Must(IsSupportedPayoutCycle);
+        RuleFor(x => x.PayoutDay)
+            .Must(value => string.IsNullOrWhiteSpace(value) || PayoutScheduleDayPolicy.TryParse(value, out _));
     }
+
+    private static bool IsSupportedPayoutCycle(string? payoutCycle) =>
+        string.IsNullOrWhiteSpace(payoutCycle) ||
+        payoutCycle.Trim().ToLowerInvariant() is "weekly" or "biweekly" or "monthly";
 }
 
 public class AdminUpdateVendorLegalBankingCommandHandler : IRequestHandler<AdminUpdateVendorLegalBankingCommand, VendorDetailDto>
@@ -73,7 +83,9 @@ public class AdminUpdateVendorLegalBankingCommandHandler : IRequestHandler<Admin
             request.CommercialRegisterDocumentUrl,
             request.TaxDocumentUrl,
             request.LicenseDocumentUrl);
-        vendor.UpdateBanking(request.PayoutCycle);
+        vendor.UpdateBanking(
+            request.PayoutCycle,
+            PayoutScheduleDayPolicy.ParseOrDefault(request.PayoutDay, vendor.PayoutDay));
 
         foreach (var account in vendor.BankAccounts)
         {

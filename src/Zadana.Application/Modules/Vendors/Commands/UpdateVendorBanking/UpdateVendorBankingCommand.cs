@@ -6,6 +6,7 @@ using Zadana.Application.Common.Localization;
 using Zadana.Application.Modules.Vendors.DTOs;
 using Zadana.Application.Modules.Vendors.Interfaces;
 using Zadana.Application.Modules.Vendors.Support;
+using Zadana.Domain.Modules.Wallets.Enums;
 using Zadana.SharedKernel.Exceptions;
 
 namespace Zadana.Application.Modules.Vendors.Commands.UpdateVendorBanking;
@@ -15,7 +16,8 @@ public record UpdateVendorBankingCommand(
     string AccountHolderName,
     string Iban,
     string? SwiftCode,
-    string? PayoutCycle) : IRequest<VendorWorkspaceDto>;
+    string? PayoutCycle,
+    string? PayoutDay = null) : IRequest<VendorWorkspaceDto>;
 
 public class UpdateVendorBankingCommandValidator : AbstractValidator<UpdateVendorBankingCommand>
 {
@@ -25,8 +27,16 @@ public class UpdateVendorBankingCommandValidator : AbstractValidator<UpdateVendo
         RuleFor(x => x.AccountHolderName).NotEmpty().MaximumLength(200);
         RuleFor(x => x.Iban).NotEmpty().MaximumLength(34);
         RuleFor(x => x.SwiftCode).MaximumLength(11);
-        RuleFor(x => x.PayoutCycle).MaximumLength(50);
+        RuleFor(x => x.PayoutCycle)
+            .MaximumLength(50)
+            .Must(IsSupportedPayoutCycle);
+        RuleFor(x => x.PayoutDay)
+            .Must(value => string.IsNullOrWhiteSpace(value) || PayoutScheduleDayPolicy.TryParse(value, out _));
     }
+
+    private static bool IsSupportedPayoutCycle(string? payoutCycle) =>
+        string.IsNullOrWhiteSpace(payoutCycle) ||
+        payoutCycle.Trim().ToLowerInvariant() is "weekly" or "biweekly" or "monthly";
 }
 
 public class UpdateVendorBankingCommandHandler : IRequestHandler<UpdateVendorBankingCommand, VendorWorkspaceDto>
@@ -66,7 +76,8 @@ public class UpdateVendorBankingCommandHandler : IRequestHandler<UpdateVendorBan
             request.AccountHolderName,
             request.Iban,
             request.SwiftCode,
-            request.PayoutCycle);
+            request.PayoutCycle,
+            request.PayoutDay);
 
         await _profileChangeApprovalService.SubmitAsync(
             userId,

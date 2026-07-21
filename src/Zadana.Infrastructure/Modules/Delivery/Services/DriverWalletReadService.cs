@@ -71,7 +71,8 @@ public sealed class DriverWalletReadService : IDriverWalletReadService
             monthEarnings,
             recentTransactions,
             paymentMethods,
-            withdrawalSummary);
+            withdrawalSummary,
+            driver.PayoutDay.ToString());
     }
 
     public async Task<DriverWalletRealtimePayload> GetRealtimePayloadAsync(

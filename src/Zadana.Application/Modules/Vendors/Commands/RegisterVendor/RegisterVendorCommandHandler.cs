@@ -6,6 +6,7 @@ using Zadana.Application.Modules.Identity.DTOs;
 using Zadana.Application.Modules.Identity.Interfaces;
 using Zadana.Application.Modules.Vendors.Interfaces;
 using Zadana.Domain.Modules.Identity.Enums;
+using Zadana.Domain.Modules.Wallets.Enums;
 using Zadana.Domain.Modules.Vendors.Entities;
 
 namespace Zadana.Application.Modules.Vendors.Commands.RegisterVendor;
@@ -82,7 +83,8 @@ public class RegisterVendorCommandHandler : IRequestHandler<RegisterVendorComman
                 request.LogoUrl,
                 request.CommercialRegisterDocumentUrl,
                 request.TaxDocumentUrl,
-                request.LicenseDocumentUrl);
+                request.LicenseDocumentUrl,
+                PayoutScheduleDayPolicy.ParseOrDefault(request.PayoutDay));
 
             _vendorRepository.Add(vendor);
 

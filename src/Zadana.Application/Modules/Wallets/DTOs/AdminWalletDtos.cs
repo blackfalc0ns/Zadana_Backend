@@ -62,7 +62,8 @@ public record AdminDriverWithdrawalRequestDto(
     AdminDriverPayoutMethodDto? PayoutMethod,
     Guid? PayoutId = null,
     string? ProviderName = null,
-    string? ProviderTransferId = null);
+    string? ProviderTransferId = null,
+    string? PayoutDay = null);
 
 public record AdminDriverPayoutMethodDto(
     Guid Id,

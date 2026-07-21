@@ -35,6 +35,12 @@ public static class FileUploadSecurityPolicy
             [NormalizeDirectory("uploads/orders/disputes/evidence")] =
                 CreateAuthenticatedRoles("uploads/orders/disputes/evidence", UserRole.Admin, UserRole.SuperAdmin),
 
+            // Finance administrators upload a proof after completing a bank
+            // transfer outside the platform. This directory is never open to
+            // anonymous, vendor, or driver accounts.
+            [NormalizeDirectory("uploads/settlements/proofs")] =
+                CreateAuthenticatedRoles("uploads/settlements/proofs", UserRole.Admin, UserRole.SuperAdmin),
+
             // Driver registration happens before the driver has an account.
             // Keep these anonymous so the mobile app can upload the selected
             // files and submit their returned URLs with the register request.
