@@ -41,6 +41,53 @@ public class AdminFinancesController(
         return Ok(result);
     }
 
+    [HttpGet("orders/{orderId:guid}/breakdown")]
+    [ProducesResponseType(typeof(AdminOrderFinancialBreakdownDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<AdminOrderFinancialBreakdownDto>> GetOrderFinancialBreakdown(
+        Guid orderId,
+        CancellationToken cancellationToken = default)
+    {
+        var order = await context.Orders
+            .AsNoTracking()
+            .FirstOrDefaultAsync(item => item.Id == orderId, cancellationToken);
+
+        if (order is null)
+        {
+            return NotFound();
+        }
+
+        var vendorCommission = order.VendorCommissionAmount > 0
+            ? order.VendorCommissionAmount
+            : order.CommissionAmount;
+        var driverCommission = order.DriverCommissionAmount;
+        var driverPayout = Math.Max(0m, order.DeliveryFee - driverCommission);
+        var productNet = order.ProductNet > 0 ? order.ProductNet : Math.Max(0m, order.Subtotal - order.DiscountTotal);
+        var vendorEarnings = Math.Max(0m, productNet - vendorCommission);
+        var platformRevenue = Math.Round(vendorCommission + driverCommission + order.CodFee, 2);
+        var total = order.TotalAmount;
+        var netMargin = Math.Round(platformRevenue - order.VatAmount, 2);
+        var marginPercent = total > 0 ? Math.Round((netMargin / total) * 100m, 2) : 0m;
+
+        return Ok(new AdminOrderFinancialBreakdownDto(
+            order.Id,
+            order.OrderNumber,
+            order.Subtotal,
+            order.DiscountTotal,
+            order.DiscountTotal,
+            order.DeliveryFee,
+            0m,
+            order.CodFee,
+            order.VatAmount,
+            total,
+            vendorEarnings,
+            vendorCommission,
+            driverPayout,
+            platformRevenue,
+            netMargin,
+            marginPercent));
+    }
+
     [HttpGet("pricing-settings")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     public async Task<ActionResult<List<ZoneFinanceSettingsDto>>> GetPricingSettings(CancellationToken cancellationToken)

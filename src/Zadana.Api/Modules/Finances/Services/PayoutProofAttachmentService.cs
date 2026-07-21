@@ -88,8 +88,6 @@ public sealed class PayoutProofAttachmentService
                 $"The payout proof exceeds the allowed {rule.MaxBytes / (1024 * 1024)} MB limit.");
         }
 
-        await EnsurePayoutCanReceiveProofAsync(payoutId, kind, cancellationToken);
-
         var content = await ReadContentAsync(file, rule.MaxBytes, cancellationToken);
         EnsureFileSignature(content, extension);
 
@@ -102,6 +100,11 @@ public sealed class PayoutProofAttachmentService
         {
             return existing;
         }
+
+        // Hash-based retries must remain idempotent after the original request
+        // has advanced the payout to Paid/Confirmed. The state gate therefore
+        // applies only when storing genuinely new evidence.
+        await EnsurePayoutCanReceiveProofAsync(payoutId, kind, cancellationToken);
 
         var attachment = new PayoutProofAttachment(
             payoutId,
@@ -195,13 +198,32 @@ public sealed class PayoutProofAttachmentService
         if (kind == PayoutProofKind.ManualTransfer)
         {
             var reservation = payout.ExecutionReservation;
-            if (payout.Status != PayoutStatus.Processing ||
-                reservation?.Mode != PayoutExecutionMode.Manual ||
+            if (reservation?.Mode != PayoutExecutionMode.Manual ||
                 reservation.Status != PayoutExecutionReservationStatus.Submitted)
             {
                 throw new BusinessRuleException(
                     "PAYOUT_PROOF_MANUAL_SUBMISSION_REQUIRED",
                     "Record the manual bank submission before uploading its transfer proof.");
+            }
+
+            if (!string.IsNullOrWhiteSpace(payout.ProviderTransferId))
+            {
+                throw new BusinessRuleException(
+                    "PAYOUT_PROVIDER_RECONCILIATION_REQUIRED",
+                    "This payout already has a gateway transfer reference and must be reconciled with the provider before accepting manual transfer proof.");
+            }
+
+            // Keep this eligibility rule aligned with the manual-confirmation
+            // workflow. Pending/Failed cover safely recoverable legacy records
+            // whose durable manual reservation is already Submitted.
+            var isEligibleStatus = payout.Status is PayoutStatus.Pending or PayoutStatus.Failed ||
+                (payout.Status is PayoutStatus.Queued or PayoutStatus.Processing &&
+                 string.Equals(payout.ProviderName, "Manual", StringComparison.OrdinalIgnoreCase));
+            if (!isEligibleStatus)
+            {
+                throw new BusinessRuleException(
+                    "PAYOUT_INVALID_STATUS",
+                    $"Cannot upload manual transfer proof for payout in status {payout.Status}.");
             }
 
             return;

@@ -54,7 +54,23 @@ public sealed class AdminSettlementsController(
             .OrderByDescending(item => item.CreatedAtUtc)
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
-            .Select(item => ToDto(item))
+            .Select(item => new AdminSettlementDto(
+                item.Id,
+                item.OwnerType.ToString(),
+                item.OwnerId,
+                item.Status.ToString(),
+                item.ResolutionType.ToString(),
+                item.PeriodFrom,
+                item.PeriodTo,
+                item.GrossAmount,
+                item.CommissionAmount,
+                item.RefundAmount,
+                item.AdjustmentAmount,
+                item.RecoveryAmount,
+                item.NetAmount,
+                item.CreatedAtUtc,
+                item.ProcessedAtUtc,
+                item.Items.Count))
             .ToListAsync(cancellationToken);
 
         return Ok(new AdminSettlementListDto(items, page, pageSize, totalCount));
@@ -392,7 +408,10 @@ public sealed class AdminSettlementsController(
             settlement.RefundAmount,
             settlement.AdjustmentAmount,
             settlement.RecoveryAmount,
-            settlement.NetAmount);
+            settlement.NetAmount,
+            settlement.CreatedAtUtc,
+            settlement.ProcessedAtUtc,
+            settlement.Items.Count);
 }
 
 public sealed record GenerateSettlementRequest(
@@ -422,7 +441,10 @@ public sealed record AdminSettlementDto(
     decimal RefundAmount,
     decimal AdjustmentAmount,
     decimal RecoveryAmount,
-    decimal NetAmount);
+    decimal NetAmount,
+    DateTime CreatedAtUtc,
+    DateTime? ProcessedAtUtc,
+    int ItemCount);
 
 public sealed record AdminSettlementDetailDto(
     AdminSettlementDto Settlement,
