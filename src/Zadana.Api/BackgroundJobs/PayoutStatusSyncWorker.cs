@@ -168,7 +168,7 @@ public sealed class PayoutStatusSyncWorker : BackgroundService
                     $"لا يزال التحويل رقم {payout.Id} قيد المعالجة بعد تجاوز المدة المحددة. يرجى مراجعة تفاصيله.",
                     $"Payout {payout.Id} is still {payout.Status} after the configured payout processing threshold.",
                     payout.Id,
-                    "/finances/withdrawals",
+                    $"/finances/withdrawals?payoutId={payout.Id:D}",
                     new
                     {
                         payout.Id,
@@ -224,7 +224,7 @@ public sealed class PayoutStatusSyncWorker : BackgroundService
                     $"تم تسجيل التحويل البنكي اليدوي للتسوية رقم {payout.Id} منذ أكثر من 24 ساعة، وما زال يحتاج إلى إرفاق الإثبات واعتماد التحويل.",
                     $"Manual bank transfer for payout {payout.Id} was submitted more than 24 hours ago and still needs proof and confirmation.",
                     payout.Id,
-                    "/finances/settlements",
+                    $"/finances/settlements?focus={payout.SettlementId:D}&payoutId={payout.Id:D}",
                     new
                     {
                         payout.Id,

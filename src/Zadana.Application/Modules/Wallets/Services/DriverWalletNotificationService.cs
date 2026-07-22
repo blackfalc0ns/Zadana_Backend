@@ -145,7 +145,7 @@ public sealed class DriverWalletNotificationService : IDriverWalletNotificationS
                 NotificationTypes.DriverWalletUpdated,
                 referenceId,
                 content.Data,
-                "/wallet",
+                content.TargetUrl,
                 NotificationCategories.Wallet,
                 OneSignalApplicationTarget.Driver),
             cancellationToken);

@@ -18,6 +18,7 @@ public class DriverWalletNotificationComposerTests
         content.EventName.Should().Be("wallet.withdrawal_submitted");
         content.TitleAr.Should().Be("استلمنا طلب السحب");
         content.TitleEn.Should().Be("Withdrawal request submitted");
+        content.TargetUrl.Should().Be($"/wallet/withdrawals/{withdrawal.Id:D}");
         AssertWithdrawalPayload(content.Data, withdrawal.Id, "wallet.withdrawal_submitted");
     }
 

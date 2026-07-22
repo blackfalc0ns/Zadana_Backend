@@ -1943,7 +1943,7 @@ public sealed class PayoutOrchestrator
                 $"يحتاج التحويل رقم {payout.Id} بقيمة {payout.Amount:N2} ر.س إلى مطابقة مع مزود الدفع. راجع تفاصيل العملية لمعرفة السبب.",
                 $"Payout {payout.Id} for {payout.Amount:N2} needs provider reconciliation. Reason: {normalizedReason}",
                 payout.Id,
-                "/finances/withdrawals",
+                $"/finances/withdrawals?payoutId={payout.Id:D}",
                 new
                 {
                     payoutId = payout.Id,
@@ -1972,7 +1972,7 @@ public sealed class PayoutOrchestrator
                 $"فشل تحويل تسوية بقيمة {payout.Amount:N2} ر.س. راجع تفاصيل العملية لمعرفة السبب.",
                 $"A settlement payout for {payout.Amount:N2} failed. Reason: {reason}",
                 payout.Id,
-                "/finances/settlements",
+                $"/finances/settlements?focus={payout.SettlementId:D}",
                 new
                 {
                     payoutId = payout.Id,
@@ -1998,7 +1998,7 @@ public sealed class PayoutOrchestrator
                 $"تعذر بدء تحويل التسوية رقم {payout.SettlementId}. راجع تفاصيل العملية وسجل التكامل.",
                 $"Payout trigger failed for settlement {payout.SettlementId}.",
                 payout.Id,
-                "/finances/settlements",
+                $"/finances/settlements?focus={payout.SettlementId:D}",
                 new
                 {
                     payoutId = payout.Id,

@@ -539,7 +539,7 @@ public class DriverWalletController : ApiControllerBase
                 $"قدّم المندوب {GetDriverDisplayName(driver)} طلب سحب بقيمة {withdrawal.Amount:0.##} ر.س.",
                 $"Driver {GetDriverDisplayName(driver)} requested withdrawal of {withdrawal.Amount:0.##}.",
                 withdrawal.Id,
-                "/finances/withdrawals",
+                $"/finances/withdrawals?focus={withdrawal.Id:D}",
                 new
                 {
                     withdrawalId = withdrawal.Id,

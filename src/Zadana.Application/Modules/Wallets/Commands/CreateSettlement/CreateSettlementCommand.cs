@@ -101,7 +101,7 @@ public class CreateSettlementCommandHandler : IRequestHandler<CreateSettlementCo
                 $"تم إنشاء التسوية رقم {settlement.Id} بصافي مبلغ {settlement.NetAmount:0.##} ر.س.",
                 $"Settlement {settlement.Id} was created with net amount {settlement.NetAmount:0.##}.",
                 settlement.Id,
-                "/finances/settlements",
+                $"/finances/settlements?focus={settlement.Id:D}",
                 new
                 {
                     settlementId = settlement.Id,

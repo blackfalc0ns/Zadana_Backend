@@ -416,6 +416,7 @@ ReceiveDriverWalletUpdated
 
 - `screen`: `"wallet"` — افتح شاشة المحفظة أو حدّثها
 - `event` / `eventName`: أحد الأحداث أعلاه
+- `targetUrl`: مسار التنقل عند الضغط (Inbox/Push)
 - `withdrawalId`: معرف الطلب لتحديث التفاصيل (موجود في كل أحداث السحب)
 - `amount`, `status`: قيمة الطلب وحالته
 - `transferReference`: مرجع التحويل عند الدفع
@@ -440,6 +441,20 @@ ReceiveDriverWalletUpdated
 - `bodyAr` / `bodyEn`
 
 التطبيق يعرض النص حسب لغة المستخدم؛ لا تعتمد على نص Push وحده بدون `event` و`withdrawalId`.
+
+### التنقل عند الضغط على الإشعار
+
+| `targetUrl` | السلوك المطلوب |
+|---|---|
+| `/wallet/withdrawals/{withdrawalId}` | افتح شاشة/مودال تفاصيل طلب السحب وحدّث حالته من الخادم |
+| `/wallet` | افتح ملخص المحفظة (مثل `wallet.admin_adjustment`) |
+
+قواعد التطبيق:
+
+1. عند فتح Inbox أو Push: اقرأ `targetUrl` أولًا، ثم `withdrawalId` كاحتياط.
+2. إذا `targetUrl` يبدأ بـ `/wallet/withdrawals/` → navigates to withdrawal detail route.
+3. إذا وصل `ReceiveDriverWalletUpdated` بدون فتح شاشة → refresh صامت فقط.
+4. لا تعدّل الأرصدة محليًا؛ أعد تحميل المحفظة/الطلب بعد التنقل.
 
 ## 9. COD ومزامنة حالة التشغيل
 
