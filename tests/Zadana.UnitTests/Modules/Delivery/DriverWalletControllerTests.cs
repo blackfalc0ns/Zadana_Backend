@@ -1,4 +1,5 @@
 using FluentAssertions;
+using Microsoft.Extensions.Logging;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
@@ -210,6 +211,7 @@ public class DriverWalletControllerTests
             context,
             driverWalletNotificationService,
             adminAlertService,
+            NullLogger<DriverWalletController>.Instance,
             CancellationToken.None);
 
         await act.Should().ThrowAsync<BusinessRuleException>()
@@ -247,14 +249,16 @@ public class DriverWalletControllerTests
             driverRepository.Object,
             context,
             notificationService.Object,
-            adminAlertService.Object);
+            adminAlertService.Object,
+            NullLogger<DriverWalletController>.Instance);
         var second = await controller.CreateWithdrawal(
             request,
             currentUserService,
             driverRepository.Object,
             context,
             notificationService.Object,
-            adminAlertService.Object);
+            adminAlertService.Object,
+            NullLogger<DriverWalletController>.Instance);
 
         var firstDto = ((OkObjectResult)first.Result!).Value.Should()
             .BeOfType<DriverWithdrawalRequestDto>().Subject;
@@ -275,7 +279,8 @@ public class DriverWalletControllerTests
             driverRepository.Object,
             context,
             notificationService.Object,
-            adminAlertService.Object);
+            adminAlertService.Object,
+            NullLogger<DriverWalletController>.Instance);
         await mismatchedRetry.Should().ThrowAsync<BusinessRuleException>()
             .Where(error => error.ErrorCode == "WITHDRAWAL_IDEMPOTENCY_KEY_REUSED");
     }
@@ -309,7 +314,8 @@ public class DriverWalletControllerTests
             driverRepository.Object,
             context,
             notificationService.Object,
-            adminAlertService.Object);
+            adminAlertService.Object,
+            NullLogger<DriverWalletController>.Instance);
 
         var act = () => controller.CreateWithdrawal(
             new CreateDriverWithdrawalRequest(payoutMethod.Id, 30m, "mobile-request-002"),
@@ -317,7 +323,8 @@ public class DriverWalletControllerTests
             driverRepository.Object,
             context,
             notificationService.Object,
-            adminAlertService.Object);
+            adminAlertService.Object,
+            NullLogger<DriverWalletController>.Instance);
 
         await act.Should().ThrowAsync<BusinessRuleException>()
             .Where(error => error.ErrorCode == "DRIVER_ACTIVE_WITHDRAWAL_EXISTS");

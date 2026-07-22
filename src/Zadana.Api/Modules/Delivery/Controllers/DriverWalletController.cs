@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Zadana.Api.Controllers;
 using Zadana.Api.Localization;
@@ -324,6 +325,7 @@ public class DriverWalletController : ApiControllerBase
         [FromServices] IApplicationDbContext context,
         [FromServices] IDriverWalletNotificationService driverWalletNotificationService,
         [FromServices] IAdminAlertService adminAlertService,
+        [FromServices] ILogger<DriverWalletController> logger,
         CancellationToken cancellationToken = default,
         [FromServices] IOptions<FinancialSettingsOptions>? financialSettings = null)
     {
@@ -386,7 +388,7 @@ public class DriverWalletController : ApiControllerBase
             ? await dbContext.Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken)
             : null;
 
-        var wallet = await GetOrCreateWalletAsync(context, driver.Id, cancellationToken);
+        var wallet = await ResolveWalletForWithdrawalAsync(context, driver.Id, cancellationToken);
 
         if (!string.IsNullOrWhiteSpace(idempotencyKey))
         {
@@ -523,31 +525,35 @@ public class DriverWalletController : ApiControllerBase
                 "DRIVER_ACTIVE_WITHDRAWAL_EXISTS",
                 "The driver already has a pending or processing withdrawal request.");
         }
+        catch (DbUpdateException exception)
+        {
+            if (transaction is not null)
+            {
+                await transaction.RollbackAsync(cancellationToken);
+            }
 
-        await driverWalletNotificationService.NotifyWithdrawalSubmittedAsync(
-            driver.UserId,
+            if (dbContext is not null)
+            {
+                dbContext.ChangeTracker.Clear();
+            }
+
+            logger.LogError(
+                exception,
+                "Failed to persist driver withdrawal for driver {DriverId}. PaymentMethodId: {PaymentMethodId}. Amount: {Amount}. IdempotencyKey: {IdempotencyKey}",
+                driver.Id,
+                payoutMethod.Id,
+                request.Amount,
+                idempotencyKey);
+
+            throw MapWithdrawalPersistenceException(exception);
+        }
+
+        await DispatchWithdrawalSubmittedSideEffectsAsync(
+            driver,
             withdrawal,
-            cancellationToken);
-
-        await adminAlertService.SendAsync(
-            new AdminAlertRequest(
-                AdminAlertTypes.SettlementRequested,
-                AdminAlertCategories.Settlements,
-                AdminAlertPriorities.High,
-                "طلب سحب للمندوب يحتاج إلى مراجعة",
-                "Driver withdrawal requires review",
-                $"قدّم المندوب {GetDriverDisplayName(driver)} طلب سحب بقيمة {withdrawal.Amount:0.##} ر.س.",
-                $"Driver {GetDriverDisplayName(driver)} requested withdrawal of {withdrawal.Amount:0.##}.",
-                withdrawal.Id,
-                $"/finances/withdrawals?focus={withdrawal.Id:D}",
-                new
-                {
-                    withdrawalId = withdrawal.Id,
-                    driverId = driver.Id,
-                    driverUserId = driver.UserId,
-                    amount = withdrawal.Amount,
-                    status = withdrawal.Status.ToString()
-                }),
+            driverWalletNotificationService,
+            adminAlertService,
+            logger,
             cancellationToken);
 
         return Ok(MapWithdrawalDto(withdrawal, payoutMethod));
@@ -670,9 +676,116 @@ public class DriverWalletController : ApiControllerBase
 
     private static bool IsWithdrawalUniquenessConflict(DbUpdateException exception)
     {
-        var details = $"{exception.Message} {exception.InnerException?.Message}";
+        var details = DescribeDbUpdateException(exception);
         return details.Contains("UX_DriverWithdrawalRequests_OneActivePerDriver", StringComparison.OrdinalIgnoreCase) ||
                details.Contains("UX_DriverWithdrawalRequests_Driver_IdempotencyKey", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static Exception MapWithdrawalPersistenceException(DbUpdateException exception)
+    {
+        var details = DescribeDbUpdateException(exception);
+        if (details.Contains("Invalid column name", StringComparison.OrdinalIgnoreCase) ||
+            details.Contains("Invalid object name", StringComparison.OrdinalIgnoreCase))
+        {
+            return new BusinessRuleException(
+                "WITHDRAWAL_WORKFLOW_NOT_READY",
+                "نظام السحب ما زال يُحدَّث على الخادم. حاول مرة أخرى بعد دقائق أو تواصل مع الدعم. | The withdrawal workflow is still being updated on the server. Try again in a few minutes or contact support.");
+        }
+
+        if (details.Contains("IX_WalletHolds_IdempotencyKey", StringComparison.OrdinalIgnoreCase))
+        {
+            return new BusinessRuleException(
+                "DRIVER_ACTIVE_WITHDRAWAL_EXISTS",
+                "The driver already has a pending or processing withdrawal request.");
+        }
+
+        return new BusinessRuleException(
+            "WITHDRAWAL_SAVE_FAILED",
+            "تعذر حفظ طلب السحب الآن. حاول مرة أخرى بعد قليل. | The withdrawal request could not be saved right now. Please try again shortly.");
+    }
+
+    private static string DescribeDbUpdateException(DbUpdateException exception)
+    {
+        var parts = new List<string> { exception.Message };
+        for (var inner = exception.InnerException; inner is not null; inner = inner.InnerException)
+        {
+            parts.Add(inner.Message);
+        }
+
+        return string.Join(" | ", parts);
+    }
+
+    private static async Task<Wallet> ResolveWalletForWithdrawalAsync(
+        IApplicationDbContext context,
+        Guid driverId,
+        CancellationToken cancellationToken)
+    {
+        var wallet = await context.Wallets
+            .FirstOrDefaultAsync(w => w.OwnerType == WalletOwnerType.Driver && w.OwnerId == driverId, cancellationToken);
+
+        if (wallet is not null)
+        {
+            return wallet;
+        }
+
+        wallet = new Wallet(WalletOwnerType.Driver, driverId);
+        context.Wallets.Add(wallet);
+        return wallet;
+    }
+
+    private static async Task DispatchWithdrawalSubmittedSideEffectsAsync(
+        Domain.Modules.Delivery.Entities.Driver driver,
+        DriverWithdrawalRequest withdrawal,
+        IDriverWalletNotificationService driverWalletNotificationService,
+        IAdminAlertService adminAlertService,
+        ILogger<DriverWalletController> logger,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            await driverWalletNotificationService.NotifyWithdrawalSubmittedAsync(
+                driver.UserId,
+                withdrawal,
+                cancellationToken);
+        }
+        catch (Exception exception)
+        {
+            logger.LogError(
+                exception,
+                "Driver withdrawal {WithdrawalId} was saved, but driver notification dispatch failed.",
+                withdrawal.Id);
+        }
+
+        try
+        {
+            await adminAlertService.SendAsync(
+                new AdminAlertRequest(
+                    AdminAlertTypes.SettlementRequested,
+                    AdminAlertCategories.Settlements,
+                    AdminAlertPriorities.High,
+                    "طلب سحب للمندوب يحتاج إلى مراجعة",
+                    "Driver withdrawal requires review",
+                    $"قدّم المندوب {GetDriverDisplayName(driver)} طلب سحب بقيمة {withdrawal.Amount:0.##} ر.س.",
+                    $"Driver {GetDriverDisplayName(driver)} requested withdrawal of {withdrawal.Amount:0.##}.",
+                    withdrawal.Id,
+                    $"/finances/withdrawals?focus={withdrawal.Id:D}",
+                    new
+                    {
+                        withdrawalId = withdrawal.Id,
+                        driverId = driver.Id,
+                        driverUserId = driver.UserId,
+                        amount = withdrawal.Amount,
+                        status = withdrawal.Status.ToString()
+                    }),
+                cancellationToken);
+        }
+        catch (Exception exception)
+        {
+            logger.LogError(
+                exception,
+                "Driver withdrawal {WithdrawalId} was saved, but admin alert dispatch failed.",
+                withdrawal.Id);
+        }
     }
 
     private static void EnsureIdempotentWithdrawalMatches(
