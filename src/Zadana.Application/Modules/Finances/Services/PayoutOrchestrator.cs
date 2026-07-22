@@ -2068,10 +2068,14 @@ public sealed class PayoutOrchestrator
                     return;
                 }
 
+                var hasTransferProof = payout.ManualConfirmation?.ProofAttachmentId is not null &&
+                    payout.ManualConfirmation.ProofAttachmentId != Guid.Empty;
+
                 await _driverWalletNotificationService.NotifyWithdrawalPaidAsync(
                     linkedWithdrawal.UserId,
                     linkedWithdrawal.withdrawal,
-                    cancellationToken);
+                    cancellationToken,
+                    hasTransferProof);
             }
             else if (settlement.OwnerType == SettlementOwnerType.Vendor)
             {

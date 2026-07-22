@@ -32,7 +32,8 @@ public interface IDriverWalletNotificationService
     Task NotifyWithdrawalPaidAsync(
         Guid driverUserId,
         DriverWithdrawalRequest withdrawal,
-        CancellationToken cancellationToken = default);
+        CancellationToken cancellationToken = default,
+        bool hasTransferProof = false);
 
     Task NotifyWithdrawalReturnedAsync(
         Guid driverUserId,

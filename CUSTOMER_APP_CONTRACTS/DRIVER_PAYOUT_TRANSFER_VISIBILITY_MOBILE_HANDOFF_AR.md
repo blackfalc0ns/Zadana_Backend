@@ -1,16 +1,16 @@
-# ظهور مرجع التحويل وحالة السحب — Handoff لتطبيق المندوب
+# ظهور مرجع التحويل وإثبات التحويل — Handoff لتطبيق المندوب
 
 ## الغرض
 
-هذا الملف يكمّل [`DRIVER_WITHDRAWAL_SETTLEMENT_MOBILE_HANDOFF_AR.md`](./DRIVER_WITHDRAWAL_SETTLEMENT_MOBILE_HANDOFF_AR.md) ويحدّد **متى** يظهر للمندوب مرجع التحويل، و**متى** تتغير الحالة إلى `Processing`، وما الذي **لا يُعرض أبدًا** في تطبيق المندوب.
+هذا الملف يكمّل [`DRIVER_WITHDRAWAL_SETTLEMENT_MOBILE_HANDOFF_AR.md`](./DRIVER_WITHDRAWAL_SETTLEMENT_MOBILE_HANDOFF_AR.md) ويحدّد **متى** يظهر للمندوب مرجع التحويل وملف إثبات التحويل، و**متى** تتغير الحالة إلى `Processing`.
 
-> **ملخص سريع:** المندوب لا يرى ملف إثبات التحويل. يرى `transferReference` فقط بعد `Paid`. يرى `Processing` بعد تسجيل الإرسال البنكي من الإدارة، وليس عند مجرد «تحضير» الطلب.
+> **ملخص سريع:** بعد `Paid` يرى المندوب `transferReference`، وإن وُجد إثبات مرفوع من الإدارة يظهر `hasTransferProof` مع إمكانية التحميل من endpoint مخصص.
 
 ## جدول الظهور
 
 | المحتوى | المندوب | التاجر (لوحة التاجر) |
 |---|---|---|
-| ملف إثبات التحويل | **لا يُعرض أبدًا** | يُعرض ويُحمَّل بعد `paid` |
+| ملف إثبات التحويل | بعد `Paid` إن وُجد (`hasTransferProof`) | يُعرض ويُحمَّل بعد `paid` |
 | `transferReference` | فقط عند `Paid` | عند `paid` (تنبيه + جدول التسويات) |
 | حالة `Processing` | بعد `manual-bank-submission` أو الإرسال التلقائي للبنك | يظهر `processing` في المالية أثناء التحويل |
 | `providerTransferId` | فقط عند `Paid` (اختياري، لا تعرضه كاملًا) | غير مطلوب في لوحة التاجر |
@@ -21,7 +21,7 @@
 ```
 Pending  →  Processing  →  Paid
    ↑            │              │
-   │            │              └─ transferReference يظهر هنا فقط
+   │            │              └─ transferReference + إثبات (إن وُجد)
    │            └─ بعد تسجيل الإرسال البنكي (إدارة)
    └─ يمكن الإلغاء
 ```
@@ -30,56 +30,43 @@ Pending  →  Processing  →  Paid
 
 - الطلب قيد المراجعة أو تم تحضيره للتحويل من الإدارة **دون** تسجيل إرسال بنكي بعد.
 - `transferReference` = `null`
-- `providerTransferId` = `null`
+- `hasTransferProof` = `false`
 - زر الإلغاء **متاح**.
 
 ### `Processing`
 
 - تبدأ **بعد** أن تسجّل الإدارة إرسال الحوالة للبنك (`manual-bank-submission`) أو بعد الإرسال التلقائي عبر البوابة.
-- **لا** تبدأ عند مجرد موافقة الإدارة أو «تحضير» الطلب إذا لم يُسجَّل إرسال بنكي.
-- `transferReference` = `null` (المرجع النهائي يظهر عند الدفع فقط)
+- `transferReference` = `null`
+- `hasTransferProof` = `false`
 - زر الإلغاء **مخفي**.
-- إشعار Push/Inbox: `wallet.withdrawal_processing`.
+- إشعار: `wallet.withdrawal_processing`.
 
 ### `Paid`
 
-- التحويل اكتمل وتأكدت الإدارة الدفع (`confirm-manual` أو مسار تلقائي).
-- `transferReference` يُرجَع في API **فقط** في هذه الحالة.
-- `providerTransferId` يُرجَع **فقط** في هذه الحالة (لا تعرضه كاملًا للمستخدم؛ مرجع الواجهة هو `transferReference`).
-- إشعار Push/Inbox: `wallet.withdrawal_paid` وقد يحتوي `transferReference`.
+- التحويل اكتمل وتأكدت الإدارة الدفع.
+- `transferReference` يُرجَع **فقط** هنا.
+- `hasTransferProof` / `transferProofFileName` يُرجَعان إن رفعت الإدارة إثباتًا.
+- إشعار: `wallet.withdrawal_paid` وقد يحتوي `transferReference` و`hasTransferProof`.
 
 ## حقول DTO في API المندوب
 
-Endpoints المعنية:
+Endpoints:
 
-- `POST /api/drivers/wallet/withdrawals`
 - `GET /api/drivers/wallet/withdrawals`
-- `GET /api/drivers/wallet/withdrawals/{id}` (إن وُجد)
+- `POST /api/drivers/wallet/withdrawals`
+- `GET /api/drivers/wallet/withdrawals/{id}/transfer-proof` — تحميل ملف الإثبات (Paid فقط)
 
 ### قواعد الحقول
 
 | الحقل | `Pending` / `Processing` | `Paid` |
 |---|---|---|
-| `transferReference` | `null` | قيمة نصية أو `null` إن لم يُسجَّل |
+| `transferReference` | `null` | قيمة نصية أو `null` |
 | `providerTransferId` | `null` | قيمة أو `null` — **لا تعرض كاملًا** |
-| `providerName` | قد يظهر | قد يظهر |
+| `hasTransferProof` | `false` | `true` إن وُجد إثبات |
+| `transferProofFileName` | `null` | اسم الملف إن وُجد |
 | `payoutId` | قد يظهر بعد الربط | يظهر |
-| ملف إثبات | **لا يوجد endpoint للمندوب** | **لا يوجد endpoint للمندوب** |
 
-### مثال — `Processing`
-
-```json
-{
-  "id": "2e30501c-0e13-48d5-889d-7bbaf77dcf90",
-  "amount": 250,
-  "status": "Processing",
-  "transferReference": null,
-  "providerTransferId": null,
-  "payoutId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
-}
-```
-
-### مثال — `Paid`
+### مثال — `Paid` مع إثبات
 
 ```json
 {
@@ -88,55 +75,60 @@ Endpoints المعنية:
   "status": "Paid",
   "transferReference": "TRX-20260722-001",
   "providerTransferId": "GW-998877",
+  "hasTransferProof": true,
+  "transferProofFileName": "transfer-proof.pdf",
   "processedAtUtc": "2026-07-22T14:05:00Z"
 }
 ```
+
+## تحميل إثبات التحويل
+
+`GET /api/drivers/wallet/withdrawals/{id}/transfer-proof`
+
+Authorization: Bearer (DriverOnly)
+
+- متاح فقط إذا الطلب يخص المندوب الحالي وحالته `Paid` ويوجد إثبات.
+- الرد: ملف (`Content-Type` حسب المرفق) مع اسم الملف.
+- إن لم يوجد إثبات أو الحالة ليست `Paid` → `404`.
 
 ## الإشعارات و SignalR
 
 | الحدث | متى يُرسل | ما يعرضه التطبيق |
 |---|---|---|
-| `wallet.withdrawal_processing` | بعد تسجيل الإرسال البنكي وانتقال الحالة إلى `Processing` | «جاري تحويل السحب» — **بدون** مرجع تحويل |
-| `wallet.withdrawal_paid` | بعد اكتمال الدفع | اعرض `transferReference` إن وُجد في payload |
+| `wallet.withdrawal_processing` | بعد تسجيل الإرسال البنكي | «جاري تحويل السحب» — بدون مرجع/إثبات |
+| `wallet.withdrawal_paid` | بعد اكتمال الدفع | اعرض `transferReference`؛ إن `hasTransferProof` وجّه لتحميل الإثبات من تفاصيل السحب |
 | `wallet.withdrawal_failed` | فشل التحويل | `failureReason` |
 | `wallet.withdrawal_returned` | إرجاع من البنك | سبب المرتجع + تحديث المحفظة |
 
-Payload مشترك (قد يختلف حسب الحدث):
+Payload في `wallet.withdrawal_paid` قد يتضمن:
 
-- `withdrawalId` — لتحديث شاشة التفاصيل
-- `amount`, `status`
-- `transferReference` — **فقط** في `wallet.withdrawal_paid` عند توفره
+- `withdrawalId`, `amount`, `status`
+- `transferReference`
+- `hasTransferProof`
+- `payoutId`
 - `targetUrl` — غالبًا `/wallet/withdrawals/{withdrawalId}`
 
-بعد أي حدث: **refresh صامت** للمحفظة والطلب من الخادم؛ لا تعدّل الأرصدة أو المراجع محليًا.
+بعد أي حدث: **refresh صامت** للمحفظة والطلب من الخادم.
 
 ## سلوك الواجهة المطلوب
 
-1. **لا** تضف زر «تحميل إثبات» أو أي مسار لملف PDF/صورة — غير متاح للمندوب.
-2. في قائمة السحوبات وتفاصيل الطلب: اعرض `transferReference` **فقط** إذا `status === "Paid"`.
-3. عند `Processing`: badge «جاري التحويل» بدون مرجع.
+1. في قائمة/تفاصيل السحوبات: اعرض `transferReference` **فقط** إذا `status === "Paid"`.
+2. إن `hasTransferProof === true`: أظهر زر **تحميل إثبات التحويل** يستدعي  
+   `GET /api/drivers/wallet/withdrawals/{id}/transfer-proof`.
+3. عند `Processing`: badge «جاري التحويل» بدون مرجع ولا إثبات.
 4. لا تعرض `providerTransferId` كاملًا؛ استخدم `transferReference` كمرجع للمستخدم.
-5. لا تعرض IBAN أو رقم حساب كامل بعد الحفظ؛ `paymentMethod.maskedLabel` فقط.
-6. عند استلام `wallet.withdrawal_processing`: حدّث الحالة إلى `Processing` وأخفِ الإلغاء.
-7. عند استلام `wallet.withdrawal_paid`: أعد تحميل الطلب ثم اعرض المرجع إن وُجد.
-
-## خارج النطاق (تذكير)
-
-- رفع إثبات التحويل أو إثبات المرتجع.
-- تأكيد الدفع أو تسجيل المرجع البنكي.
-- أي endpoint لتحميل ملف إثبات.
-
-كل ذلك من **لوحة الإدارة** فقط.
+5. لا تعرض IBAN كامل؛ `paymentMethod.maskedLabel` فقط.
+6. عند `wallet.withdrawal_paid`: أعد تحميل الطلب ثم اعرض المرجع وزر الإثبات إن وُجد.
 
 ## اختبارات قبول مختصرة
 
 1. طلب `Pending`: لا `transferReference` ولا زر إثبات.
-2. بعد `wallet.withdrawal_processing`: الحالة `Processing`، المرجع ما زال مخفيًا.
-3. بعد `Paid`: يظهر `transferReference` في التفاصيل والإشعار.
-4. `GET /withdrawals` لا يعيد `transferReference` لطلبات `Pending` أو `Processing`.
-5. لا يوجد في التطبيق أي استدعاء API لتحميل إثبات تحويل.
+2. بعد `Processing`: المرجع والإثبات مخفيان.
+3. بعد `Paid` بدون إثبات: يظهر `transferReference` و`hasTransferProof=false`.
+4. بعد `Paid` مع إثبات: `hasTransferProof=true` والتحميل ينجح.
+5. تحميل إثبات لطلب غير Paid أو لمندوب آخر → `404`.
 
 ## مراجع
 
 - Handoff كامل للسحب: [`DRIVER_WITHDRAWAL_SETTLEMENT_MOBILE_HANDOFF_AR.md`](./DRIVER_WITHDRAWAL_SETTLEMENT_MOBILE_HANDOFF_AR.md)
-- Backend: `DriverWalletController.MapWithdrawalDto`, `PayoutOrchestrator.NotifyLinkedDriverWithdrawalProcessingAsync`
+- Backend: `DriverWalletController.MapWithdrawalDto`, `DownloadWithdrawalTransferProof`

@@ -98,7 +98,9 @@ public static class DriverWalletNotificationComposer
             });
     }
 
-    public static DriverWalletNotificationContent ComposeWithdrawalPaid(DriverWithdrawalRequest withdrawal)
+    public static DriverWalletNotificationContent ComposeWithdrawalPaid(
+        DriverWithdrawalRequest withdrawal,
+        bool hasTransferProof = false)
     {
         return ComposeWithdrawal(
             "wallet.withdrawal_paid",
@@ -112,7 +114,8 @@ public static class DriverWalletNotificationComposer
                 amount = withdrawal.Amount,
                 status = withdrawal.Status.ToString(),
                 transferReference = withdrawal.TransferReference,
-                payoutId = withdrawal.PayoutId
+                payoutId = withdrawal.PayoutId,
+                hasTransferProof
             });
     }
 

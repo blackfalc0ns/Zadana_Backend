@@ -10,6 +10,7 @@ using Microsoft.Extensions.Options;
 using Zadana.Api.Controllers;
 using Zadana.Api.Localization;
 using Zadana.Api.Modules.Delivery.Requests;
+using Zadana.Api.Modules.Finances.Services;
 using Zadana.Api.Security;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Common.Settings;
@@ -644,10 +645,7 @@ public class DriverWalletController : ApiControllerBase
         page = Math.Max(page, 1);
         pageSize = Math.Clamp(pageSize, 1, 100);
 
-        var query = context.DriverWithdrawalRequests
-            .AsNoTracking()
-            .Include(w => w.DriverPayoutMethod)
-            .Include(w => w.Payout)
+        var query = IncludeWithdrawalGraph(context.DriverWithdrawalRequests.AsNoTracking())
             .Where(w => w.DriverId == driver.Id)
             .OrderByDescending(w => w.CreatedAtUtc);
 
@@ -662,6 +660,51 @@ public class DriverWalletController : ApiControllerBase
             page,
             pageSize,
             totalCount));
+    }
+
+    [HttpGet("withdrawals/{id:guid}/transfer-proof")]
+    public async Task<IActionResult> DownloadWithdrawalTransferProof(
+        Guid id,
+        [FromServices] ICurrentUserService currentUserService,
+        [FromServices] IDriverRepository driverRepository,
+        [FromServices] IApplicationDbContext context,
+        [FromServices] PayoutProofAttachmentService payoutProofAttachmentService,
+        CancellationToken cancellationToken = default)
+    {
+        var driver = await GetDriverAsync(currentUserService, driverRepository, cancellationToken);
+
+        var withdrawal = await context.DriverWithdrawalRequests
+            .AsNoTracking()
+            .Include(item => item.Payout)!
+                .ThenInclude(payout => payout!.ManualConfirmation)
+            .FirstOrDefaultAsync(
+                item => item.Id == id && item.DriverId == driver.Id,
+                cancellationToken)
+            ?? throw new NotFoundException("DriverWithdrawalRequest", id);
+
+        if (withdrawal.Status != DriverWithdrawalStatus.Paid)
+        {
+            throw new NotFoundException("WithdrawalTransferProof", id);
+        }
+
+        var payout = withdrawal.Payout;
+        var proofAttachmentId = payout?.ManualConfirmation?.ProofAttachmentId;
+        if (payout is null ||
+            payout.Status != PayoutStatus.Paid ||
+            !proofAttachmentId.HasValue ||
+            proofAttachmentId.Value == Guid.Empty)
+        {
+            throw new NotFoundException("WithdrawalTransferProof", id);
+        }
+
+        var proof = await payoutProofAttachmentService.GetForDownloadAsync(
+            payout.Id,
+            proofAttachmentId.Value,
+            cancellationToken);
+
+        Response.Headers.CacheControl = "no-store, private";
+        Response.Headers.Append("X-Content-Type-Options", "nosniff");
+        return File(proof.Content, proof.ContentType, proof.FileName);
     }
 
     [HttpPost("withdrawals/{id:guid}/cancel")]
@@ -1161,11 +1204,26 @@ public class DriverWalletController : ApiControllerBase
             item.IsPrimary,
             item.IsVerified);
 
+    private static IQueryable<DriverWithdrawalRequest> IncludeWithdrawalGraph(
+        IQueryable<DriverWithdrawalRequest> query) =>
+        query
+            .Include(item => item.DriverPayoutMethod)
+            .Include(item => item.Payout)!
+                .ThenInclude(payout => payout!.ManualConfirmation)!
+                    .ThenInclude(confirmation => confirmation!.ProofAttachment);
+
     private static DriverWithdrawalRequestDto MapWithdrawalDto(
         DriverWithdrawalRequest withdrawal,
         DriverPayoutMethod payoutMethod)
     {
         var exposeTransferDetails = withdrawal.Status == DriverWithdrawalStatus.Paid;
+        var proofAttachmentId = withdrawal.Payout?.ManualConfirmation?.ProofAttachmentId;
+        var hasTransferProof = exposeTransferDetails &&
+            proofAttachmentId.HasValue &&
+            proofAttachmentId.Value != Guid.Empty;
+        var transferProofFileName = hasTransferProof
+            ? withdrawal.Payout?.ManualConfirmation?.ProofAttachment?.FileName
+            : null;
 
         return new(
             withdrawal.Id,
@@ -1179,7 +1237,9 @@ public class DriverWalletController : ApiControllerBase
             withdrawal.PayoutId,
             withdrawal.Payout?.ProviderName,
             exposeTransferDetails ? withdrawal.Payout?.ProviderTransferId : null,
-            withdrawal.RequestedPayoutDay?.ToString());
+            withdrawal.RequestedPayoutDay?.ToString(),
+            hasTransferProof,
+            transferProofFileName);
     }
 
     private static async Task<decimal> SumActiveWithdrawalHoldsAsync(

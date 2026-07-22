@@ -76,4 +76,6 @@ public record DriverWithdrawalRequestDto(
     Guid? PayoutId = null,
     string? ProviderName = null,
     string? ProviderTransferId = null,
-    string? PayoutDay = null);
+    string? PayoutDay = null,
+    bool HasTransferProof = false,
+    string? TransferProofFileName = null);

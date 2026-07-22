@@ -76,11 +76,12 @@ public sealed class DriverWalletNotificationService : IDriverWalletNotificationS
     public Task NotifyWithdrawalPaidAsync(
         Guid driverUserId,
         DriverWithdrawalRequest withdrawal,
-        CancellationToken cancellationToken = default) =>
+        CancellationToken cancellationToken = default,
+        bool hasTransferProof = false) =>
         DispatchAsync(
             driverUserId,
             withdrawal.Id,
-            DriverWalletNotificationComposer.ComposeWithdrawalPaid(withdrawal),
+            DriverWalletNotificationComposer.ComposeWithdrawalPaid(withdrawal, hasTransferProof),
             NotificationPriorities.High,
             cancellationToken);
 

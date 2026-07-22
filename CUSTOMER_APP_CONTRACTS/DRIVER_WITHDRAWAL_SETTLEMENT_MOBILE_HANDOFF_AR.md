@@ -410,7 +410,7 @@ ReceiveDriverWalletUpdated
 
 > **ملاحظة:** `wallet.withdrawal_paid` و`wallet.withdrawal_failed` و`wallet.withdrawal_returned` تُرسل من مسار التحويل البنكي (Orchestrator). `wallet.withdrawal_processing` يُرسل بعد تسجيل الإرسال البنكي. `wallet.withdrawal_rejected` يُرسل من قرار الإدارة.
 >
-> **تفاصيل ظهور مرجع التحويل وإثبات الدفع:** راجع [`DRIVER_PAYOUT_TRANSFER_VISIBILITY_MOBILE_HANDOFF_AR.md`](./DRIVER_PAYOUT_TRANSFER_VISIBILITY_MOBILE_HANDOFF_AR.md).
+> **تفاصيل ظهور مرجع التحويل وملف إثبات التحويل:** راجع [`DRIVER_PAYOUT_TRANSFER_VISIBILITY_MOBILE_HANDOFF_AR.md`](./DRIVER_PAYOUT_TRANSFER_VISIBILITY_MOBILE_HANDOFF_AR.md).
 
 ### حقول payload المشتركة
 
@@ -422,6 +422,8 @@ ReceiveDriverWalletUpdated
 - `withdrawalId`: معرف الطلب لتحديث التفاصيل (موجود في كل أحداث السحب)
 - `amount`, `status`: قيمة الطلب وحالته
 - `transferReference`: مرجع التحويل عند الدفع
+- `hasTransferProof` / `transferProofFileName`: وجود إثبات التحويل بعد `Paid`
+- تحميل الإثبات: `GET /api/drivers/wallet/withdrawals/{id}/transfer-proof`
 - `failureReason`: سبب الرفض/الفشل عند `rejected` / `failed` / `returned`
 - `payoutId`: معرف التسوية البنكية عند `processing` / `paid` / `returned`
 - `popupType`: `driver_wallet_updated`
@@ -433,7 +435,7 @@ ReceiveDriverWalletUpdated
 - في `wallet.withdrawal_cancelled`: حدّث الطلب إلى `Cancelled` وأزل hold من ملخص المحفظة بعد refresh.
 - في `wallet.withdrawal_returned`: اعرض تنبيهًا واضحًا بأن المبلغ عاد للمحفظة وأن بيانات الحساب البنكي تحتاج للمراجعة قبل طلب جديد.
 - في `wallet.withdrawal_rejected` أو `failed`: اعرض `failureReason` بعد إعادة تحميل الطلب.
-- في `wallet.withdrawal_paid`: اعرض `transferReference` إن وُجد.
+- في `wallet.withdrawal_paid`: اعرض `transferReference` إن وُجد، وفعّل تحميل الإثبات إن `hasTransferProof`.
 
 ### نص Push/Inbox
 
