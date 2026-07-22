@@ -571,6 +571,7 @@ public sealed class PayoutOrchestrator
             transferReference: bankSubmissionReference.Trim()));
 
         await SaveReservationChangesAsync(payout.Id, cancellationToken);
+        await NotifyLinkedDriverWithdrawalProcessingAsync(payout.Id, cancellationToken);
         return payout;
     }
 
@@ -1170,6 +1171,38 @@ public sealed class PayoutOrchestrator
         }
     }
 
+    private async Task NotifyLinkedDriverWithdrawalProcessingAsync(Guid payoutId, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var linkedWithdrawal = await _context.DriverWithdrawalRequests
+                .AsNoTracking()
+                .Where(withdrawal => withdrawal.PayoutId == payoutId)
+                .Join(
+                    _context.Drivers.AsNoTracking(),
+                    withdrawal => withdrawal.DriverId,
+                    driver => driver.Id,
+                    (withdrawal, driver) => new { withdrawal, driver.UserId })
+                .FirstOrDefaultAsync(cancellationToken);
+
+            if (linkedWithdrawal is null ||
+                linkedWithdrawal.UserId == Guid.Empty ||
+                linkedWithdrawal.withdrawal.Status != DriverWithdrawalStatus.Processing)
+            {
+                return;
+            }
+
+            await _driverWalletNotificationService.NotifyWithdrawalProcessingAsync(
+                linkedWithdrawal.UserId,
+                linkedWithdrawal.withdrawal,
+                cancellationToken);
+        }
+        catch (Exception)
+        {
+            // Notification dispatch must not roll back a successful payout submission.
+        }
+    }
+
     private async Task<bool> ReserveAutomaticSubmissionAsync(
         Payout payout,
         string providerName,
@@ -1223,6 +1256,7 @@ public sealed class PayoutOrchestrator
         try
         {
             await _context.SaveChangesAsync(cancellationToken);
+            await NotifyLinkedDriverWithdrawalProcessingAsync(payout.Id, cancellationToken);
             return true;
         }
         catch (DbUpdateConcurrencyException)
@@ -2051,7 +2085,7 @@ public sealed class PayoutOrchestrator
                     return;
                 }
 
-                var data = $"{{\"payoutId\":\"{payout.Id}\",\"settlementId\":\"{payout.SettlementId}\",\"amount\":{payout.Amount},\"transferReference\":\"{payout.TransferReference}\",\"targetUrl\":\"/finances/settlements\"}}";
+                var data = $"{{\"payoutId\":\"{payout.Id}\",\"settlementId\":\"{payout.SettlementId}\",\"amount\":{payout.Amount},\"transferReference\":\"{payout.TransferReference}\",\"targetUrl\":\"/finance\"}}";
 
                 await _notificationService.SendToUserAsync(
                     vendorUserId,

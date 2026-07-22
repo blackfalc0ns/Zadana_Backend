@@ -3,6 +3,7 @@ using System.Linq.Expressions;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -384,6 +385,8 @@ public class DriverWalletController : ApiControllerBase
         }
 
         var dbContext = context as DbContext;
+        var wallet = await GetOrCreateWalletAsync(context, driver.Id, cancellationToken);
+
         await using var transaction = dbContext?.Database.IsRelational() == true
             ? await dbContext.Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken)
             : null;
@@ -391,8 +394,6 @@ public class DriverWalletController : ApiControllerBase
         DriverWithdrawalRequest withdrawal;
         try
         {
-            var wallet = await ResolveWalletForWithdrawalAsync(context, driver.Id, cancellationToken);
-
             if (!string.IsNullOrWhiteSpace(idempotencyKey))
             {
                 var existingByKey = await context.DriverWithdrawalRequests
@@ -673,8 +674,16 @@ public class DriverWalletController : ApiControllerBase
     private static bool IsWithdrawalUniquenessConflict(DbUpdateException exception)
     {
         var details = DescribeExceptionChain(exception);
-        return details.Contains("UX_DriverWithdrawalRequests_OneActivePerDriver", StringComparison.OrdinalIgnoreCase) ||
-               details.Contains("UX_DriverWithdrawalRequests_Driver_IdempotencyKey", StringComparison.OrdinalIgnoreCase);
+        if (details.Contains("UX_DriverWithdrawalRequests_OneActivePerDriver", StringComparison.OrdinalIgnoreCase) ||
+            details.Contains("UX_DriverWithdrawalRequests_Driver_IdempotencyKey", StringComparison.OrdinalIgnoreCase) ||
+            details.Contains("IX_WalletHolds_IdempotencyKey", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        return ContainsSqlErrorNumber(exception, 2601, 2627) &&
+               (details.Contains("DriverWithdrawalRequests", StringComparison.OrdinalIgnoreCase) ||
+                details.Contains("WalletHolds", StringComparison.OrdinalIgnoreCase));
     }
 
     private static Exception MapWithdrawalDatabaseException(Exception exception)
@@ -688,18 +697,56 @@ public class DriverWalletController : ApiControllerBase
                 "نظام السحب ما زال يُحدَّث على الخادم. حاول مرة أخرى بعد دقائق أو تواصل مع الدعم. | The withdrawal workflow is still being updated on the server. Try again in a few minutes or contact support.");
         }
 
+        if (details.Contains("String or binary data would be truncated", StringComparison.OrdinalIgnoreCase) ||
+            ContainsSqlErrorNumber(exception, 8152, 2628))
+        {
+            return new BusinessRuleException(
+                "WITHDRAWAL_DESTINATION_SNAPSHOT_TOO_LARGE",
+                "تعذر حفظ بيانات حساب السحب لأنها طويلة جدًا. حدّث طريقة السحب أو تواصل مع الدعم. | The payout destination snapshot is too large to save. Update the payout method or contact support.");
+        }
+
         if (details.Contains("IX_WalletHolds_IdempotencyKey", StringComparison.OrdinalIgnoreCase) ||
             details.Contains("UX_DriverWithdrawalRequests_OneActivePerDriver", StringComparison.OrdinalIgnoreCase) ||
-            details.Contains("UX_DriverWithdrawalRequests_Driver_IdempotencyKey", StringComparison.OrdinalIgnoreCase))
+            details.Contains("UX_DriverWithdrawalRequests_Driver_IdempotencyKey", StringComparison.OrdinalIgnoreCase) ||
+            (ContainsSqlErrorNumber(exception, 2601, 2627) &&
+             (details.Contains("DriverWithdrawalRequests", StringComparison.OrdinalIgnoreCase) ||
+              details.Contains("WalletHolds", StringComparison.OrdinalIgnoreCase))))
         {
             return new BusinessRuleException(
                 "DRIVER_ACTIVE_WITHDRAWAL_EXISTS",
                 "The driver already has a pending or processing withdrawal request.");
         }
 
+        if (ContainsSqlErrorNumber(exception, 2601, 2627) &&
+            details.Contains("IX_Wallet_Owner", StringComparison.OrdinalIgnoreCase))
+        {
+            return new BusinessRuleException(
+                "WITHDRAWAL_WALLET_INITIALIZING",
+                "جاري تجهيز محفظتك. حاول طلب السحب مرة أخرى بعد ثوانٍ. | Your wallet is still being initialized. Please retry the withdrawal in a few seconds.");
+        }
+
         return new BusinessRuleException(
             "WITHDRAWAL_SAVE_FAILED",
             "تعذر حفظ طلب السحب الآن. حاول مرة أخرى بعد قليل. | The withdrawal request could not be saved right now. Please try again shortly.");
+    }
+
+    private static bool ContainsSqlErrorNumber(Exception exception, params int[] errorNumbers)
+    {
+        for (var current = exception; current is not null; current = current.InnerException)
+        {
+            if (current is SqlException sqlException)
+            {
+                foreach (SqlError error in sqlException.Errors)
+                {
+                    if (errorNumbers.Contains(error.Number))
+                    {
+                        return true;
+                    }
+                }
+            }
+        }
+
+        return false;
     }
 
     private static string DescribeExceptionChain(Exception exception)
@@ -724,24 +771,6 @@ public class DriverWalletController : ApiControllerBase
         }
 
         dbContext?.ChangeTracker.Clear();
-    }
-
-    private static async Task<Wallet> ResolveWalletForWithdrawalAsync(
-        IApplicationDbContext context,
-        Guid driverId,
-        CancellationToken cancellationToken)
-    {
-        var wallet = await context.Wallets
-            .FirstOrDefaultAsync(w => w.OwnerType == WalletOwnerType.Driver && w.OwnerId == driverId, cancellationToken);
-
-        if (wallet is not null)
-        {
-            return wallet;
-        }
-
-        wallet = new Wallet(WalletOwnerType.Driver, driverId);
-        context.Wallets.Add(wallet);
-        return wallet;
     }
 
     private static async Task DispatchWithdrawalSubmittedSideEffectsAsync(
@@ -1031,20 +1060,24 @@ public class DriverWalletController : ApiControllerBase
 
     private static DriverWithdrawalRequestDto MapWithdrawalDto(
         DriverWithdrawalRequest withdrawal,
-        DriverPayoutMethod payoutMethod) =>
-        new(
+        DriverPayoutMethod payoutMethod)
+    {
+        var exposeTransferDetails = withdrawal.Status == DriverWithdrawalStatus.Paid;
+
+        return new(
             withdrawal.Id,
             withdrawal.Amount,
             withdrawal.Status.ToString(),
-            withdrawal.TransferReference,
+            exposeTransferDetails ? withdrawal.TransferReference : null,
             withdrawal.FailureReason,
             withdrawal.CreatedAtUtc,
             withdrawal.ProcessedAtUtc,
             MapPayoutMethodDto(payoutMethod),
             withdrawal.PayoutId,
             withdrawal.Payout?.ProviderName,
-            withdrawal.Payout?.ProviderTransferId,
+            exposeTransferDetails ? withdrawal.Payout?.ProviderTransferId : null,
             withdrawal.RequestedPayoutDay?.ToString());
+    }
 
     private static async Task<decimal> SumActiveWithdrawalHoldsAsync(
         IApplicationDbContext context,

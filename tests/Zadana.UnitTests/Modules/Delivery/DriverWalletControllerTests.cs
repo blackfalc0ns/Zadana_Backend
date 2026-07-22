@@ -629,7 +629,7 @@ public class AdminWalletsControllerTests
         var ok = result.Result.Should().BeOfType<OkObjectResult>().Subject;
         var response = ok.Value.Should().BeOfType<AdminProcessWithdrawalResultDto>().Subject;
 
-        withdrawal.Status.Should().Be(DriverWithdrawalStatus.Processing);
+        withdrawal.Status.Should().Be(DriverWithdrawalStatus.Pending);
         withdrawal.PayoutId.Should().NotBeNull();
         withdrawal.ReviewedByUserId.Should().NotBeNull();
         withdrawal.ReviewedAtUtc.Should().NotBeNull();

@@ -754,13 +754,6 @@ public class AdminWalletsController : ApiControllerBase
                     withdrawal,
                     cancellationToken);
             }
-            else if (withdrawal.Status == DriverWithdrawalStatus.Processing)
-            {
-                await driverWalletNotificationService.NotifyWithdrawalProcessingAsync(
-                    driverUserId,
-                    withdrawal,
-                    cancellationToken);
-            }
         }
 
         var manualWorkflowRequired = request.IsApproved &&
@@ -830,12 +823,6 @@ public class AdminWalletsController : ApiControllerBase
                 changed = true;
             }
 
-            if (existingPayout.Status != PayoutStatus.Paid && withdrawal.Status != DriverWithdrawalStatus.Processing)
-            {
-                withdrawal.MarkProcessing();
-                changed = true;
-            }
-
             if (existingPayout.Status != PayoutStatus.Paid)
             {
                 changed |= await EnsureDriverWithdrawalHoldAsync(context, withdrawal, cancellationToken);
@@ -867,7 +854,6 @@ public class AdminWalletsController : ApiControllerBase
         context.Settlements.Add(settlement);
         context.Payouts.Add(payout);
         await EnsureDriverWithdrawalHoldAsync(context, withdrawal, cancellationToken);
-        withdrawal.MarkProcessing();
 
         try
         {

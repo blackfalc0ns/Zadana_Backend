@@ -263,13 +263,19 @@ public class VendorWorkspaceController : ApiControllerBase
             .Select(payout => new
             {
                 payout.Id,
+                payout.SettlementId,
                 payout.Status,
                 payout.Amount,
                 payout.CreatedAtUtc,
-                payout.ProcessedAtUtc,
-                payout.TransferReference
+                payout.ProcessedAtUtc
             })
             .ToListAsync(cancellationToken);
+
+        var dashboardPayoutStatusBySettlementId = payouts
+            .GroupBy(payout => payout.SettlementId)
+            .ToDictionary(
+                group => group.Key,
+                group => group.OrderByDescending(item => item.CreatedAtUtc).First().Status);
 
         var branches = await _dbContext.VendorBranches
             .AsNoTracking()
@@ -574,13 +580,23 @@ public class VendorWorkspaceController : ApiControllerBase
                 financialLifecycleModeStr,
                 branchRevenues,
                 BuildFinanceTrend(paidOrders, payouts).Select(point => new VendorDashboardDualTrendPointResponse(point.Label, point.Sales, point.Payout)).ToList(),
-                settlements.GroupBy(settlement => MapSettlementStatus(settlement.Status)).Select(group => new VendorDashboardBreakdownSliceResponse(group.Key, group.Key, group.Count())).ToList(),
+                settlements.GroupBy(settlement => ResolveVendorSettlementDisplayStatus(
+                    settlement.Status,
+                    dashboardPayoutStatusBySettlementId.GetValueOrDefault(settlement.Id))).Select(group => new VendorDashboardBreakdownSliceResponse(group.Key, group.Key, group.Count())).ToList(),
                 vendorWalletTransactions
                     .GroupBy(txn => MapLedgerEntryType(txn.TxnType))
                     .Select(group => new VendorDashboardBreakdownSliceResponse(group.Key, group.Key, group.Count()))
                     .OrderByDescending(group => group.Value)
                     .ToList(),
-                settlements.Select(settlement => new VendorDashboardSettlementListItemResponse(settlement.Id.ToString(), $"SET-{settlement.CreatedAtUtc:yyMMdd}", settlement.NetAmount, MapSettlementStatus(settlement.Status), settlement.CreatedAtUtc, settlement.OrdersCount)).ToList(),
+                settlements.Select(settlement => new VendorDashboardSettlementListItemResponse(
+                    settlement.Id.ToString(),
+                    $"SET-{settlement.CreatedAtUtc:yyMMdd}",
+                    settlement.NetAmount,
+                    ResolveVendorSettlementDisplayStatus(
+                        settlement.Status,
+                        dashboardPayoutStatusBySettlementId.GetValueOrDefault(settlement.Id)),
+                    settlement.CreatedAtUtc,
+                    settlement.OrdersCount)).ToList(),
                 vendorWalletTransactions
                     .Select(txn => MapDashboardLedgerEntry(txn.Id, txn.TxnType, txn.Direction, txn.Amount, txn.CreatedAtUtc, txn.Description, txn.ReferenceType, txn.ReferenceId))
                     .OrderByDescending(item => item.OccurredAtUtc)
@@ -902,13 +918,19 @@ public class VendorWorkspaceController : ApiControllerBase
             .Select(payout => new
             {
                 payout.Id,
+                payout.SettlementId,
                 payout.Status,
                 payout.Amount,
                 payout.CreatedAtUtc,
-                payout.ProcessedAtUtc,
-                payout.TransferReference
+                payout.ProcessedAtUtc
             })
             .ToListAsync(cancellationToken);
+
+        var payoutStatusBySettlementId = payouts
+            .GroupBy(payout => payout.SettlementId)
+            .ToDictionary(
+                group => group.Key,
+                group => group.OrderByDescending(item => item.CreatedAtUtc).First().Status);
 
         var primaryBank = await _dbContext.VendorBankAccounts
             .AsNoTracking()
@@ -990,7 +1012,9 @@ public class VendorWorkspaceController : ApiControllerBase
                 settlement.Id.ToString(),
                 $"SET-{settlement.CreatedAtUtc:yyMMdd}",
                 SaudiTime.ToSaudi(settlement.CreatedAtUtc).ToString("yyyy-MM-dd"),
-                MapSettlementStatus(settlement.Status),
+                ResolveVendorSettlementDisplayStatus(
+                    settlement.Status,
+                    payoutStatusBySettlementId.GetValueOrDefault(settlement.Id)),
                 settlement.NetAmount,
                 settlement.OrdersCount)).ToList(),
             ledger,
@@ -1610,6 +1634,25 @@ public class VendorWorkspaceController : ApiControllerBase
         }
 
         return alerts;
+    }
+
+    private static string ResolveVendorSettlementDisplayStatus(
+        SettlementStatus settlementStatus,
+        PayoutStatus? payoutStatus)
+    {
+        if (payoutStatus == PayoutStatus.Paid ||
+            settlementStatus is SettlementStatus.Settled or SettlementStatus.PaidOut)
+        {
+            return "paid";
+        }
+
+        if (payoutStatus == PayoutStatus.Processing ||
+            settlementStatus == SettlementStatus.Processing)
+        {
+            return "processing";
+        }
+
+        return "scheduled";
     }
 
     private static string MapSettlementStatus(SettlementStatus status) => status switch

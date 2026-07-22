@@ -15,7 +15,7 @@ public class PayoutConfiguration : IEntityTypeConfiguration<Payout>
         builder.Property(x => x.Amount).HasPrecision(18, 2).IsRequired();
         builder.Property(x => x.Status).HasConversion<string>().HasMaxLength(50).IsRequired();
         builder.Property(x => x.DestinationType).HasConversion<string>().HasMaxLength(50).IsRequired();
-        builder.Property(x => x.DestinationSnapshot).HasMaxLength(2000);
+        builder.Property(x => x.DestinationSnapshot).HasMaxLength(8000);
         builder.Property(x => x.ScheduledPayoutDay).HasConversion<string>().HasMaxLength(20);
         builder.Property(x => x.ProviderName).HasMaxLength(50).IsRequired();
         builder.Property(x => x.ProviderTransferId).HasMaxLength(200);
