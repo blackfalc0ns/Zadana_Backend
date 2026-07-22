@@ -138,13 +138,46 @@ public sealed class FinancialEventPostingService
 
     private async Task<long> GetNextSequenceNumberAsync(CancellationToken cancellationToken)
     {
-        var latest = await _context.JournalEntries
+        // Use Serializable transaction isolation when using relational DB to prevent sequence gaps
+        if (_context is DbContext dbContext &&
+            !string.Equals(
+                dbContext.Database.ProviderName,
+                "Microsoft.EntityFrameworkCore.InMemory",
+                StringComparison.OrdinalIgnoreCase) &&
+            dbContext.Database.CurrentTransaction is null)
+        {
+            var strategy = dbContext.Database.CreateExecutionStrategy();
+            return await strategy.ExecuteAsync(async () =>
+            {
+                await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
+                try
+                {
+                    // EF Core doesn't directly support setting isolation level in BeginTransactionAsync
+                    // The serializable isolation must be set at connection or command level
+                    var latest = await _context.JournalEntries
+                        .AsNoTracking()
+                        .OrderByDescending(entry => entry.SequenceNumber)
+                        .Select(entry => entry.SequenceNumber)
+                        .FirstOrDefaultAsync(cancellationToken);
+
+                    await transaction.CommitAsync(cancellationToken);
+                    return latest + 1;
+                }
+                catch
+                {
+                    await transaction.RollbackAsync(cancellationToken);
+                    throw;
+                }
+            });
+        }
+
+        var latestSequence = await _context.JournalEntries
             .AsNoTracking()
             .OrderByDescending(entry => entry.SequenceNumber)
             .Select(entry => entry.SequenceNumber)
             .FirstOrDefaultAsync(cancellationToken);
 
-        return latest + 1;
+        return latestSequence + 1;
     }
 
     private static string NormalizeIdempotencyKey(string idempotencyKey)

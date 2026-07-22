@@ -2,6 +2,7 @@ using MediatR;
 using Microsoft.EntityFrameworkCore;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Modules.Finances.DTOs;
+using Zadana.Application.Modules.Finances.Services;
 using Zadana.Domain.Modules.Finances.Enums;
 using Zadana.Domain.Modules.Orders.Enums;
 using Zadana.Domain.Modules.Wallets.Enums;
@@ -9,7 +10,8 @@ using Zadana.Domain.Modules.Wallets.Enums;
 namespace Zadana.Application.Modules.Finances.Queries.GetAdminFinanceDashboard;
 
 internal sealed class GetAdminFinanceDashboardQueryHandler(
-    IApplicationDbContext dbContext)
+    IApplicationDbContext dbContext,
+    FinanceJournalMetricsService financeJournalMetricsService)
     : IRequestHandler<GetAdminFinanceDashboardQuery, AdminFinanceDashboardDto>
 {
     private static readonly SettlementStatus[] OpenSettlementStatuses =
@@ -21,12 +23,6 @@ internal sealed class GetAdminFinanceDashboardQueryHandler(
         SettlementStatus.Processing
     ];
 
-    private static readonly SettlementStatus[] PaidSettlementStatuses =
-    [
-        SettlementStatus.PaidOut,
-        SettlementStatus.Settled
-    ];
-
     public async Task<AdminFinanceDashboardDto> Handle(
         GetAdminFinanceDashboardQuery request,
         CancellationToken cancellationToken)
@@ -36,18 +32,14 @@ internal sealed class GetAdminFinanceDashboardQueryHandler(
 
         var currentOrders = await LoadDeliveredOrderMetricsAsync(currentStart, currentEnd, cancellationToken);
         var previousOrders = await LoadDeliveredOrderMetricsAsync(previousStart, previousEnd, cancellationToken);
+        var currentJournalMetrics = await financeJournalMetricsService.GetPeriodMetricsAsync(currentStart, currentEnd, cancellationToken);
+        var previousJournalMetrics = await financeJournalMetricsService.GetPeriodMetricsAsync(previousStart, previousEnd, cancellationToken);
 
-        var currentDriverPayouts = await SumDriverPayoutsAsync(currentStart, currentEnd, cancellationToken);
-        var previousDriverPayouts = await SumDriverPayoutsAsync(previousStart, previousEnd, cancellationToken);
-
-        var currentRefundExposure = await SumRefundExposureAsync(currentStart, currentEnd, cancellationToken);
-        var previousRefundExposure = await SumRefundExposureAsync(previousStart, previousEnd, cancellationToken);
-
-        var collectionTrend = await BuildCollectionTrendAsync(now, cancellationToken);
+        var collectionTrend = await financeJournalMetricsService.BuildCollectionTrendAsync(now, cancellationToken);
         var revenueTrend = await BuildRefundTrendAsync(now, cancellationToken);
         var alerts = await BuildAlertsAsync(cancellationToken);
 
-        var platformNetRevenue = currentOrders.PlatformNetRevenue;
+        var platformNetRevenue = currentJournalMetrics.PlatformNetRevenue;
         var revenueComposition = BuildRevenueComposition(currentOrders, platformNetRevenue);
 
         return new AdminFinanceDashboardDto
@@ -56,8 +48,8 @@ internal sealed class GetAdminFinanceDashboardQueryHandler(
             GrossCollections = BuildKpi(
                 "gross_collections",
                 "FINANCES.KPI.GROSS_COLLECTIONS",
-                currentOrders.GrossCollections,
-                previousOrders.GrossCollections,
+                currentJournalMetrics.GrossCollections,
+                previousJournalMetrics.GrossCollections,
                 "account_balance",
                 platformNetRevenue >= 0 ? "success" : "danger",
                 "/finances/ledger"),
@@ -65,7 +57,7 @@ internal sealed class GetAdminFinanceDashboardQueryHandler(
                 "platform_net_revenue",
                 "FINANCES.KPI.PLATFORM_NET_REVENUE",
                 platformNetRevenue,
-                previousOrders.PlatformNetRevenue,
+                previousJournalMetrics.PlatformNetRevenue,
                 "account_balance_wallet",
                 platformNetRevenue >= 0 ? "success" : "danger",
                 "/finances/overview"),
@@ -96,26 +88,26 @@ internal sealed class GetAdminFinanceDashboardQueryHandler(
             VatCollected = BuildKpi(
                 "vat_collected",
                 "FINANCES.KPI.VAT_COLLECTED",
-                currentOrders.VatCollected,
-                previousOrders.VatCollected,
+                currentJournalMetrics.VatCollected,
+                previousJournalMetrics.VatCollected,
                 "receipt_long",
                 "neutral",
                 "/finances/ledger"),
             DriverPayouts = BuildKpi(
                 "driver_payouts",
                 "FINANCES.KPI.DRIVER_PAYOUTS",
-                currentDriverPayouts,
-                previousDriverPayouts,
+                currentJournalMetrics.DriverPayouts,
+                previousJournalMetrics.DriverPayouts,
                 "local_shipping",
                 "neutral",
                 "/finances/settlements?entityType=driver"),
             RefundExposure = BuildKpi(
                 "refund_exposure",
                 "FINANCES.KPI.REFUND_EXPOSURE",
-                currentRefundExposure,
-                previousRefundExposure,
+                currentJournalMetrics.RefundExposure,
+                previousJournalMetrics.RefundExposure,
                 "undo",
-                currentRefundExposure > 0 ? "danger" : "neutral",
+                currentJournalMetrics.RefundExposure > 0 ? "danger" : "neutral",
                 "/finances/refunds"),
             RevenueComposition = revenueComposition,
             CollectionTrend = collectionTrend,
@@ -161,102 +153,6 @@ internal sealed class GetAdminFinanceDashboardQueryHandler(
             deliveryRevenue,
             codFeesCollected,
             vatCollected);
-    }
-
-    private async Task<decimal> SumDriverPayoutsAsync(
-        DateTime start,
-        DateTime end,
-        CancellationToken cancellationToken)
-    {
-        var settlementPayouts = await dbContext.Settlements
-            .AsNoTracking()
-            .Where(settlement =>
-                settlement.OwnerType == SettlementOwnerType.Driver &&
-                PaidSettlementStatuses.Contains(settlement.Status) &&
-                settlement.ProcessedAtUtc >= start &&
-                settlement.ProcessedAtUtc < end)
-            .SumAsync(settlement => (decimal?)settlement.NetAmount, cancellationToken) ?? 0m;
-
-        if (settlementPayouts > 0)
-        {
-            return Math.Round(settlementPayouts, 2);
-        }
-
-        var journalPayouts = await dbContext.JournalLines
-            .AsNoTracking()
-            .Where(line =>
-                line.AccountCode == FinancialAccountCode.DriverPayable &&
-                line.DebitAmount > 0 &&
-                line.JournalEntry.Status == JournalEntryStatus.Posted &&
-                line.JournalEntry.PostedAtUtc >= start &&
-                line.JournalEntry.PostedAtUtc < end)
-            .SumAsync(line => (decimal?)line.DebitAmount, cancellationToken) ?? 0m;
-
-        return Math.Round(journalPayouts, 2);
-    }
-
-    private async Task<decimal> SumRefundExposureAsync(
-        DateTime start,
-        DateTime end,
-        CancellationToken cancellationToken)
-    {
-        var refundExpense = await dbContext.JournalLines
-            .AsNoTracking()
-            .Where(line =>
-                line.AccountCode == FinancialAccountCode.RefundExpense &&
-                line.DebitAmount > 0 &&
-                line.JournalEntry.Status == JournalEntryStatus.Posted &&
-                line.JournalEntry.PostedAtUtc >= start &&
-                line.JournalEntry.PostedAtUtc < end)
-            .SumAsync(line => (decimal?)line.DebitAmount, cancellationToken) ?? 0m;
-
-        if (refundExpense > 0)
-        {
-            return Math.Round(refundExpense, 2);
-        }
-
-        var cancelledOrders = await dbContext.Orders
-            .AsNoTracking()
-            .Where(order =>
-                order.Status == OrderStatus.Cancelled &&
-                order.CancelledAtUtc >= start &&
-                order.CancelledAtUtc < end)
-            .SumAsync(order => (decimal?)order.TotalAmount, cancellationToken) ?? 0m;
-
-        return Math.Round(cancelledOrders, 2);
-    }
-
-    private async Task<List<AdminChartDataPointDto>> BuildCollectionTrendAsync(
-        DateTime now,
-        CancellationToken cancellationToken)
-    {
-        var startMonth = new DateTime(now.Year, now.Month, 1, 0, 0, 0, DateTimeKind.Utc).AddMonths(-5);
-
-        var monthly = await dbContext.Orders
-            .AsNoTracking()
-            .Where(order =>
-                order.Status == OrderStatus.Delivered &&
-                order.DeliveredAtUtc >= startMonth)
-            .GroupBy(order => new
-            {
-                order.DeliveredAtUtc!.Value.Year,
-                order.DeliveredAtUtc!.Value.Month
-            })
-            .Select(group => new
-            {
-                group.Key.Year,
-                group.Key.Month,
-                Gross = group.Sum(order => order.TotalAmount),
-                Net = group.Sum(order =>
-                    (order.VendorCommissionAmount > 0 ? order.VendorCommissionAmount : order.CommissionAmount)
-                    + order.DriverCommissionAmount
-                    + order.CodFee)
-            })
-            .ToListAsync(cancellationToken);
-
-        return BuildMonthlySeries(startMonth, monthly.ToDictionary(
-            item => (item.Year, item.Month),
-            item => (item.Gross, item.Net)));
     }
 
     private async Task<List<AdminChartDataPointDto>> BuildRefundTrendAsync(

@@ -88,6 +88,23 @@ public sealed class VendorPiiEncryptionBackfillTask : IHostedService
                 MarkIfPresent(entry, nameof(account.AccountHolderName), account.AccountHolderName);
             }
 
+            var driverPayoutMethods = await db.DriverPayoutMethods
+                .FromSqlRaw("""
+                    SELECT *
+                    FROM [DriverPayoutMethods]
+                    WHERE [AccountIdentifier] NOT LIKE 'enc:v2:%'
+                       OR [AccountHolderName] NOT LIKE 'enc:v2:%'
+                    ORDER BY [Id]
+                    """)
+                .ToListAsync(cancellationToken);
+
+            foreach (var method in driverPayoutMethods)
+            {
+                var entry = db.Entry(method);
+                MarkIfPresent(entry, nameof(method.AccountIdentifier), method.AccountIdentifier);
+                MarkIfPresent(entry, nameof(method.AccountHolderName), method.AccountHolderName);
+            }
+
             var approvals = await db.AccessApprovalRequests
                 .FromSqlRaw("""
                     SELECT *
@@ -106,13 +123,13 @@ public sealed class VendorPiiEncryptionBackfillTask : IHostedService
             if (updated > 0)
             {
                 _logger.LogInformation(
-                    "Vendor PII encryption backfill updated {Count} records.",
+                    "Financial PII encryption backfill updated {Count} records.",
                     updated);
             }
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Vendor PII encryption backfill failed.");
+            _logger.LogError(ex, "Financial PII encryption backfill failed.");
         }
     }
 

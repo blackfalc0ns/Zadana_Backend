@@ -218,6 +218,233 @@ public class DriverWalletControllerTests
     }
 
     [Fact]
+    public async Task CreateWithdrawal_WithSameIdempotencyKey_ReturnsSameRequestAndSingleHold()
+    {
+        await using var context = TestDbContextFactory.Create();
+        var controller = new DriverWalletController();
+        var driver = CreateApprovedDriver();
+        var currentUserService = Mock.Of<ICurrentUserService>(service => service.UserId == driver.UserId);
+        var driverRepository = CreateDriverRepository(driver);
+        var wallet = new Wallet(WalletOwnerType.Driver, driver.Id);
+        wallet.Credit(100m);
+        var payoutMethod = new DriverPayoutMethod(
+            driver.Id,
+            DriverPayoutMethodType.BankAccount,
+            "Driver Name",
+            "SA1234567890123456789012",
+            "Bank",
+            true);
+        context.Wallets.Add(wallet);
+        context.DriverPayoutMethods.Add(payoutMethod);
+        await context.SaveChangesAsync();
+
+        var notificationService = CreateNotificationService();
+        var pushService = CreatePushService();
+        var adminAlertService = CreateAdminAlertService();
+        var request = new CreateDriverWithdrawalRequest(payoutMethod.Id, 40m, "mobile-request-001");
+
+        var first = await controller.CreateWithdrawal(
+            request,
+            currentUserService,
+            driverRepository.Object,
+            context,
+            notificationService.Object,
+            pushService.Object,
+            adminAlertService.Object);
+        var second = await controller.CreateWithdrawal(
+            request,
+            currentUserService,
+            driverRepository.Object,
+            context,
+            notificationService.Object,
+            pushService.Object,
+            adminAlertService.Object);
+
+        var firstDto = ((OkObjectResult)first.Result!).Value.Should()
+            .BeOfType<DriverWithdrawalRequestDto>().Subject;
+        var secondDto = ((OkObjectResult)second.Result!).Value.Should()
+            .BeOfType<DriverWithdrawalRequestDto>().Subject;
+        secondDto.Id.Should().Be(firstDto.Id);
+        context.DriverWithdrawalRequests.Should().ContainSingle(item =>
+            item.Id == firstDto.Id &&
+            item.RequestIdempotencyKey == "mobile-request-001" &&
+            item.RequestedPayoutDay == driver.PayoutDay &&
+            item.DestinationSnapshot != null);
+        context.WalletHolds.Should().ContainSingle(item =>
+            item.ReferenceId == firstDto.Id && item.Status == WalletHoldStatus.Active);
+
+        var mismatchedRetry = () => controller.CreateWithdrawal(
+            new CreateDriverWithdrawalRequest(payoutMethod.Id, 41m, "mobile-request-001"),
+            currentUserService,
+            driverRepository.Object,
+            context,
+            notificationService.Object,
+            pushService.Object,
+            adminAlertService.Object);
+        await mismatchedRetry.Should().ThrowAsync<BusinessRuleException>()
+            .Where(error => error.ErrorCode == "WITHDRAWAL_IDEMPOTENCY_KEY_REUSED");
+    }
+
+    [Fact]
+    public async Task CreateWithdrawal_WithDifferentKey_RejectsSecondActiveRequest()
+    {
+        await using var context = TestDbContextFactory.Create();
+        var controller = new DriverWalletController();
+        var driver = CreateApprovedDriver();
+        var currentUserService = Mock.Of<ICurrentUserService>(service => service.UserId == driver.UserId);
+        var driverRepository = CreateDriverRepository(driver);
+        var wallet = new Wallet(WalletOwnerType.Driver, driver.Id);
+        wallet.Credit(100m);
+        var payoutMethod = new DriverPayoutMethod(
+            driver.Id,
+            DriverPayoutMethodType.BankAccount,
+            "Driver Name",
+            "SA1234567890123456789012",
+            "Bank",
+            true);
+        context.Wallets.Add(wallet);
+        context.DriverPayoutMethods.Add(payoutMethod);
+        await context.SaveChangesAsync();
+
+        var notificationService = CreateNotificationService();
+        var pushService = CreatePushService();
+        var adminAlertService = CreateAdminAlertService();
+        await controller.CreateWithdrawal(
+            new CreateDriverWithdrawalRequest(payoutMethod.Id, 40m, "mobile-request-001"),
+            currentUserService,
+            driverRepository.Object,
+            context,
+            notificationService.Object,
+            pushService.Object,
+            adminAlertService.Object);
+
+        var act = () => controller.CreateWithdrawal(
+            new CreateDriverWithdrawalRequest(payoutMethod.Id, 30m, "mobile-request-002"),
+            currentUserService,
+            driverRepository.Object,
+            context,
+            notificationService.Object,
+            pushService.Object,
+            adminAlertService.Object);
+
+        await act.Should().ThrowAsync<BusinessRuleException>()
+            .Where(error => error.ErrorCode == "DRIVER_ACTIVE_WITHDRAWAL_EXISTS");
+        context.DriverWithdrawalRequests.Should().HaveCount(1);
+        context.WalletHolds.Should().HaveCount(1);
+    }
+
+    [Fact]
+    public async Task CancelWithdrawal_CancelsPendingRequestAndReleasesItsHold()
+    {
+        await using var context = TestDbContextFactory.Create();
+        var controller = new DriverWalletController();
+        var driver = CreateApprovedDriver();
+        var currentUserService = Mock.Of<ICurrentUserService>(service => service.UserId == driver.UserId);
+        var driverRepository = CreateDriverRepository(driver);
+        var wallet = new Wallet(WalletOwnerType.Driver, driver.Id);
+        wallet.Credit(100m);
+        var payoutMethod = new DriverPayoutMethod(
+            driver.Id,
+            DriverPayoutMethodType.BankAccount,
+            "Driver Name",
+            "SA1234567890123456789012",
+            "Bank",
+            true);
+        var withdrawal = new DriverWithdrawalRequest(
+            driver.Id,
+            wallet.Id,
+            payoutMethod.Id,
+            40m,
+            "mobile-request-cancel",
+            driver.PayoutDay,
+            PayoutDestinationSnapshotCodec.CreateDriverPayoutMethod(payoutMethod));
+        var hold = new WalletHold(
+            WalletOwnerType.Driver,
+            driver.Id,
+            withdrawal.Amount,
+            WalletHoldReason.Withdrawal,
+            $"driver-withdrawal:{withdrawal.Id:N}",
+            walletId: wallet.Id,
+            referenceType: "DriverWithdrawalRequest",
+            referenceId: withdrawal.Id,
+            memo: "test withdrawal");
+        context.Wallets.Add(wallet);
+        context.DriverPayoutMethods.Add(payoutMethod);
+        context.DriverWithdrawalRequests.Add(withdrawal);
+        context.WalletHolds.Add(hold);
+        await context.SaveChangesAsync();
+
+        var notificationService = CreateNotificationService();
+        var result = await controller.CancelWithdrawal(
+            withdrawal.Id,
+            currentUserService,
+            driverRepository.Object,
+            context,
+            notificationService.Object);
+
+        ((OkObjectResult)result.Result!).Value.Should()
+            .BeOfType<DriverWithdrawalRequestDto>()
+            .Which.Status.Should().Be(DriverWithdrawalStatus.Cancelled.ToString());
+        withdrawal.Status.Should().Be(DriverWithdrawalStatus.Cancelled);
+        hold.Status.Should().Be(WalletHoldStatus.Cancelled);
+        notificationService.Verify(
+            service => service.SendDriverWalletUpdatedAsync(driver.UserId, It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+
+    [Fact]
+    public async Task GetWithdrawalSettings_ReturnsServerLimitsUsageAndActiveState()
+    {
+        await using var context = TestDbContextFactory.Create();
+        var controller = new DriverWalletController();
+        var driver = CreateApprovedDriver();
+        driver.UpdatePayoutDay(PayoutScheduleDay.Thursday);
+        var currentUserService = Mock.Of<ICurrentUserService>(service => service.UserId == driver.UserId);
+        var driverRepository = CreateDriverRepository(driver);
+        var wallet = new Wallet(WalletOwnerType.Driver, driver.Id);
+        var payoutMethod = new DriverPayoutMethod(
+            driver.Id,
+            DriverPayoutMethodType.BankAccount,
+            "Driver Name",
+            "SA1234567890123456789012",
+            "Bank",
+            true);
+        context.DriverWithdrawalRequests.Add(new DriverWithdrawalRequest(
+            driver.Id,
+            wallet.Id,
+            payoutMethod.Id,
+            40m));
+        context.Wallets.Add(wallet);
+        context.DriverPayoutMethods.Add(payoutMethod);
+        await context.SaveChangesAsync();
+        var settings = new SettlementProcessingSettingsService(context);
+        var limits = Options.Create(new FinancialSettingsOptions
+        {
+            DriverMinimumWithdrawalAmount = 25m,
+            DriverMaximumWithdrawalAmount = 1_000m,
+            DriverMaximumWithdrawalRequestsPerDay = 2
+        });
+
+        var result = await controller.GetWithdrawalSettings(
+            currentUserService,
+            driverRepository.Object,
+            context,
+            settings,
+            limits);
+
+        ((OkObjectResult)result.Result!).Value.Should()
+            .BeEquivalentTo(new DriverWithdrawalSettingsDto(
+                25m,
+                1_000m,
+                2,
+                1,
+                true,
+                "SAR",
+                "Thursday",
+                new[] { "Monday", "Thursday" }));
+    }
+
+    [Fact]
     public async Task UpdatePayoutPreference_StoresSelectedThursday()
     {
         await using var context = TestDbContextFactory.Create();
@@ -284,6 +511,44 @@ public class DriverWalletControllerTests
         driver.Approve(Guid.NewGuid(), "approved for wallet tests");
         return driver;
     }
+
+    private static Mock<INotificationService> CreateNotificationService()
+    {
+        var service = new Mock<INotificationService>();
+        service.Setup(item => item.SendToUserAsync(
+                It.IsAny<Guid>(),
+                It.IsAny<NotificationDispatchRequest>(),
+                It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+        service.Setup(item => item.SendDriverWalletUpdatedAsync(
+                It.IsAny<Guid>(),
+                It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+        return service;
+    }
+
+    private static Mock<IOneSignalPushService> CreatePushService()
+    {
+        var service = new Mock<IOneSignalPushService>();
+        service.Setup(item => item.SendMobileNotificationAsync(
+                It.IsAny<OneSignalMobilePushRequest>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new OneSignalPushDispatchResult(false, false, true, null, null, "test"));
+        return service;
+    }
+
+    private static Mock<IAdminAlertService> CreateAdminAlertService()
+    {
+        var service = new Mock<IAdminAlertService>();
+        service.Setup(item => item.SendAsync(
+                It.IsAny<AdminAlertRequest>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AdminAlertDispatchResult(
+                0,
+                0,
+                new OneSignalPushDispatchResult(false, false, true, null, null, "test")));
+        return service;
+    }
 }
 
 public class AdminWalletsControllerTests
@@ -329,6 +594,7 @@ public class AdminWalletsControllerTests
             Mock.Of<INotificationService>(),
             Mock.Of<IOneSignalPushService>(),
             CancellationToken.None,
+            currentUserService: CreateAdminCurrentUser(),
             payoutOrchestrator: null,
             moyasarSettings: null,
             settlementProcessingSettingsService: settlementSettings.Object);
@@ -338,6 +604,8 @@ public class AdminWalletsControllerTests
 
         withdrawal.Status.Should().Be(DriverWithdrawalStatus.Processing);
         withdrawal.PayoutId.Should().NotBeNull();
+        withdrawal.ReviewedByUserId.Should().NotBeNull();
+        withdrawal.ReviewedAtUtc.Should().NotBeNull();
         response.PayoutId.Should().Be(withdrawal.PayoutId);
         response.PayoutStatus.Should().Be(PayoutStatus.Pending.ToString());
         response.ManualWorkflowRequired.Should().BeTrue();
@@ -400,6 +668,7 @@ public class AdminWalletsControllerTests
             Mock.Of<INotificationService>(),
             Mock.Of<IOneSignalPushService>(),
             CancellationToken.None,
+            currentUserService: CreateAdminCurrentUser(),
             payoutOrchestrator: null,
             moyasarSettings: null,
             settlementProcessingSettingsService: settlementSettings.Object);
@@ -413,6 +682,7 @@ public class AdminWalletsControllerTests
             Mock.Of<INotificationService>(),
             Mock.Of<IOneSignalPushService>(),
             CancellationToken.None,
+            currentUserService: CreateAdminCurrentUser(),
             payoutOrchestrator: null,
             moyasarSettings: null,
             settlementProcessingSettingsService: settlementSettings.Object);
@@ -472,6 +742,7 @@ public class AdminWalletsControllerTests
             Mock.Of<INotificationService>(),
             Mock.Of<IOneSignalPushService>(),
             CancellationToken.None,
+            currentUserService: CreateAdminCurrentUser(),
             payoutOrchestrator: null,
             moyasarSettings: null,
             settlementProcessingSettingsService: settlementSettings.Object);
@@ -486,6 +757,7 @@ public class AdminWalletsControllerTests
             Mock.Of<INotificationService>(),
             Mock.Of<IOneSignalPushService>(),
             CancellationToken.None,
+            currentUserService: CreateAdminCurrentUser(),
             payoutOrchestrator: CreatePayoutOrchestrator(context, [], settlementSettings.Object),
             moyasarSettings: null,
             settlementProcessingSettingsService: settlementSettings.Object);
@@ -539,7 +811,8 @@ public class AdminWalletsControllerTests
             null!,
             Mock.Of<INotificationService>(),
             Mock.Of<IOneSignalPushService>(),
-            CancellationToken.None);
+            CancellationToken.None,
+            currentUserService: CreateAdminCurrentUser());
 
         await act.Should().ThrowAsync<BusinessRuleException>()
             .WithMessage("*selected*");
@@ -586,6 +859,7 @@ public class AdminWalletsControllerTests
             Mock.Of<INotificationService>(),
             Mock.Of<IOneSignalPushService>(),
             CancellationToken.None,
+            currentUserService: CreateAdminCurrentUser(),
             payoutOrchestrator: CreatePayoutOrchestrator(context, [], settlementSettings.Object),
             moyasarSettings: null,
             settlementProcessingSettingsService: settlementSettings.Object);
@@ -638,7 +912,8 @@ public class AdminWalletsControllerTests
             null!,
             notificationService,
             oneSignalPushService,
-            CancellationToken.None);
+            CancellationToken.None,
+            currentUserService: CreateAdminCurrentUser());
 
         var ok = result.Result.Should().BeOfType<OkObjectResult>().Subject;
         var response = ok.Value.Should().BeOfType<AdminProcessWithdrawalResultDto>().Subject;
@@ -669,6 +944,12 @@ public class AdminWalletsControllerTests
             Mock.Of<INotificationService>(),
             Mock.Of<IOneSignalPushService>(),
             settings);
+    }
+
+    private static ICurrentUserService CreateAdminCurrentUser()
+    {
+        var adminId = Guid.NewGuid();
+        return Mock.Of<ICurrentUserService>(service => service.UserId == adminId);
     }
 
     private static Driver CreateApprovedDriver()

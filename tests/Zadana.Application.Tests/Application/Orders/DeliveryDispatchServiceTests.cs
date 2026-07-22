@@ -5,6 +5,9 @@ using Moq;
 using MediatR;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Modules.Orders.Events;
+using Microsoft.Extensions.Options;
+using Zadana.Application.Common.Settings;
+using Zadana.Application.Modules.Finances.Services;
 using Zadana.Domain.Modules.Delivery.Entities;
 using Zadana.Domain.Modules.Delivery.Enums;
 using Zadana.Domain.Modules.Identity.Entities;
@@ -52,6 +55,9 @@ public class DeliveryDispatchServiceTests
             notificationService ?? Mock.Of<INotificationService>(),
             commitmentPolicyService,
             oneSignalPushService ?? pushServiceMock.Object,
+            new DriverCodEnforcementService(
+                dbContext,
+                Options.Create(new FinancialSettingsOptions())),
             adminAlertService);
     }
 

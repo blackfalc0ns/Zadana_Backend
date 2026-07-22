@@ -1,6 +1,8 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Zadana.Application.Common.Interfaces;
+using Zadana.Application.Common.Settings;
 using Zadana.Domain.Modules.Finances.Enums;
 using Zadana.Domain.Modules.Orders.Entities;
 using Zadana.Domain.Modules.Payments.Entities;
@@ -28,17 +30,20 @@ public sealed class OnlinePaymentCaptureService
     private readonly IApplicationDbContext _context;
     private readonly FinancialEventPostingService _postingService;
     private readonly WalletProjectionUpdater _walletProjectionUpdater;
+    private readonly FinancialSettingsOptions _settings;
     private readonly ILogger<OnlinePaymentCaptureService> _logger;
 
     public OnlinePaymentCaptureService(
         IApplicationDbContext context,
         FinancialEventPostingService postingService,
         WalletProjectionUpdater walletProjectionUpdater,
-        ILogger<OnlinePaymentCaptureService> logger)
+        ILogger<OnlinePaymentCaptureService> logger,
+        IOptions<FinancialSettingsOptions>? settings = null)
     {
         _context = context;
         _postingService = postingService;
         _walletProjectionUpdater = walletProjectionUpdater;
+        _settings = settings?.Value ?? new FinancialSettingsOptions();
         _logger = logger;
     }
 
@@ -120,6 +125,31 @@ public sealed class OnlinePaymentCaptureService
                 OrderId: order.Id,
                 Memo: $"Customer advance recognised for order {order.OrderNumber}"),
         };
+
+        var gatewayFee = decimal.Round(
+            (order.TotalAmount * _settings.GatewayFeeRatePercent / 100m) + _settings.GatewayFeeFixedAmount,
+            2,
+            MidpointRounding.AwayFromZero);
+
+        if (gatewayFee > 0m)
+        {
+            lines.Add(new JournalLineDraft(
+                FinancialAccountCode.GatewayFeeExpense,
+                DebitAmount: gatewayFee,
+                CreditAmount: 0m,
+                OwnerType: FinancialOwnerType.Platform,
+                OwnerId: _settings.PlatformWalletOwnerId,
+                OrderId: order.Id,
+                Memo: $"Gateway capture fee for order {order.OrderNumber}"));
+            lines.Add(new JournalLineDraft(
+                FinancialAccountCode.GatewayReceivable,
+                DebitAmount: 0m,
+                CreditAmount: gatewayFee,
+                OwnerType: FinancialOwnerType.Gateway,
+                OwnerId: null,
+                OrderId: order.Id,
+                Memo: $"Gateway receivable fee offset for order {order.OrderNumber}"));
+        }
 
         var posting = await _postingService.PostAsync(
             FinancialEventType.OnlinePaymentCaptured,

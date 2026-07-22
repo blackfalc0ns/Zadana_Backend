@@ -41,8 +41,13 @@ public static class DependencyInjection
         services.AddScoped<IVendorWeeklySummaryEmailService, VendorWeeklySummaryEmailService>();
         services.AddScoped<FinancialEventPostingService>();
         services.AddScoped<WalletProjectionUpdater>();
+        services.AddScoped<WalletHoldExpiryService>();
+        services.AddScoped<FinanceOwnerNameResolver>();
         services.AddScoped<OnlinePaymentCaptureService>();
+        services.AddScoped<RefundCompletedPostingService>();
         services.AddScoped<RevenueReconciliationService>();
+        services.AddScoped<FinanceJournalMetricsService>();
+        services.AddScoped<DriverCodEnforcementService>();
         services.AddScoped<ISettlementProcessingSettingsService, SettlementProcessingSettingsService>();
         services.AddScoped<PayoutOrchestrator>();
         services.AddScoped<PayoutBankReconciliationService>();

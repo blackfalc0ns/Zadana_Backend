@@ -28,7 +28,8 @@ public class AdminFinancesController(
     IApplicationDbContext context,
     FinancialEventPostingService financialEventPostingService,
     WalletProjectionUpdater walletProjectionUpdater,
-    RevenueReconciliationService revenueReconciliationService) : ControllerBase
+    RevenueReconciliationService revenueReconciliationService,
+    FinanceOwnerNameResolver financeOwnerNameResolver) : ControllerBase
 {
     [HttpGet("dashboard/snapshot")]
     [ProducesResponseType(typeof(AdminFinanceDashboardDto), StatusCodes.Status200OK)]
@@ -213,8 +214,10 @@ public class AdminFinancesController(
             .Take(pageSize)
             .ToListAsync(cancellationToken);
 
+        var enrichedEntries = await EnrichEntriesWithOwnerNamesAsync(entries, cancellationToken);
+
         return Ok(new AdminLedgerEntryListDto(
-            entries.Select(ToDto).ToList(),
+            enrichedEntries,
             page,
             pageSize,
             totalCount));
@@ -238,7 +241,8 @@ public class AdminFinancesController(
             return NotFound();
         }
 
-        return Ok(ToDto(entry));
+        var enrichedEntries = await EnrichEntriesWithOwnerNamesAsync([entry], cancellationToken);
+        return Ok(enrichedEntries.First());
     }
 
     [HttpGet("audit-log")]
@@ -485,23 +489,68 @@ public class AdminFinancesController(
         return Ok(await revenueReconciliationService.ApplyAsync(request?.MaxOrders ?? 500, cancellationToken));
     }
 
-    private static AdminLedgerEntryDto ToDto(Zadana.Domain.Modules.Finances.Entities.JournalEntry entry)
+    private async Task<List<AdminLedgerEntryDto>> EnrichEntriesWithOwnerNamesAsync(
+        IEnumerable<Zadana.Domain.Modules.Finances.Entities.JournalEntry> entries,
+        CancellationToken cancellationToken)
+    {
+        var allVendorIds = entries
+            .SelectMany(e => e.Lines)
+            .Where(line => line.OwnerType == FinancialOwnerType.Vendor && line.OwnerId.HasValue)
+            .Select(line => line.OwnerId!.Value)
+            .Distinct()
+            .ToList();
+
+        var allDriverIds = entries
+            .SelectMany(e => e.Lines)
+            .Where(line => line.OwnerType == FinancialOwnerType.Driver && line.OwnerId.HasValue)
+            .Select(line => line.OwnerId!.Value)
+            .Distinct()
+            .ToList();
+
+        var vendorNames = await financeOwnerNameResolver.BatchResolveVendorNamesAsync(allVendorIds, cancellationToken);
+        var driverNames = await financeOwnerNameResolver.BatchResolveDriverNamesAsync(allDriverIds, cancellationToken);
+
+        return entries.Select(entry => ToDto(entry, vendorNames, driverNames)).ToList();
+    }
+
+    private static AdminLedgerEntryDto ToDto(
+        Zadana.Domain.Modules.Finances.Entities.JournalEntry entry,
+        Dictionary<Guid, string> vendorNames,
+        Dictionary<Guid, string> driverNames)
     {
         var lines = entry.Lines
             .OrderBy(line => line.CreatedAtUtc)
             .ThenBy(line => line.Id)
-            .Select(line => new AdminLedgerLineDto(
-                line.Id,
-                line.AccountCode,
-                line.OwnerType,
-                line.OwnerId,
-                line.DebitAmount,
-                line.CreditAmount,
-                line.CurrencyCode,
-                line.OrderId,
-                line.SettlementId,
-                line.PayoutId,
-                line.Memo))
+            .Select(line =>
+            {
+                string? ownerName = null;
+                if (line.OwnerType == FinancialOwnerType.Vendor && line.OwnerId.HasValue)
+                {
+                    ownerName = vendorNames.GetValueOrDefault(line.OwnerId.Value);
+                }
+                else if (line.OwnerType == FinancialOwnerType.Driver && line.OwnerId.HasValue)
+                {
+                    ownerName = driverNames.GetValueOrDefault(line.OwnerId.Value);
+                }
+                else if (line.OwnerType == FinancialOwnerType.Platform)
+                {
+                    ownerName = "Platform";
+                }
+
+                return new AdminLedgerLineDto(
+                    line.Id,
+                    line.AccountCode,
+                    line.OwnerType,
+                    line.OwnerId,
+                    ownerName,
+                    line.DebitAmount,
+                    line.CreditAmount,
+                    line.CurrencyCode,
+                    line.OrderId,
+                    line.SettlementId,
+                    line.PayoutId,
+                    line.Memo);
+            })
             .ToList();
 
         return new AdminLedgerEntryDto(

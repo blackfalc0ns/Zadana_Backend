@@ -103,6 +103,10 @@ public class EndToEndPayoutFlowTests
         var settlement = new Settlement(vendor.Id, null, SettlementOrigin.ScheduledCycle);
         settlement.UpdateTotals(100m, 0m);
         var payout = new Payout(settlement.Id, settlement.NetAmount, vendorBank.Id);
+        payout.SetScheduledPayoutDay(vendor.PayoutDay);
+        payout.PrepareDestination(
+            PayoutDestinationType.VendorBankAccount,
+            PayoutDestinationSnapshotCodec.CreateVendorBankAccount(vendorBank));
 
         context.Vendors.Add(vendor);
         context.VendorBankAccounts.Add(vendorBank);

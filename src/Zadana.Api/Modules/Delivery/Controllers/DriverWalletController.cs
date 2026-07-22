@@ -20,6 +20,8 @@ using Zadana.Domain.Modules.Social.Enums;
 using Zadana.Domain.Modules.Wallets.Entities;
 using Zadana.Domain.Modules.Wallets.Enums;
 using Zadana.SharedKernel.Exceptions;
+using Zadana.SharedKernel.Finance;
+using Zadana.SharedKernel.Serialization;
 
 namespace Zadana.Api.Modules.Delivery.Controllers;
 
@@ -76,6 +78,45 @@ public class DriverWalletController : ApiControllerBase
         await context.SaveChangesAsync(cancellationToken);
 
         return Ok(await ToPayoutPreferenceDtoAsync(driver, settlementProcessingSettingsService, cancellationToken));
+    }
+
+    [HttpGet("withdrawal-settings")]
+    public async Task<ActionResult<DriverWithdrawalSettingsDto>> GetWithdrawalSettings(
+        [FromServices] ICurrentUserService currentUserService,
+        [FromServices] IDriverRepository driverRepository,
+        [FromServices] IApplicationDbContext context,
+        [FromServices] ISettlementProcessingSettingsService settlementProcessingSettingsService,
+        [FromServices] IOptions<FinancialSettingsOptions> financialSettings,
+        CancellationToken cancellationToken = default)
+    {
+        var driver = await GetDriverAsync(currentUserService, driverRepository, cancellationToken);
+        var requestsCreatedToday = await context.DriverWithdrawalRequests
+            .AsNoTracking()
+            .CountAsync(
+                item => item.DriverId == driver.Id &&
+                        item.CreatedAtUtc >= SaudiTime.StartOfTodayUtc &&
+                        item.CreatedAtUtc < SaudiTime.StartOfTomorrowUtc,
+                cancellationToken);
+        var hasActiveWithdrawal = await context.DriverWithdrawalRequests
+            .AsNoTracking()
+            .AnyAsync(
+                item => item.DriverId == driver.Id &&
+                        (item.Status == DriverWithdrawalStatus.Pending ||
+                         item.Status == DriverWithdrawalStatus.Processing),
+                cancellationToken);
+        var enabledDays = await settlementProcessingSettingsService
+            .GetEnabledPayoutDaysAsync(cancellationToken);
+        var limits = financialSettings.Value;
+
+        return Ok(new DriverWithdrawalSettingsDto(
+            limits.DriverMinimumWithdrawalAmount,
+            limits.DriverMaximumWithdrawalAmount,
+            limits.DriverMaximumWithdrawalRequestsPerDay,
+            requestsCreatedToday,
+            hasActiveWithdrawal,
+            CurrencyPolicy.OfficialCurrency,
+            driver.PayoutDay.ToString(),
+            enabledDays.Select(day => day.ToString()).ToArray()));
     }
 
     [HttpGet("transactions")]
@@ -284,15 +325,15 @@ public class DriverWalletController : ApiControllerBase
         [FromServices] INotificationService notificationService,
         [FromServices] IOneSignalPushService oneSignalPushService,
         [FromServices] IAdminAlertService adminAlertService,
-        [FromServices] IOptions<FinancialSettingsOptions> financialSettings,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        [FromServices] IOptions<FinancialSettingsOptions>? financialSettings = null)
     {
         if (request is null)
         {
             throw new BadRequestException("INVALID_REQUEST_BODY", "Request body is required.");
         }
 
-        var limits = financialSettings.Value;
+        var limits = financialSettings?.Value ?? new FinancialSettingsOptions();
         if (request.Amount < limits.DriverMinimumWithdrawalAmount ||
             request.Amount > limits.DriverMaximumWithdrawalAmount)
         {
@@ -333,7 +374,7 @@ public class DriverWalletController : ApiControllerBase
 
         var idempotencyKey = FirstNonEmpty(
             request.IdempotencyKey,
-            Request.Headers["Idempotency-Key"].FirstOrDefault());
+            HttpContext?.Request.Headers["Idempotency-Key"].FirstOrDefault());
         if (idempotencyKey?.Length > 160)
         {
             throw new BadRequestException(
@@ -358,6 +399,7 @@ public class DriverWalletController : ApiControllerBase
                     cancellationToken);
             if (existingByKey is not null)
             {
+                EnsureIdempotentWithdrawalMatches(existingByKey, request, payoutMethod.Id);
                 if (transaction is not null)
                 {
                     await transaction.CommitAsync(cancellationToken);
@@ -442,10 +484,45 @@ public class DriverWalletController : ApiControllerBase
             referenceType: "DriverWithdrawalRequest",
             referenceId: withdrawal.Id,
             memo: "Driver withdrawal request submitted"));
-        await context.SaveChangesAsync(cancellationToken);
-        if (transaction is not null)
+        try
         {
-            await transaction.CommitAsync(cancellationToken);
+            await context.SaveChangesAsync(cancellationToken);
+            if (transaction is not null)
+            {
+                await transaction.CommitAsync(cancellationToken);
+            }
+        }
+        catch (DbUpdateException exception) when (IsWithdrawalUniquenessConflict(exception))
+        {
+            if (transaction is not null)
+            {
+                await transaction.RollbackAsync(cancellationToken);
+            }
+
+            if (dbContext is not null)
+            {
+                dbContext.ChangeTracker.Clear();
+            }
+
+            if (!string.IsNullOrWhiteSpace(idempotencyKey))
+            {
+                var existingByKey = await context.DriverWithdrawalRequests
+                    .AsNoTracking()
+                    .Include(item => item.DriverPayoutMethod)
+                    .Include(item => item.Payout)
+                    .FirstOrDefaultAsync(
+                        item => item.DriverId == driver.Id && item.RequestIdempotencyKey == idempotencyKey,
+                        cancellationToken);
+                if (existingByKey is not null)
+                {
+                    EnsureIdempotentWithdrawalMatches(existingByKey, request, payoutMethod.Id);
+                    return Ok(MapWithdrawalDto(existingByKey, existingByKey.DriverPayoutMethod));
+                }
+            }
+
+            throw new BusinessRuleException(
+                "DRIVER_ACTIVE_WITHDRAWAL_EXISTS",
+                "The driver already has a pending or processing withdrawal request.");
         }
 
         var data = DriverNotificationDataBuilder.Build(
@@ -496,8 +573,8 @@ public class DriverWalletController : ApiControllerBase
                 AdminAlertPriorities.High,
                 "طلب سحب للمندوب يحتاج إلى مراجعة",
                 "Driver withdrawal requires review",
-                $"قدّم المندوب {driver.User.FullName} طلب سحب بقيمة {withdrawal.Amount:0.##} ر.س.",
-                $"Driver {driver.User.FullName} requested withdrawal of {withdrawal.Amount:0.##}.",
+                $"قدّم المندوب {GetDriverDisplayName(driver)} طلب سحب بقيمة {withdrawal.Amount:0.##} ر.س.",
+                $"Driver {GetDriverDisplayName(driver)} requested withdrawal of {withdrawal.Amount:0.##}.",
                 withdrawal.Id,
                 "/finances/withdrawals",
                 new
@@ -544,6 +621,107 @@ public class DriverWalletController : ApiControllerBase
             page,
             pageSize,
             totalCount));
+    }
+
+    [HttpPost("withdrawals/{id:guid}/cancel")]
+    [EnableRateLimiting(RateLimitPolicyNames.WalletMutations)]
+    public async Task<ActionResult<DriverWithdrawalRequestDto>> CancelWithdrawal(
+        Guid id,
+        [FromServices] ICurrentUserService currentUserService,
+        [FromServices] IDriverRepository driverRepository,
+        [FromServices] IApplicationDbContext context,
+        [FromServices] INotificationService notificationService,
+        CancellationToken cancellationToken = default)
+    {
+        var driver = await GetDriverAsync(currentUserService, driverRepository, cancellationToken);
+        var withdrawal = await context.DriverWithdrawalRequests
+            .Include(item => item.DriverPayoutMethod)
+            .Include(item => item.Payout)
+            .FirstOrDefaultAsync(
+                item => item.Id == id && item.DriverId == driver.Id,
+                cancellationToken)
+            ?? throw new NotFoundException("DriverWithdrawalRequest", id);
+
+        if (withdrawal.Status == DriverWithdrawalStatus.Cancelled)
+        {
+            return Ok(MapWithdrawalDto(withdrawal, withdrawal.DriverPayoutMethod));
+        }
+
+        if (withdrawal.Status != DriverWithdrawalStatus.Pending || withdrawal.PayoutId.HasValue)
+        {
+            throw new BusinessRuleException(
+                "DRIVER_WITHDRAWAL_CANNOT_CANCEL",
+                "Only a pending withdrawal that has not entered finance processing can be cancelled by the driver.");
+        }
+
+        var holds = await context.WalletHolds
+            .Where(item =>
+                item.OwnerType == WalletOwnerType.Driver &&
+                item.OwnerId == driver.Id &&
+                item.Reason == WalletHoldReason.Withdrawal &&
+                item.Status == WalletHoldStatus.Active &&
+                item.ReferenceType == "DriverWithdrawalRequest" &&
+                item.ReferenceId == withdrawal.Id)
+            .ToListAsync(cancellationToken);
+        withdrawal.Cancel("Cancelled by driver.");
+        foreach (var hold in holds)
+        {
+            hold.Cancel("Cancelled by driver.");
+        }
+
+        try
+        {
+            await context.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            if (context is DbContext dbContext)
+            {
+                dbContext.ChangeTracker.Clear();
+            }
+
+            var latest = await context.DriverWithdrawalRequests
+                .AsNoTracking()
+                .Include(item => item.DriverPayoutMethod)
+                .Include(item => item.Payout)
+                .FirstOrDefaultAsync(
+                    item => item.Id == id && item.DriverId == driver.Id,
+                    cancellationToken)
+                ?? throw new NotFoundException("DriverWithdrawalRequest", id);
+            if (latest.Status == DriverWithdrawalStatus.Cancelled)
+            {
+                return Ok(MapWithdrawalDto(latest, latest.DriverPayoutMethod));
+            }
+
+            throw new BusinessRuleException(
+                "DRIVER_WITHDRAWAL_CANNOT_CANCEL",
+                "The withdrawal entered finance processing before cancellation completed. Refresh the wallet and review its current status.");
+        }
+
+        await notificationService.SendDriverWalletUpdatedAsync(driver.UserId, cancellationToken);
+        return Ok(MapWithdrawalDto(withdrawal, withdrawal.DriverPayoutMethod));
+    }
+
+    private static bool IsWithdrawalUniquenessConflict(DbUpdateException exception)
+    {
+        var details = $"{exception.Message} {exception.InnerException?.Message}";
+        return details.Contains("UX_DriverWithdrawalRequests_OneActivePerDriver", StringComparison.OrdinalIgnoreCase) ||
+               details.Contains("UX_DriverWithdrawalRequests_Driver_IdempotencyKey", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static void EnsureIdempotentWithdrawalMatches(
+        DriverWithdrawalRequest existing,
+        CreateDriverWithdrawalRequest request,
+        Guid payoutMethodId)
+    {
+        if (existing.Amount == request.Amount && existing.DriverPayoutMethodId == payoutMethodId)
+        {
+            return;
+        }
+
+        throw new BusinessRuleException(
+            "WITHDRAWAL_IDEMPOTENCY_KEY_REUSED",
+            "This idempotency key was already used for a different withdrawal request.");
     }
 
     private static async Task<Domain.Modules.Delivery.Entities.Driver> GetDriverAsync(
@@ -775,7 +953,8 @@ public class DriverWalletController : ApiControllerBase
             MapPayoutMethodDto(payoutMethod),
             withdrawal.PayoutId,
             withdrawal.Payout?.ProviderName,
-            withdrawal.Payout?.ProviderTransferId);
+            withdrawal.Payout?.ProviderTransferId,
+            withdrawal.RequestedPayoutDay?.ToString());
 
     private static async Task<decimal> SumActiveWithdrawalHoldsAsync(
         IApplicationDbContext context,

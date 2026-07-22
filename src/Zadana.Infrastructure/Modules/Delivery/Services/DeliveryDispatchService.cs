@@ -8,6 +8,7 @@ using Zadana.Application.Common.Localization;
 using Zadana.Application.Modules.Delivery.DTOs;
 using Zadana.Application.Modules.Delivery.Interfaces;
 using Zadana.Application.Modules.Delivery.Support;
+using Zadana.Application.Modules.Finances.Services;
 using Zadana.Application.Modules.Orders.Events;
 using Zadana.Domain.Modules.Delivery.Entities;
 using Zadana.Domain.Modules.Delivery.Enums;
@@ -34,6 +35,7 @@ public class DeliveryDispatchService : IDeliveryDispatchService
     private readonly IPublisher _publisher;
     private readonly INotificationService _notificationService;
     private readonly IDriverCommitmentPolicyService _driverCommitmentPolicyService;
+    private readonly DriverCodEnforcementService _driverCodEnforcementService;
     private readonly IOneSignalPushService _oneSignalPushService;
     private readonly IAdminAlertService? _adminAlertService;
 
@@ -45,6 +47,7 @@ public class DeliveryDispatchService : IDeliveryDispatchService
         INotificationService notificationService,
         IDriverCommitmentPolicyService driverCommitmentPolicyService,
         IOneSignalPushService oneSignalPushService,
+        DriverCodEnforcementService driverCodEnforcementService,
         IAdminAlertService? adminAlertService = null)
     {
         _context = context;
@@ -55,6 +58,7 @@ public class DeliveryDispatchService : IDeliveryDispatchService
         _driverCommitmentPolicyService = driverCommitmentPolicyService;
         _oneSignalPushService = oneSignalPushService;
         _adminAlertService = adminAlertService;
+        _driverCodEnforcementService = driverCodEnforcementService;
     }
 
     public async Task<DispatchDecisionDto?> TryAutoDispatchAsync(
@@ -334,6 +338,15 @@ public class DeliveryDispatchService : IDeliveryDispatchService
             throw new BusinessRuleException(
                 "DELIVERY_OFFER_CITY_MISMATCH",
                 "The delivery offer is not available for this driver because the branch city is different.");
+        }
+
+        if (assignment.Order.PaymentMethod == PaymentMethodType.CashOnDelivery
+            && await _driverCodEnforcementService.IsDriverBlockedAsync(driverId, cancellationToken))
+        {
+            var codOwedBalance = await _driverCodEnforcementService.GetCodOwedBalanceAsync(driverId, cancellationToken);
+            throw new BusinessRuleException(
+                "DRIVER_COD_BLOCKED",
+                DriverOperationalStatusFactory.ResolveCodRestrictionMessageEn(codOwedBalance));
         }
 
         assignment.Accept();
@@ -652,6 +665,23 @@ public class DeliveryDispatchService : IDeliveryDispatchService
         {
             await TrackDispatchQueueNoteAsync(order, "Dispatch pending: soft-blocked-by-rejections", cancellationToken);
             return null;
+        }
+
+        if (order.PaymentMethod == PaymentMethodType.CashOnDelivery)
+        {
+            var blockedDriverIds = await _driverCodEnforcementService.GetBlockedDriverIdsAsync(
+                eligibleDrivers.Select(driver => driver.Id).ToList(),
+                cancellationToken);
+
+            eligibleDrivers = eligibleDrivers
+                .Where(driver => !blockedDriverIds.Contains(driver.Id))
+                .ToList();
+
+            if (eligibleDrivers.Count == 0)
+            {
+                await TrackDispatchQueueNoteAsync(order, "Dispatch pending: cod-balance-blocked", cancellationToken);
+                return null;
+            }
         }
 
         driverIds = eligibleDrivers.Select(driver => driver.Id).ToList();

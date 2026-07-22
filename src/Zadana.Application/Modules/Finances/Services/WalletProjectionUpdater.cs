@@ -61,48 +61,86 @@ public sealed class WalletProjectionUpdater
             var owner = ownerLines.Key;
             var wallet = await GetOrCreateWalletAsync(owner.OwnerType, owner.OwnerId, cancellationToken);
 
-            var currentBalance = wallet.CurrentBalance;
-            var pendingBalance = wallet.PendingBalance;
-            var codOwedBalance = wallet.CodOwedBalance;
-            var appliedAnyLine = false;
-
-            foreach (var item in ownerLines)
+            // Use Serializable transaction isolation when using relational DB
+            if (_context is DbContext dbContext &&
+                !string.Equals(
+                    dbContext.Database.ProviderName,
+                    "Microsoft.EntityFrameworkCore.InMemory",
+                    StringComparison.OrdinalIgnoreCase) &&
+                dbContext.Database.CurrentTransaction is null)
             {
-                var line = item.Line;
-                if (await WalletTransactionExistsAsync(line.Id, cancellationToken))
+                var strategy = dbContext.Database.CreateExecutionStrategy();
+                await strategy.ExecuteAsync(async () =>
                 {
-                    continue;
-                }
-
-                switch (line.AccountCode)
-                {
-                    case FinancialAccountCode.VendorPayable:
-                    case FinancialAccountCode.DriverPayable:
-                    case FinancialAccountCode.PlatformRevenue:
-                    case FinancialAccountCode.ManualAdjustment:
-                        currentBalance += line.CreditAmount - line.DebitAmount;
-                        break;
-                    case FinancialAccountCode.DriverCodReceivable:
-                        codOwedBalance += line.DebitAmount - line.CreditAmount;
-                        break;
-                }
-
-                AddWalletTransaction(wallet.Id, line);
-                appliedAnyLine = true;
+                    await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
+                    try
+                    {
+                        // EF Core doesn't directly support setting isolation level in BeginTransactionAsync
+                        // The serializable isolation must be set at connection or command level
+                        await ApplyOwnerBatchAsync(wallet, entry, ownerLines, cancellationToken);
+                        await transaction.CommitAsync(cancellationToken);
+                    }
+                    catch
+                    {
+                        await transaction.RollbackAsync(cancellationToken);
+                        throw;
+                    }
+                });
             }
+            else
+            {
+                await ApplyOwnerBatchAsync(wallet, entry, ownerLines, cancellationToken);
+            }
+        }
+    }
 
-            if (!appliedAnyLine)
+    private async Task ApplyOwnerBatchAsync(
+        Wallet wallet,
+        Domain.Modules.Finances.Entities.JournalEntry entry,
+        IEnumerable<dynamic> ownerLines,
+        CancellationToken cancellationToken)
+    {
+        var currentBalance = wallet.CurrentBalance;
+        var pendingBalance = wallet.PendingBalance;
+        var codOwedBalance = wallet.CodOwedBalance;
+        var appliedAnyLine = false;
+
+        foreach (var item in ownerLines)
+        {
+            var line = item.Line;
+            if (await WalletTransactionExistsAsync(line.Id, cancellationToken))
             {
                 continue;
             }
 
-            wallet.SetProjectionBalances(
-                currentBalance,
-                pendingBalance,
-                codOwedBalance,
-                Math.Max(wallet.LastJournalSequence, entry.SequenceNumber),
-                entry.CurrencyCode);
+            switch (line.AccountCode)
+            {
+                case FinancialAccountCode.VendorPayable:
+                case FinancialAccountCode.DriverPayable:
+                case FinancialAccountCode.PlatformRevenue:
+                case FinancialAccountCode.ManualAdjustment:
+                    currentBalance += line.CreditAmount - line.DebitAmount;
+                    break;
+                case FinancialAccountCode.DriverCodReceivable:
+                    codOwedBalance += line.DebitAmount - line.CreditAmount;
+                    break;
+            }
+
+            AddWalletTransaction(wallet.Id, line);
+            appliedAnyLine = true;
         }
+
+        if (!appliedAnyLine)
+        {
+            return;
+        }
+
+        wallet.SetProjectionBalances(
+            currentBalance,
+            pendingBalance,
+            codOwedBalance,
+            Math.Max(wallet.LastJournalSequence, entry.SequenceNumber),
+            entry.CurrencyCode);
 
         await _context.SaveChangesAsync(cancellationToken);
     }

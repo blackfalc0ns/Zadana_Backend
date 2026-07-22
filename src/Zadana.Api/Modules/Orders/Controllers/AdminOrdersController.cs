@@ -8,7 +8,9 @@ using Zadana.Application.Modules.Orders.DTOs;
 using Zadana.Application.Modules.Orders.Events;
 using Zadana.Application.Modules.Orders.Interfaces;
 using Zadana.Application.Modules.Orders.Services;
+using Zadana.Application.Modules.Delivery.DTOs;
 using Zadana.Application.Modules.Delivery.Support;
+using Zadana.Application.Modules.Finances.Services;
 using Zadana.Domain.Modules.Delivery.Entities;
 using Zadana.Domain.Modules.Orders.Entities;
 using Zadana.Domain.Modules.Orders.Enums;
@@ -159,6 +161,7 @@ public class AdminOrdersController : ApiControllerBase
     public async Task<ActionResult<AdminOrderDetailDto>> AssignDriver(
         Guid orderId,
         [FromBody] AdminAssignDriverRequest request,
+        [FromServices] DriverCodEnforcementService driverCodEnforcementService,
         CancellationToken cancellationToken = default)
     {
         var order = await LoadOrderWithUserAsync(orderId, cancellationToken);
@@ -179,6 +182,15 @@ public class AdminOrdersController : ApiControllerBase
             throw new BusinessRuleException(
                 "DRIVER_CITY_MISMATCH",
                 "Driver cannot be assigned because their city does not match the store and customer city.");
+        }
+
+        if (order.PaymentMethod == PaymentMethodType.CashOnDelivery
+            && await driverCodEnforcementService.IsDriverBlockedAsync(driverId, cancellationToken))
+        {
+            var codOwedBalance = await driverCodEnforcementService.GetCodOwedBalanceAsync(driverId, cancellationToken);
+            throw new BusinessRuleException(
+                "DRIVER_COD_BLOCKED",
+                DriverOperationalStatusFactory.ResolveCodRestrictionMessageEn(codOwedBalance));
         }
 
         var assignment = await _dbContext.DeliveryAssignments

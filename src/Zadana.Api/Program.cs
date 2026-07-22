@@ -304,7 +304,13 @@ builder.Services.AddHostedService<DriverNationalIdHashBackfillTask>();
 builder.Services.AddHostedService<VendorPiiEncryptionBackfillTask>();
 
 builder.Services.AddOptions<FinancialSettingsOptions>()
-    .Bind(builder.Configuration.GetSection(FinancialSettingsOptions.SectionName));
+    .Bind(builder.Configuration.GetSection(FinancialSettingsOptions.SectionName))
+    .Validate(
+        options => options.DriverMinimumWithdrawalAmount > 0 &&
+                   options.DriverMaximumWithdrawalAmount >= options.DriverMinimumWithdrawalAmount &&
+                   options.DriverMaximumWithdrawalRequestsPerDay > 0,
+        "Driver withdrawal limits must be positive and internally consistent.")
+    .ValidateOnStart();
 
 builder.Services.AddOptions<BankTransferSettingsOptions>()
     .Bind(builder.Configuration.GetSection(BankTransferSettingsOptions.SectionName));

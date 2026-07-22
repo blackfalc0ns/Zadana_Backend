@@ -21,7 +21,8 @@ public sealed class AdminSettlementsController(
     IApplicationDbContext context,
     PayoutOrchestrator payoutOrchestrator,
     VendorPayoutWalletService vendorPayoutWalletService,
-    ISettlementProcessingSettingsService? settlementProcessingSettingsService = null) : ControllerBase
+    ISettlementProcessingSettingsService? settlementProcessingSettingsService = null,
+    ICurrentUserService? currentUserService = null) : ControllerBase
 {
     [HttpGet]
     [RequireAccess(PermissionKeys.Admin.FinancesView)]
@@ -120,7 +121,39 @@ public sealed class AdminSettlementsController(
         [FromBody] GenerateSettlementRequest request,
         CancellationToken cancellationToken)
     {
-        var ownerType = Enum.Parse<SettlementOwnerType>(request.OwnerType, true);
+        if (!Enum.TryParse<SettlementOwnerType>(request.OwnerType, true, out var ownerType) ||
+            !Enum.IsDefined(ownerType))
+        {
+            throw new BadRequestException(
+                "SETTLEMENT_OWNER_TYPE_INVALID",
+                "Settlement owner type must be Vendor or Driver.");
+        }
+
+        if (ownerType == SettlementOwnerType.Driver)
+        {
+            throw new BusinessRuleException(
+                "DRIVER_WITHDRAWAL_WORKFLOW_REQUIRED",
+                "Driver payouts must be created from an approved driver withdrawal request so the wallet hold and immutable bank destination are preserved.");
+        }
+
+        // Reject if overlapping settlement period exists for same owner (non-rejected statuses)
+        var overlappingSettlement = await context.Settlements
+            .AsNoTracking()
+            .Where(settlement =>
+                settlement.OwnerType == ownerType &&
+                settlement.OwnerId == request.OwnerId &&
+                settlement.Status != SettlementStatus.Rejected &&
+                ((settlement.PeriodFrom <= request.PeriodTo && settlement.PeriodTo >= request.PeriodFrom) ||
+                 (request.PeriodFrom <= settlement.PeriodTo && request.PeriodTo >= settlement.PeriodFrom)))
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (overlappingSettlement is not null)
+        {
+            throw new BusinessRuleException(
+                "SETTLEMENT_PERIOD_OVERLAP",
+                $"An existing settlement (ID: {overlappingSettlement.Id}) already covers part of this period for this owner.");
+        }
+
         var financialOwnerType = ownerType == SettlementOwnerType.Driver ? FinancialOwnerType.Driver : FinancialOwnerType.Vendor;
         var payableAccount = ownerType == SettlementOwnerType.Driver ? FinancialAccountCode.DriverPayable : FinancialAccountCode.VendorPayable;
 
@@ -188,6 +221,31 @@ public sealed class AdminSettlementsController(
 
             if (settlement.OwnerType == SettlementOwnerType.Vendor)
             {
+                // Verify vendor available balance >= NetAmount using wallet + active holds logic
+                var wallet = await context.Wallets
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(w => w.OwnerType == WalletOwnerType.Vendor && w.OwnerId == settlement.OwnerId, cancellationToken);
+
+                if (wallet is not null)
+                {
+                    var activeHolds = await context.WalletHolds
+                        .AsNoTracking()
+                        .Where(hold =>
+                            hold.OwnerType == WalletOwnerType.Vendor &&
+                            hold.OwnerId == settlement.OwnerId &&
+                            hold.Status == WalletHoldStatus.Active)
+                        .SumAsync(hold => (decimal?)hold.Amount, cancellationToken) ?? 0m;
+
+                    var availableBalance = Math.Max(0m, wallet.CurrentBalance - wallet.PendingBalance - activeHolds);
+
+                    if (availableBalance < settlement.NetAmount)
+                    {
+                        throw new BusinessRuleException(
+                            "INSUFFICIENT_VENDOR_BALANCE",
+                            $"Vendor available balance ({availableBalance}) is less than settlement net amount ({settlement.NetAmount}).");
+                    }
+                }
+
                 await vendorPayoutWalletService.EnsureHoldAsync(
                     settlement.OwnerId,
                     settlement.Id,
@@ -204,7 +262,12 @@ public sealed class AdminSettlementsController(
             request?.TriggerPayout != false &&
             await payoutOrchestrator.IsAutomaticProcessingEnabledAsync(cancellationToken))
         {
-            await payoutOrchestrator.TriggerAsync(payout.Id, cancellationToken: cancellationToken);
+            var approvingAdminId = currentUserService?.UserId
+                ?? throw new UnauthorizedException("ADMIN_NOT_AUTHENTICATED");
+            await payoutOrchestrator.TriggerAsync(
+                payout.Id,
+                approvingAdminId,
+                cancellationToken: cancellationToken);
         }
 
         return Ok(await LoadDetailDtoAsync(settlement.Id, cancellationToken));
@@ -259,6 +322,13 @@ public sealed class AdminSettlementsController(
         if (existingPayout is not null)
         {
             return existingPayout;
+        }
+
+        if (settlement.OwnerType == SettlementOwnerType.Driver)
+        {
+            throw new BusinessRuleException(
+                "DRIVER_WITHDRAWAL_WORKFLOW_REQUIRED",
+                "A driver settlement cannot create a payout without a linked withdrawal request and immutable payout destination.");
         }
 
         Guid? vendorBankAccountId = null;

@@ -94,7 +94,10 @@ public sealed class AdminPayoutsController(
     [RequireAccess(PermissionKeys.Admin.FinancesApprove)]
     public async Task<ActionResult<AdminPayoutDto>> Trigger(Guid id, CancellationToken cancellationToken)
     {
-        var payout = await payoutOrchestrator.TriggerAsync(id, cancellationToken: cancellationToken);
+        var payout = await payoutOrchestrator.TriggerAsync(
+            id,
+            RequireCurrentUserId(),
+            cancellationToken: cancellationToken);
         return Ok(await LoadDtoAsync(payout.Id, cancellationToken));
     }
 
@@ -102,7 +105,11 @@ public sealed class AdminPayoutsController(
     [RequireAccess(PermissionKeys.Admin.FinancesApprove)]
     public async Task<ActionResult<AdminPayoutDto>> Retry(Guid id, CancellationToken cancellationToken)
     {
-        var payout = await payoutOrchestrator.TriggerAsync(id, isRetry: true, cancellationToken: cancellationToken);
+        var payout = await payoutOrchestrator.TriggerAsync(
+            id,
+            RequireCurrentUserId(),
+            isRetry: true,
+            cancellationToken: cancellationToken);
         return Ok(await LoadDtoAsync(payout.Id, cancellationToken));
     }
 
@@ -325,6 +332,7 @@ public sealed class AdminPayoutsController(
     }
 
     [HttpGet("processing-settings/audit")]
+    [RequireAccess(PermissionKeys.Admin.FinancesView)]
     public async Task<ActionResult<SettlementProcessingModeAuditListDto>> GetProcessingSettingsAudit(
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 50,

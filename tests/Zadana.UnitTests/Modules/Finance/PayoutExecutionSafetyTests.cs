@@ -242,6 +242,76 @@ public sealed class PayoutExecutionSafetyTests
             item.EventType == Zadana.Domain.Modules.Finances.Enums.FinancialEventType.VendorPayoutReversed);
     }
 
+    [Fact]
+    public async Task Returned_driver_payout_marks_withdrawal_returned_and_restores_wallet_balance()
+    {
+        await using var context = TestDbContextFactory.Create();
+        var driver = new Zadana.Domain.Modules.Delivery.Entities.Driver(
+            Guid.NewGuid(),
+            null,
+            null,
+            null,
+            region: "RIYADH",
+            city: "RIYADH");
+        driver.Approve(Guid.NewGuid(), "approved for return test");
+        var wallet = new Wallet(WalletOwnerType.Driver, driver.Id);
+        var payoutMethod = new DriverPayoutMethod(
+            driver.Id,
+            DriverPayoutMethodType.BankAccount,
+            "Driver Name",
+            "SA1234567890123456789012",
+            "Bank",
+            true);
+        var settlement = new Settlement(null, driver.Id);
+        settlement.UpdateTotals(100m, 0m);
+        settlement.Approve();
+        settlement.MarkPaidOut();
+        var payout = new Payout(settlement.Id, 100m);
+        payout.MarkAsPaid("BANK-DRIVER-PAID-001", providerName: "Manual");
+        var withdrawal = new DriverWithdrawalRequest(
+            driver.Id,
+            wallet.Id,
+            payoutMethod.Id,
+            payout.Amount,
+            "driver-return-test",
+            driver.PayoutDay,
+            PayoutDestinationSnapshotCodec.CreateDriverPayoutMethod(payoutMethod));
+        withdrawal.LinkPayout(payout.Id);
+        withdrawal.MarkProcessing();
+        withdrawal.MarkPaid("BANK-DRIVER-PAID-001");
+
+        context.Drivers.Add(driver);
+        context.Wallets.Add(wallet);
+        context.DriverPayoutMethods.Add(payoutMethod);
+        context.Settlements.Add(settlement);
+        context.Payouts.Add(payout);
+        context.DriverWithdrawalRequests.Add(withdrawal);
+        await context.SaveChangesAsync();
+
+        var settings = new SettlementProcessingSettingsService(context);
+        var orchestrator = CreateOrchestrator(context, [], settings);
+        var approver = Guid.NewGuid();
+        var returnProof = CreateProofAttachment(payout.Id, PayoutProofKind.ReturnedFunds, approver);
+        context.PayoutProofAttachments.Add(returnProof);
+        await context.SaveChangesAsync();
+
+        await orchestrator.RecordReturnAsync(
+            payout.Id,
+            "BANK-DRIVER-RETURN-001",
+            returnProof.Id,
+            approver,
+            "Beneficiary account rejected the transfer.");
+
+        withdrawal.Status.Should().Be(DriverWithdrawalStatus.Returned);
+        withdrawal.FailureReason.Should().Be("Beneficiary account rejected the transfer.");
+        wallet.CurrentBalance.Should().Be(100m);
+        context.FinancialEvents.Should().ContainSingle(item =>
+            item.PayoutId == payout.Id &&
+            item.EventType == Zadana.Domain.Modules.Finances.Enums.FinancialEventType.DriverPayoutReversed);
+        context.WalletTransactions.Should().ContainSingle(item =>
+            item.WalletId == wallet.Id && item.Amount == payout.Amount && item.Direction == "IN");
+    }
+
     private static PayoutOrchestrator CreateOrchestrator(
         IApplicationDbContext context,
         IEnumerable<IPayoutGateway> gateways,

@@ -34,4 +34,10 @@ public class FinancialSettingsOptions
     public decimal DriverMaximumWithdrawalAmount { get; set; } = 50_000m;
 
     public int DriverMaximumWithdrawalRequestsPerDay { get; set; } = 3;
+
+    public decimal DriverCodBlockThresholdAmount { get; set; } = 500m;
+
+    public decimal GatewayFeeRatePercent { get; set; } = 2.75m;
+
+    public decimal GatewayFeeFixedAmount { get; set; } = 1m;
 }

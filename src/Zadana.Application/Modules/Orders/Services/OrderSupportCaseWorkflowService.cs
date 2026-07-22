@@ -8,6 +8,7 @@ using Zadana.Application.Modules.Orders.Interfaces;
 using Zadana.Application.Modules.Orders.Support;
 using Zadana.Application.Modules.Payments.Gateways;
 using Zadana.Application.Modules.Payments.Interfaces;
+using Zadana.Application.Modules.Finances.Services;
 using Zadana.Application.Modules.Wallets.Services;
 using Zadana.Domain.Modules.Identity.Enums;
 using Zadana.Domain.Modules.Marketing.Entities;
@@ -35,6 +36,7 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
     private readonly IPaymentGatewayResolver? _gatewayResolver;
     private readonly ILogger<OrderSupportCaseWorkflowService>? _logger;
     private readonly IPublisher? _publisher;
+    private readonly RefundCompletedPostingService? _refundCompletedPostingService;
 
     public OrderSupportCaseWorkflowService(
         IApplicationDbContext context,
@@ -46,7 +48,8 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
         OrderInventoryWorkflowService? orderInventoryWorkflowService = null,
         IPaymentGatewayResolver? gatewayResolver = null,
         ILogger<OrderSupportCaseWorkflowService>? logger = null,
-        IPublisher? publisher = null)
+        IPublisher? publisher = null,
+        RefundCompletedPostingService? refundCompletedPostingService = null)
     {
         _context = context;
         _unitOfWork = unitOfWork;
@@ -58,6 +61,7 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
         _gatewayResolver = gatewayResolver;
         _logger = logger;
         _publisher = publisher;
+        _refundCompletedPostingService = refundCompletedPostingService;
     }
 
     public async Task<OrderSupportCase> CreateCustomerCaseAsync(
@@ -1240,14 +1244,37 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
         var existingAllocation = await _context.RefundAllocations
             .FirstOrDefaultAsync(a => a.RefundId == refund.Id, cancellationToken);
 
+        RefundAllocation allocation;
         if (existingAllocation is null)
         {
-            var allocation = BuildRefundAllocation(refund.Id, boundedAmount, order, costBearer);
+            allocation = BuildRefundAllocation(refund.Id, boundedAmount, order, costBearer);
             _context.RefundAllocations.Add(allocation);
 
             _logger?.LogInformation(
                 "RefundAllocation created for Refund {RefundId}: Product={ProductAmt}, Delivery={DeliveryAmt}, VAT={VatAmt}, CodFee={CodFeeAmt}, Bearer={CostBearer}",
                 refund.Id, allocation.ProductAmount, allocation.DeliveryAmount, allocation.VatAmount, allocation.CodFeeAmount, costBearer);
+        }
+        else
+        {
+            allocation = existingAllocation;
+        }
+
+        if (_refundCompletedPostingService is not null)
+        {
+            var driverId = await _context.DeliveryAssignments
+                .AsNoTracking()
+                .Where(item => item.OrderId == order.Id && item.DriverId.HasValue)
+                .OrderByDescending(item => item.CreatedAtUtc)
+                .Select(item => item.DriverId)
+                .FirstOrDefaultAsync(cancellationToken);
+
+            await _refundCompletedPostingService.PostAsync(
+                refund,
+                order,
+                payment,
+                allocation,
+                driverId,
+                cancellationToken);
         }
 
         // ── Auto-resolve case after successful refund ────────────────────

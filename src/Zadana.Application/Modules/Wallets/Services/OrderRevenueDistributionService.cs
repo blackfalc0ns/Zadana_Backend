@@ -140,7 +140,9 @@ public class OrderRevenueDistributionService
             vendor.Id,
             driverAssignment?.DriverId,
             distribution,
-            order.PaymentMethod);
+            order.PaymentMethod,
+            order.DiscountTotal,
+            order.CouponId);
 
         if (postingLines.Count == 0)
         {
@@ -172,7 +174,9 @@ public class OrderRevenueDistributionService
         Guid vendorId,
         Guid? driverId,
         RevenueDistribution distribution,
-        PaymentMethodType paymentMethod)
+        PaymentMethodType paymentMethod,
+        decimal discountTotal,
+        Guid? couponId)
     {
         var lines = new List<JournalLineDraft>();
         var driverNet = distribution.DriverNet;
@@ -269,6 +273,27 @@ public class OrderRevenueDistributionService
                 _settings.PlatformWalletOwnerId,
                 orderId,
                 Memo: $"Tax payable for order {orderId}"));
+        }
+
+        if (discountTotal > 0m && couponId.HasValue)
+        {
+            var couponAmount = Math.Round(discountTotal, 2, MidpointRounding.AwayFromZero);
+            lines.Add(new JournalLineDraft(
+                FinancialAccountCode.CouponLiability,
+                couponAmount,
+                0m,
+                FinancialOwnerType.Platform,
+                _settings.PlatformWalletOwnerId,
+                orderId,
+                Memo: $"Coupon absorption for order {orderId}"));
+            lines.Add(new JournalLineDraft(
+                FinancialAccountCode.PlatformRevenue,
+                0m,
+                couponAmount,
+                FinancialOwnerType.Platform,
+                _settings.PlatformWalletOwnerId,
+                orderId,
+                Memo: $"Coupon marketing recognition for order {orderId}"));
         }
 
         return lines;

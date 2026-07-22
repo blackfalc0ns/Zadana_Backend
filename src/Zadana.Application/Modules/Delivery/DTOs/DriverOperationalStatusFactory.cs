@@ -11,7 +11,9 @@ public static class DriverOperationalStatusFactory
         DriverCommitmentSummaryDto? commitment = null,
         bool isLoginLocked = false,
         DateTime? lockedAtUtc = null,
-        string? lockReason = null)
+        string? lockReason = null,
+        bool codBlocked = false,
+        decimal codOwedBalance = 0m)
     {
         commitment ??= new DriverCommitmentSummaryDto(
             AcceptedOffers: 0,
@@ -32,8 +34,14 @@ public static class DriverOperationalStatusFactory
         var messageAr = commitment.RestrictionMessage ?? gateMessageAr;
         var messageEn = commitment.RestrictionMessageEn ?? gateMessageEn;
         var canReceiveOrders = !isLoginLocked && driver.CanReceiveOrders;
-        var canReceiveOffers = canReceiveOrders && commitment.CanReceiveOffers;
+        var canReceiveOffers = canReceiveOrders && commitment.CanReceiveOffers && !codBlocked;
         var canEditProfile = !isLoginLocked && driver.Status != AccountStatus.Banned;
+
+        if (codBlocked && string.IsNullOrWhiteSpace(commitment.RestrictionMessage))
+        {
+            messageAr = ResolveCodRestrictionMessageAr(codOwedBalance);
+            messageEn = ResolveCodRestrictionMessageEn(codOwedBalance);
+        }
 
         return new DriverOperationalStatusDto(
             DriverId: driver.Id,
@@ -52,12 +60,18 @@ public static class DriverOperationalStatusFactory
             WeeklyRejections: commitment.WeeklyRejections,
             EnforcementLevel: commitment.EnforcementLevel,
             CanReceiveOffers: canReceiveOffers,
-            RestrictionMessage: commitment.RestrictionMessage,
+            RestrictionMessage: codBlocked && string.IsNullOrWhiteSpace(commitment.RestrictionMessage)
+                ? ResolveCodRestrictionMessageAr(codOwedBalance)
+                : commitment.RestrictionMessage,
             Message: messageAr,
             MessageAr: messageAr,
             MessageEn: messageEn,
-            RestrictionMessageAr: commitment.RestrictionMessage,
-            RestrictionMessageEn: commitment.RestrictionMessageEn,
+            RestrictionMessageAr: codBlocked && string.IsNullOrWhiteSpace(commitment.RestrictionMessage)
+                ? ResolveCodRestrictionMessageAr(codOwedBalance)
+                : commitment.RestrictionMessage,
+            RestrictionMessageEn: codBlocked && string.IsNullOrWhiteSpace(commitment.RestrictionMessageEn)
+                ? ResolveCodRestrictionMessageEn(codOwedBalance)
+                : commitment.RestrictionMessageEn,
             ReviewNoteAr: ResolveReviewNoteAr(driver.ReviewNote),
             ReviewNoteEn: ResolveReviewNoteEn(driver.ReviewNote),
             IsLoginLocked: isLoginLocked,
@@ -166,4 +180,10 @@ public static class DriverOperationalStatusFactory
         string.IsNullOrWhiteSpace(note)
             ? null
             : note.Trim().TrimEnd('.').ToLowerInvariant();
+
+    public static string ResolveCodRestrictionMessageAr(decimal codOwedBalance) =>
+        $"رصيد COD المستحق ({codOwedBalance:N2} ر.س) يتجاوز الحد المسموح. سلّم المبالغ المطلوبة قبل استقبال طلبات جديدة.";
+
+    public static string ResolveCodRestrictionMessageEn(decimal codOwedBalance) =>
+        $"Outstanding COD balance ({codOwedBalance:N2} SAR) exceeds the allowed threshold. Remit the owed amount before receiving new orders.";
 }

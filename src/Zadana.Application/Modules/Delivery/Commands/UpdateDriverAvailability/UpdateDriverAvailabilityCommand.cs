@@ -1,7 +1,9 @@
 ﻿using MediatR;
 using Zadana.Application.Common.Interfaces;
+using Zadana.Application.Modules.Delivery.DTOs;
 using Zadana.Application.Modules.Delivery.Interfaces;
 using Zadana.Application.Modules.Delivery.Support;
+using Zadana.Application.Modules.Finances.Services;
 using Zadana.SharedKernel.Exceptions;
 
 namespace Zadana.Application.Modules.Delivery.Commands.UpdateDriverAvailability;
@@ -15,19 +17,22 @@ public class UpdateDriverAvailabilityCommandHandler : IRequestHandler<UpdateDriv
     private readonly IUnitOfWork _unitOfWork;
     private readonly INotificationService _notificationService;
     private readonly IOneSignalPushService _oneSignalPushService;
+    private readonly DriverCodEnforcementService _driverCodEnforcementService;
 
     public UpdateDriverAvailabilityCommandHandler(
         IDriverRepository driverRepository,
         IDriverCommitmentPolicyService driverCommitmentPolicyService,
         IUnitOfWork unitOfWork,
         INotificationService notificationService,
-        IOneSignalPushService oneSignalPushService)
+        IOneSignalPushService oneSignalPushService,
+        DriverCodEnforcementService driverCodEnforcementService)
     {
         _driverRepository = driverRepository;
         _driverCommitmentPolicyService = driverCommitmentPolicyService;
         _unitOfWork = unitOfWork;
         _notificationService = notificationService;
         _oneSignalPushService = oneSignalPushService;
+        _driverCodEnforcementService = driverCodEnforcementService;
     }
 
     public async Task Handle(UpdateDriverAvailabilityCommand request, CancellationToken cancellationToken)
@@ -72,6 +77,14 @@ public class UpdateDriverAvailabilityCommandHandler : IRequestHandler<UpdateDriv
                     "DRIVER_SOFT_BLOCKED_BY_REJECTIONS",
                     commitmentSummary.RestrictionMessage ??
                     "You have exceeded the offer rejection limit. Please try again later.");
+            }
+
+            if (await _driverCodEnforcementService.IsDriverBlockedAsync(driver.Id, cancellationToken))
+            {
+                var codOwed = await _driverCodEnforcementService.GetCodOwedBalanceAsync(driver.Id, cancellationToken);
+                throw new BusinessRuleException(
+                    "DRIVER_COD_BLOCKED",
+                    DriverOperationalStatusFactory.ResolveCodRestrictionMessageEn(codOwed));
             }
         }
 

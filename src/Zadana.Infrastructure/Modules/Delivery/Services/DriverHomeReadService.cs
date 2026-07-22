@@ -4,6 +4,7 @@ using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Modules.Delivery.DTOs;
 using Zadana.Application.Modules.Delivery.Interfaces;
 using Zadana.Application.Modules.Delivery.Support;
+using Zadana.Application.Modules.Finances.Services;
 using Zadana.Domain.Modules.Delivery.Entities;
 using Zadana.Domain.Modules.Delivery.Enums;
 using Zadana.Domain.Modules.Orders.Enums;
@@ -23,6 +24,7 @@ public sealed class DriverHomeReadService : IDriverHomeReadService
     private readonly INotificationService _notificationService;
     private readonly IOneSignalPushService _oneSignalPushService;
     private readonly DeliveryAssignmentOrderCancellationService _deliveryAssignmentOrderCancellationService;
+    private readonly DriverCodEnforcementService _driverCodEnforcementService;
 
     public DriverHomeReadService(
         IApplicationDbContext context,
@@ -31,7 +33,8 @@ public sealed class DriverHomeReadService : IDriverHomeReadService
         IDriverCommitmentPolicyService driverCommitmentPolicyService,
         INotificationService notificationService,
         IOneSignalPushService oneSignalPushService,
-        DeliveryAssignmentOrderCancellationService deliveryAssignmentOrderCancellationService)
+        DeliveryAssignmentOrderCancellationService deliveryAssignmentOrderCancellationService,
+        DriverCodEnforcementService driverCodEnforcementService)
     {
         _context = context;
         _driverRepository = driverRepository;
@@ -40,6 +43,7 @@ public sealed class DriverHomeReadService : IDriverHomeReadService
         _notificationService = notificationService;
         _oneSignalPushService = oneSignalPushService;
         _deliveryAssignmentOrderCancellationService = deliveryAssignmentOrderCancellationService;
+        _driverCodEnforcementService = driverCodEnforcementService;
     }
 
     public async Task<DriverHomeDto> GetHomeAsync(
@@ -65,12 +69,16 @@ public sealed class DriverHomeReadService : IDriverHomeReadService
         }
 
         var commitment = await _driverCommitmentPolicyService.GetDriverSummaryAsync(driver.Id, cancellationToken);
+        var codOwedBalance = await _driverCodEnforcementService.GetCodOwedBalanceAsync(driver.Id, cancellationToken);
+        var codBlocked = codOwedBalance >= _driverCodEnforcementService.BlockThresholdAmount;
         var operationalStatus = DriverOperationalStatusFactory.Create(
             driver,
             commitment,
             driver.User.IsLoginLocked,
             driver.User.LockedAtUtc,
-            driver.User.LockReason);
+            driver.User.LockReason,
+            codBlocked,
+            codOwedBalance);
 
         // Query the offer BEFORE processing expirations so the driver sees
         // the offer even if it expired moments ago (the countdown UI handles it).

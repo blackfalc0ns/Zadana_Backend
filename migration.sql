@@ -12810,6 +12810,172 @@ BEGIN
     VALUES (N'20260721195706_CompleteManualSettlementOperationalHardening', N'9.0.3');
 END;
 
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260722103228_HardenDriverWithdrawalSettlementWorkflow'
+)
+BEGIN
+    DROP INDEX [IX_DriverWithdrawalRequests_DriverId] ON [DriverWithdrawalRequests];
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260722103228_HardenDriverWithdrawalSettlementWorkflow'
+)
+BEGIN
+    ALTER TABLE [DriverWithdrawalRequests] ADD [DestinationSnapshot] nvarchar(2000) NULL;
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260722103228_HardenDriverWithdrawalSettlementWorkflow'
+)
+BEGIN
+    ALTER TABLE [DriverWithdrawalRequests] ADD [RequestIdempotencyKey] nvarchar(160) NULL;
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260722103228_HardenDriverWithdrawalSettlementWorkflow'
+)
+BEGIN
+    ALTER TABLE [DriverWithdrawalRequests] ADD [RequestedPayoutDay] nvarchar(20) NULL;
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260722103228_HardenDriverWithdrawalSettlementWorkflow'
+)
+BEGIN
+    ALTER TABLE [DriverWithdrawalRequests] ADD [ReviewedAtUtc] datetime2 NULL;
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260722103228_HardenDriverWithdrawalSettlementWorkflow'
+)
+BEGIN
+    ALTER TABLE [DriverWithdrawalRequests] ADD [ReviewedByUserId] uniqueidentifier NULL;
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260722103228_HardenDriverWithdrawalSettlementWorkflow'
+)
+BEGIN
+    DECLARE @var42 sysname;
+    SELECT @var42 = [d].[name]
+    FROM [sys].[default_constraints] [d]
+    INNER JOIN [sys].[columns] [c] ON [d].[parent_column_id] = [c].[column_id] AND [d].[parent_object_id] = [c].[object_id]
+    WHERE ([d].[parent_object_id] = OBJECT_ID(N'[DriverPayoutMethods]') AND [c].[name] = N'AccountIdentifier');
+    IF @var42 IS NOT NULL EXEC(N'ALTER TABLE [DriverPayoutMethods] DROP CONSTRAINT [' + @var42 + '];');
+    ALTER TABLE [DriverPayoutMethods] ALTER COLUMN [AccountIdentifier] nvarchar(512) NOT NULL;
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260722103228_HardenDriverWithdrawalSettlementWorkflow'
+)
+BEGIN
+    DECLARE @var43 sysname;
+    SELECT @var43 = [d].[name]
+    FROM [sys].[default_constraints] [d]
+    INNER JOIN [sys].[columns] [c] ON [d].[parent_column_id] = [c].[column_id] AND [d].[parent_object_id] = [c].[object_id]
+    WHERE ([d].[parent_object_id] = OBJECT_ID(N'[DriverPayoutMethods]') AND [c].[name] = N'AccountHolderName');
+    IF @var43 IS NOT NULL EXEC(N'ALTER TABLE [DriverPayoutMethods] DROP CONSTRAINT [' + @var43 + '];');
+    ALTER TABLE [DriverPayoutMethods] ALTER COLUMN [AccountHolderName] nvarchar(512) NOT NULL;
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260722103228_HardenDriverWithdrawalSettlementWorkflow'
+)
+BEGIN
+    UPDATE withdrawal
+    SET [RequestedPayoutDay] = driver.[PayoutDay]
+    FROM [DriverWithdrawalRequests] AS withdrawal
+    INNER JOIN [Drivers] AS driver ON driver.[Id] = withdrawal.[DriverId]
+    WHERE withdrawal.[RequestedPayoutDay] IS NULL;
+
+    DECLARE @DuplicateActiveWithdrawals TABLE ([Id] uniqueidentifier PRIMARY KEY);
+
+    INSERT INTO @DuplicateActiveWithdrawals ([Id])
+    SELECT ranked.[Id]
+    FROM
+    (
+        SELECT
+            withdrawal.[Id],
+            ROW_NUMBER() OVER
+            (
+                PARTITION BY withdrawal.[DriverId]
+                ORDER BY
+                    CASE WHEN withdrawal.[Status] = 'Processing' THEN 0 ELSE 1 END,
+                    withdrawal.[CreatedAtUtc],
+                    withdrawal.[Id]
+            ) AS [RowNumber]
+        FROM [DriverWithdrawalRequests] AS withdrawal
+        WHERE withdrawal.[Status] IN ('Pending', 'Processing')
+    ) AS ranked
+    WHERE ranked.[RowNumber] > 1;
+
+    UPDATE hold
+    SET
+        hold.[Status] = 'Cancelled',
+        hold.[CancelledAtUtc] = SYSUTCDATETIME(),
+        hold.[FailureReason] = COALESCE(
+            hold.[FailureReason],
+            'Duplicate active withdrawal closed during payout safety migration.')
+    FROM [WalletHolds] AS hold
+    INNER JOIN @DuplicateActiveWithdrawals AS duplicate
+        ON duplicate.[Id] = hold.[ReferenceId]
+    WHERE hold.[ReferenceType] = 'DriverWithdrawalRequest'
+      AND hold.[Status] = 'Active';
+
+    UPDATE withdrawal
+    SET
+        withdrawal.[Status] = 'Cancelled',
+        withdrawal.[FailureReason] = COALESCE(
+            withdrawal.[FailureReason],
+            'Duplicate active withdrawal closed during payout safety migration.'),
+        withdrawal.[ProcessedAtUtc] = SYSUTCDATETIME()
+    FROM [DriverWithdrawalRequests] AS withdrawal
+    INNER JOIN @DuplicateActiveWithdrawals AS duplicate
+        ON duplicate.[Id] = withdrawal.[Id];
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260722103228_HardenDriverWithdrawalSettlementWorkflow'
+)
+BEGIN
+    CREATE INDEX [IX_DriverWithdrawalRequests_Driver_Status] ON [DriverWithdrawalRequests] ([DriverId], [Status]);
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260722103228_HardenDriverWithdrawalSettlementWorkflow'
+)
+BEGIN
+    EXEC(N'CREATE UNIQUE INDEX [UX_DriverWithdrawalRequests_Driver_IdempotencyKey] ON [DriverWithdrawalRequests] ([DriverId], [RequestIdempotencyKey]) WHERE [RequestIdempotencyKey] IS NOT NULL');
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260722103228_HardenDriverWithdrawalSettlementWorkflow'
+)
+BEGIN
+    EXEC(N'CREATE UNIQUE INDEX [UX_DriverWithdrawalRequests_OneActivePerDriver] ON [DriverWithdrawalRequests] ([DriverId]) WHERE [Status] IN (''Pending'', ''Processing'')');
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260722103228_HardenDriverWithdrawalSettlementWorkflow'
+)
+BEGIN
+    INSERT INTO [__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+    VALUES (N'20260722103228_HardenDriverWithdrawalSettlementWorkflow', N'9.0.3');
+END;
+
 COMMIT;
 GO
 

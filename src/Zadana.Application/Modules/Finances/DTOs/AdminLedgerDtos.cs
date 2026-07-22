@@ -31,6 +31,7 @@ public sealed record AdminLedgerLineDto(
     FinancialAccountCode AccountCode,
     FinancialOwnerType? OwnerType,
     Guid? OwnerId,
+    string? OwnerName,
     decimal DebitAmount,
     decimal CreditAmount,
     string CurrencyCode,

@@ -77,6 +77,25 @@ public class DriverOperationalStatusFactoryTests
     }
 
     [Fact]
+    public void Create_WhenCodBlocked_ShouldPreventReceivingOffers()
+    {
+        var driver = CreateDriver();
+        driver.Approve(Guid.NewGuid(), "Approved");
+
+        var result = DriverOperationalStatusFactory.Create(
+            driver,
+            codBlocked: true,
+            codOwedBalance: 750m);
+
+        result.GateStatus.Should().Be("Operational");
+        result.CanReceiveOffers.Should().BeFalse();
+        result.CanGoAvailable.Should().BeFalse();
+        result.IsOperational.Should().BeFalse();
+        result.MessageEn.Should().Contain("750.00 SAR");
+        result.RestrictionMessageEn.Should().Contain("Outstanding COD balance");
+    }
+
+    [Fact]
     public void Create_WhenRequiredDocumentExpired_ShouldReturnExpiredDocumentsGate()
     {
         var driver = CreateDriver();

@@ -36,6 +36,7 @@ public sealed class VendorSettlementCycleWorker : BackgroundService
             try
             {
                 await ProcessScheduledSettlementsAsync(stoppingToken);
+                await ProcessWalletHoldExpiriesAsync(stoppingToken);
             }
             catch (Exception ex)
             {
@@ -45,6 +46,28 @@ public sealed class VendorSettlementCycleWorker : BackgroundService
             // Run once a day at 1:00 AM UTC (or configurable interval)
             // For simplicity in this implementation, we run every 6 hours
             await Task.Delay(TimeSpan.FromHours(6), stoppingToken);
+        }
+    }
+
+    private async Task ProcessWalletHoldExpiriesAsync(CancellationToken cancellationToken)
+    {
+        using var scope = _serviceProvider.CreateScope();
+        var walletHoldExpiryService = scope.ServiceProvider.GetService<WalletHoldExpiryService>();
+
+        if (walletHoldExpiryService is not null)
+        {
+            try
+            {
+                var expiredCount = await walletHoldExpiryService.ExpireOverdueHoldsAsync(cancellationToken);
+                if (expiredCount > 0)
+                {
+                    _logger.LogInformation("Expired {Count} overdue wallet holds.", expiredCount);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to process wallet hold expiries.");
+            }
         }
     }
 

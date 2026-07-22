@@ -15,6 +15,7 @@ using Zadana.Application.Modules.Delivery.Commands.UpdateDriverLocation;
 using Zadana.Application.Modules.Delivery.Commands.VerifyAssignmentOtp;
 using Zadana.Application.Modules.Delivery.DTOs;
 using Zadana.Application.Modules.Delivery.Interfaces;
+using Zadana.Application.Modules.Finances.Services;
 using Zadana.Application.Modules.Orders.Commands.DriverUpdateOrderStatus;
 using Zadana.Domain.Modules.Delivery.Entities;
 using Zadana.Domain.Modules.Delivery.Enums;
@@ -76,6 +77,7 @@ public class DriversController : ApiControllerBase
         [FromServices] ICurrentUserService currentUserService,
         [FromServices] IDriverRepository driverRepository,
         [FromServices] IDriverCommitmentPolicyService driverCommitmentPolicyService,
+        [FromServices] DriverCodEnforcementService driverCodEnforcementService,
         CancellationToken cancellationToken = default)
     {
         var userId = currentUserService.UserId ?? throw new UnauthorizedException("DRIVER_NOT_AUTHENTICATED");
@@ -83,12 +85,16 @@ public class DriversController : ApiControllerBase
             ?? throw new NotFoundException("Driver", userId);
 
         var commitment = await driverCommitmentPolicyService.GetDriverSummaryAsync(driver.Id, cancellationToken);
+        var codOwedBalance = await driverCodEnforcementService.GetCodOwedBalanceAsync(driver.Id, cancellationToken);
+        var codBlocked = codOwedBalance >= driverCodEnforcementService.BlockThresholdAmount;
         return Ok(DriverOperationalStatusFactory.Create(
             driver,
             commitment,
             driver.User.IsLoginLocked,
             driver.User.LockedAtUtc,
-            driver.User.LockReason));
+            driver.User.LockReason,
+            codBlocked,
+            codOwedBalance));
     }
 
     [HttpGet("home")]
@@ -144,18 +150,23 @@ public class DriversController : ApiControllerBase
         [FromServices] IDriverRepository driverRepository,
         [FromServices] IApplicationDbContext context,
         [FromServices] IDriverCommitmentPolicyService driverCommitmentPolicyService,
+        [FromServices] DriverCodEnforcementService driverCodEnforcementService,
         CancellationToken cancellationToken = default)
     {
         var userId = currentUserService.UserId ?? throw new UnauthorizedException("DRIVER_NOT_AUTHENTICATED");
         var driver = await driverRepository.GetByUserIdAsync(userId, cancellationToken)
             ?? throw new NotFoundException("Driver", userId);
         var commitment = await driverCommitmentPolicyService.GetDriverSummaryAsync(driver.Id, cancellationToken);
+        var codOwedBalance = await driverCodEnforcementService.GetCodOwedBalanceAsync(driver.Id, cancellationToken);
+        var codBlocked = codOwedBalance >= driverCodEnforcementService.BlockThresholdAmount;
         var operationalStatus = DriverOperationalStatusFactory.Create(
             driver,
             commitment,
             driver.User.IsLoginLocked,
             driver.User.LockedAtUtc,
-            driver.User.LockReason);
+            driver.User.LockReason,
+            codBlocked,
+            codOwedBalance);
 
         if (!driver.CanReceiveOrders)
         {

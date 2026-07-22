@@ -18,6 +18,16 @@ public record DriverPayoutPreferenceDto(
     string PayoutDay,
     IReadOnlyList<string> AvailablePayoutDays);
 
+public record DriverWithdrawalSettingsDto(
+    decimal MinimumAmount,
+    decimal MaximumAmount,
+    int MaximumRequestsPerDay,
+    int RequestsCreatedToday,
+    bool HasActiveWithdrawal,
+    string CurrencyCode,
+    string PayoutDay,
+    IReadOnlyList<string> AvailablePayoutDays);
+
 public record DriverWalletTransactionListDto(
     IReadOnlyList<DriverWalletTransactionDto> Items,
     int Page,
@@ -65,4 +75,5 @@ public record DriverWithdrawalRequestDto(
     DriverPayoutMethodDto PaymentMethod,
     Guid? PayoutId = null,
     string? ProviderName = null,
-    string? ProviderTransferId = null);
+    string? ProviderTransferId = null,
+    string? PayoutDay = null);

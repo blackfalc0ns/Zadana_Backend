@@ -20,14 +20,14 @@ public class DriverPayoutMethodConfiguration : IEntityTypeConfiguration<DriverPa
             .IsRequired();
 
         builder.Property(x => x.AccountHolderName)
-            .HasMaxLength(200)
+            .HasMaxLength(512)
             .IsRequired();
 
         builder.Property(x => x.ProviderName)
             .HasMaxLength(200);
 
         builder.Property(x => x.AccountIdentifier)
-            .HasMaxLength(100)
+            .HasMaxLength(512)
             .IsRequired();
 
         builder.Property(x => x.MaskedLabel)

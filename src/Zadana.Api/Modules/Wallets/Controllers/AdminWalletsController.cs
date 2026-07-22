@@ -200,9 +200,11 @@ public class AdminWalletsController : ApiControllerBase
     }
 
     [HttpGet]
+    [RequireAccess(PermissionKeys.Admin.FinancesView)]
     public async Task<ActionResult<AdminWalletListDto>> GetWallets(
         [FromServices] IApplicationDbContext context,
         [FromQuery] string? ownerType,
+        [FromQuery] Guid? ownerId,
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 20,
         CancellationToken cancellationToken = default)
@@ -211,6 +213,11 @@ public class AdminWalletsController : ApiControllerBase
         pageSize = Math.Clamp(pageSize, 1, 100);
 
         var query = context.Wallets.AsNoTracking().AsQueryable();
+
+        if (ownerId.HasValue && ownerId.Value != Guid.Empty)
+        {
+            query = query.Where(w => w.OwnerId == ownerId.Value);
+        }
 
         if (!string.IsNullOrWhiteSpace(ownerType) && Enum.TryParse<WalletOwnerType>(ownerType, true, out var type))
         {
@@ -330,6 +337,7 @@ public class AdminWalletsController : ApiControllerBase
     }
 
     [HttpGet("{id:guid}")]
+    [RequireAccess(PermissionKeys.Admin.FinancesView)]
     public async Task<ActionResult<AdminWalletSummaryDto>> GetWallet(
         Guid id,
         [FromServices] IApplicationDbContext context,
@@ -381,6 +389,7 @@ public class AdminWalletsController : ApiControllerBase
     }
 
     [HttpGet("{id:guid}/transactions")]
+    [RequireAccess(PermissionKeys.Admin.FinancesView)]
     public async Task<ActionResult<AdminWalletTransactionListDto>> GetTransactions(
         Guid id,
         [FromServices] IApplicationDbContext context,
@@ -414,6 +423,7 @@ public class AdminWalletsController : ApiControllerBase
     }
 
     [HttpPost("{id:guid}/adjustments")]
+    [RequireAccess(PermissionKeys.Admin.FinancesEdit)]
     public async Task<ActionResult<AdminWalletTransactionDto>> CreateAdjustment(
         Guid id,
         [FromBody] AdminCreateAdjustmentRequest request,
@@ -597,7 +607,9 @@ public class AdminWalletsController : ApiControllerBase
                 w.PayoutId,
                 w.Payout?.ProviderName,
                 w.Payout?.ProviderTransferId,
-                driverInfo?.PayoutDay
+                w.RequestedPayoutDay?.ToString() ?? driverInfo?.PayoutDay,
+                w.ReviewedByUserId,
+                w.ReviewedAtUtc
             );
         }).ToList();
 
@@ -616,10 +628,13 @@ public class AdminWalletsController : ApiControllerBase
         [FromServices] INotificationService notificationService,
         [FromServices] IOneSignalPushService oneSignalPushService,
         CancellationToken cancellationToken = default,
+        [FromServices] ICurrentUserService? currentUserService = null,
         [FromServices] PayoutOrchestrator? payoutOrchestrator = null,
         [FromServices] IOptions<MoyasarSettings>? moyasarSettings = null,
         [FromServices] ISettlementProcessingSettingsService? settlementProcessingSettingsService = null)
     {
+        var reviewingAdminId = currentUserService?.UserId
+            ?? throw new UnauthorizedException("ADMIN_NOT_AUTHENTICATED");
         var withdrawal = await context.DriverWithdrawalRequests
             .Include(w => w.Wallet)
             .Include(w => w.DriverPayoutMethod)
@@ -640,12 +655,13 @@ public class AdminWalletsController : ApiControllerBase
 
         if (request.IsApproved)
         {
-            var payoutDay = await context.Drivers
+            var currentPayoutDay = await context.Drivers
                 .AsNoTracking()
                 .Where(driver => driver.Id == withdrawal.DriverId)
                 .Select(driver => (PayoutScheduleDay?)driver.PayoutDay)
                 .FirstOrDefaultAsync(cancellationToken)
                 ?? throw new NotFoundException("Driver", withdrawal.DriverId);
+            var payoutDay = withdrawal.RequestedPayoutDay ?? currentPayoutDay;
 
             var enabledPayoutDays = settlementProcessingSettingsService is null
                 ? PayoutScheduleDayPolicy.DefaultPayoutDays
@@ -673,6 +689,8 @@ public class AdminWalletsController : ApiControllerBase
             {
                 throw new BusinessRuleException("DRIVER_BANK_IBAN_INVALID", "Driver bank account must be a valid Saudi IBAN.");
             }
+
+            withdrawal.RecordApproval(reviewingAdminId);
 
             // Preparing a manual transfer deliberately does not mark it paid
             // and never submits it to a gateway. The returned PayoutId is used
@@ -718,11 +736,16 @@ public class AdminWalletsController : ApiControllerBase
                 withdrawal = preparation.Withdrawal;
                 payout = preparation.Payout;
                 shouldNotifyDriver = preparation.PreparedNow;
-                payout = await payoutOrchestrator.TriggerAsync(payout.Id, cancellationToken: cancellationToken);
+                payout = await payoutOrchestrator.TriggerAsync(
+                    payout.Id,
+                    reviewingAdminId,
+                    cancellationToken: cancellationToken);
             }
         }
         else
         {
+            var rejectionReason = request.FailureReason ?? "Rejected by admin";
+            withdrawal.RecordRejection(reviewingAdminId, rejectionReason);
             if (withdrawal.PayoutId.HasValue)
             {
                 if (payoutOrchestrator is null)
@@ -737,14 +760,16 @@ public class AdminWalletsController : ApiControllerBase
                 // releases the active claim/hold when safe, and deliberately
                 // refuses a submitted or in-flight transfer that must instead
                 // be reconciled.
-                await payoutOrchestrator.CancelAsync(withdrawal.PayoutId.Value, cancellationToken);
+                await payoutOrchestrator.CancelAsync(
+                    withdrawal.PayoutId.Value,
+                    reviewingAdminId,
+                    cancellationToken);
                 payout = await context.Payouts
                     .FirstAsync(item => item.Id == withdrawal.PayoutId.Value, cancellationToken);
             }
             else
             {
-                withdrawal.MarkFailed(request.FailureReason ?? "Rejected by admin");
-                await CancelDriverWithdrawalHoldsAsync(context, withdrawal, request.FailureReason ?? "Rejected by admin", cancellationToken);
+                await CancelDriverWithdrawalHoldsAsync(context, withdrawal, rejectionReason, cancellationToken);
                 await context.SaveChangesAsync(cancellationToken);
             }
 
@@ -939,6 +964,7 @@ public class AdminWalletsController : ApiControllerBase
         // instead of looking the method up again at payment time.
         payout.PrepareDestination(
             PayoutDestinationType.DriverPayoutMethod,
+            withdrawal.DestinationSnapshot ??
             PayoutDestinationSnapshotCodec.CreateDriverPayoutMethod(withdrawal.DriverPayoutMethod));
 
         withdrawal.LinkPayout(payout.Id);

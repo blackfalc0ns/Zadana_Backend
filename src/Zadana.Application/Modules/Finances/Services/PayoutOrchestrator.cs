@@ -820,8 +820,14 @@ public sealed class PayoutOrchestrator
                 failureReason: reason));
 
             await PostPayoutReversedAsync(payout, returnReference.Trim(), cancellationToken);
+            await MarkLinkedDriverWithdrawalReturnedAsync(
+                payout.Id,
+                reason ?? "Bank transfer returned.",
+                cancellationToken);
             await _context.SaveChangesAsync(cancellationToken);
         }, cancellationToken);
+
+        await NotifyPayoutReturnedAsync(payout, reason, cancellationToken);
 
         return payout;
     }
@@ -1086,6 +1092,7 @@ public sealed class PayoutOrchestrator
                 transferReference: transferReference));
 
             await PostPayoutPaidAsync(payout, cancellationToken);
+            await PostSettlementVarianceIfNeededAsync(payout, transferReference, cancellationToken);
             await SettleVendorHoldIfApplicableAsync(payout, cancellationToken);
             await MarkLinkedDriverWithdrawalPaidAsync(payout.Id, transferReference, cancellationToken);
             await _context.SaveChangesAsync(cancellationToken);
@@ -1554,6 +1561,17 @@ public sealed class PayoutOrchestrator
         }
     }
 
+    private async Task MarkLinkedDriverWithdrawalReturnedAsync(
+        Guid payoutId,
+        string reason,
+        CancellationToken cancellationToken)
+    {
+        var withdrawal = await _context.DriverWithdrawalRequests
+            .FirstOrDefaultAsync(item => item.PayoutId == payoutId, cancellationToken);
+
+        withdrawal?.MarkReturned(reason);
+    }
+
     private async Task CancelLinkedDriverWithdrawalAsync(Guid payoutId, string reason, CancellationToken cancellationToken)
     {
         var withdrawal = await _context.DriverWithdrawalRequests
@@ -1665,6 +1683,84 @@ public sealed class PayoutOrchestrator
             cancellationToken: cancellationToken);
 
         await _walletProjectionUpdater.ApplyJournalEntryAsync(result.JournalEntryId, cancellationToken);
+    }
+
+    private async Task PostSettlementVarianceIfNeededAsync(
+        Payout payout,
+        string transferReference,
+        CancellationToken cancellationToken)
+    {
+        var settlementNetAmount = payout.Settlement.NetAmount;
+        var difference = Math.Round(payout.Amount - settlementNetAmount, 2, MidpointRounding.AwayFromZero);
+        if (difference == 0m)
+        {
+            return;
+        }
+
+        var absoluteDifference = Math.Abs(difference);
+        var idempotencyKey = $"payout-variance:{payout.Id:N}:{transferReference}";
+        List<JournalLineDraft> lines;
+
+        if (difference > 0m)
+        {
+            lines =
+            [
+                new JournalLineDraft(
+                    FinancialAccountCode.SettlementVariance,
+                    absoluteDifference,
+                    0m,
+                    FinancialOwnerType.Platform,
+                    _settings.PlatformWalletOwnerId,
+                    SettlementId: payout.SettlementId,
+                    PayoutId: payout.Id,
+                    Memo: $"Settlement variance overpayment for payout {payout.Id}"),
+                new JournalLineDraft(
+                    FinancialAccountCode.PlatformCash,
+                    0m,
+                    absoluteDifference,
+                    FinancialOwnerType.Platform,
+                    _settings.PlatformWalletOwnerId,
+                    SettlementId: payout.SettlementId,
+                    PayoutId: payout.Id,
+                    Memo: $"Cash impact of settlement variance for payout {payout.Id}")
+            ];
+        }
+        else
+        {
+            lines =
+            [
+                new JournalLineDraft(
+                    FinancialAccountCode.PlatformCash,
+                    absoluteDifference,
+                    0m,
+                    FinancialOwnerType.Platform,
+                    _settings.PlatformWalletOwnerId,
+                    SettlementId: payout.SettlementId,
+                    PayoutId: payout.Id,
+                    Memo: $"Cash return from settlement variance for payout {payout.Id}"),
+                new JournalLineDraft(
+                    FinancialAccountCode.SettlementVariance,
+                    0m,
+                    absoluteDifference,
+                    FinancialOwnerType.Platform,
+                    _settings.PlatformWalletOwnerId,
+                    SettlementId: payout.SettlementId,
+                    PayoutId: payout.Id,
+                    Memo: $"Settlement variance underpayment for payout {payout.Id}")
+            ];
+        }
+
+        var variancePosting = await _postingService.PostAsync(
+            FinancialEventType.FinancialAdjustmentApplied,
+            idempotencyKey,
+            lines,
+            settlementId: payout.SettlementId,
+            payoutId: payout.Id,
+            currencyCode: CurrencyPolicy.OfficialCurrency,
+            description: $"Settlement variance for payout {payout.Id}",
+            cancellationToken: cancellationToken);
+
+        await _walletProjectionUpdater.ApplyJournalEntryAsync(variancePosting.JournalEntryId, cancellationToken);
     }
 
     private static string BuildPayoutPaidIdempotencyKey(Payout payout)
@@ -2002,6 +2098,82 @@ public sealed class PayoutOrchestrator
         catch
         {
             // Notification failures must never break the payout flow
+        }
+    }
+
+    private async Task NotifyPayoutReturnedAsync(
+        Payout payout,
+        string? reason,
+        CancellationToken cancellationToken)
+    {
+        if (payout.Settlement.OwnerType != SettlementOwnerType.Driver)
+        {
+            return;
+        }
+
+        try
+        {
+            var driverUserId = await _context.DriverWithdrawalRequests
+                .AsNoTracking()
+                .Where(item => item.PayoutId == payout.Id)
+                .Join(
+                    _context.Drivers.AsNoTracking(),
+                    withdrawal => withdrawal.DriverId,
+                    driver => driver.Id,
+                    (_, driver) => driver.UserId)
+                .FirstOrDefaultAsync(cancellationToken);
+            if (driverUserId == Guid.Empty)
+            {
+                return;
+            }
+
+            var normalizedReason = string.IsNullOrWhiteSpace(reason)
+                ? "Bank transfer returned."
+                : reason.Trim();
+            var data = DriverNotificationDataBuilder.Build(
+                screen: "wallet",
+                @event: "wallet.withdrawal_returned",
+                extra: new
+                {
+                    payoutId = payout.Id,
+                    settlementId = payout.SettlementId,
+                    amount = payout.Amount,
+                    reason = normalizedReason
+                });
+
+            await _notificationService.SendToUserAsync(
+                driverUserId,
+                new NotificationDispatchRequest(
+                    "تم إرجاع الحوالة البنكية",
+                    "Bank transfer returned",
+                    "تعذر إيداع مبلغ السحب في الحساب البنكي وتمت إعادة المبلغ إلى رصيد محفظتك. راجع بيانات الحساب قبل تقديم طلب جديد.",
+                    "The withdrawal could not be deposited and the amount was restored to your wallet. Review your bank details before submitting a new request.",
+                    NotificationTypes.DriverWalletUpdated,
+                    NotificationCategories.Wallet,
+                    NotificationPriorities.High,
+                    payout.Id,
+                    data),
+                cancellationToken);
+
+            await _notificationService.SendDriverWalletUpdatedAsync(driverUserId, cancellationToken);
+            await _oneSignalPushService.SendMobileNotificationAsync(
+                OneSignalMobilePushRequest.CreateHeadsUp(
+                    driverUserId.ToString(),
+                    "تم إرجاع الحوالة البنكية",
+                    "Bank transfer returned",
+                    "تمت إعادة مبلغ السحب إلى رصيد محفظتك. راجع بيانات الحساب البنكي.",
+                    "The withdrawal amount was restored to your wallet. Review your bank account details.",
+                    NotificationTypes.DriverWalletUpdated,
+                    payout.Id,
+                    data,
+                    "/wallet",
+                    NotificationCategories.Wallet,
+                    OneSignalApplicationTarget.Driver),
+                cancellationToken);
+        }
+        catch
+        {
+            // Notification failures must never roll back a recorded bank return.
         }
     }
 }

@@ -12,6 +12,9 @@ using Zadana.Infrastructure.Modules.Delivery.Services;
 using Zadana.Infrastructure.Persistence;
 using Zadana.Infrastructure.Persistence.Interceptors;
 using Zadana.SharedKernel.Exceptions;
+using Microsoft.Extensions.Options;
+using Zadana.Application.Common.Settings;
+using Zadana.Application.Modules.Finances.Services;
 
 namespace Zadana.Application.Tests.Application.Orders;
 
@@ -47,7 +50,13 @@ public class UpdateDriverAvailabilityCommandHandlerTests
     {
         await using var dbContext = CreateDbContext();
         var driverUser = new User("Availability Driver", "availability.driver@test.com", "01000000177", UserRole.Driver);
-        var driver = new Driver(driverUser.Id, DriverVehicleType.Car, "1234567890", "DRV-AVAIL-1");
+        var driver = new Driver(
+            driverUser.Id,
+            DriverVehicleType.Car,
+            "1234567890",
+            "DRV-AVAIL-1",
+            region: "EASTERN",
+            city: "DAMMAM");
         driver.Approve(Guid.NewGuid());
         dbContext.Users.Add(driverUser);
         dbContext.Drivers.Add(driver);
@@ -66,7 +75,8 @@ public class UpdateDriverAvailabilityCommandHandlerTests
             new DriverCommitmentPolicyService(dbContext, dbContext),
             dbContext,
             _notificationServiceMock.Object,
-            _oneSignalPushServiceMock.Object);
+            _oneSignalPushServiceMock.Object,
+            CreateCodEnforcementService(dbContext));
 
         var act = async () => await handler.Handle(
             new UpdateDriverAvailabilityCommand(driver.UserId, true),
@@ -107,7 +117,8 @@ public class UpdateDriverAvailabilityCommandHandlerTests
             new DriverCommitmentPolicyService(dbContext, dbContext),
             dbContext,
             _notificationServiceMock.Object,
-            _oneSignalPushServiceMock.Object);
+            _oneSignalPushServiceMock.Object,
+            CreateCodEnforcementService(dbContext));
 
         var act = async () => await handler.Handle(
             new UpdateDriverAvailabilityCommand(driver.UserId, true),
@@ -148,4 +159,7 @@ public class UpdateDriverAvailabilityCommandHandlerTests
 
         return new ApplicationDbContext(options, new AuditableEntityInterceptor());
     }
+
+    private static DriverCodEnforcementService CreateCodEnforcementService(ApplicationDbContext dbContext) =>
+        new(dbContext, Options.Create(new FinancialSettingsOptions()));
 }

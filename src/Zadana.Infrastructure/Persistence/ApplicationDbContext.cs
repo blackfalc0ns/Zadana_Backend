@@ -262,6 +262,14 @@ public class ApplicationDbContext : IdentityDbContext<User, IdentityRole<Guid>, 
             modelBuilder.Entity<VendorBankAccount>()
                 .Property(a => a.AccountHolderName).HasConversion(converter);
 
+            modelBuilder.Entity<DriverPayoutMethod>()
+                .Property(a => a.AccountIdentifier).HasConversion(converter);
+            modelBuilder.Entity<DriverPayoutMethod>()
+                .Property(a => a.AccountHolderName).HasConversion(converter);
+
+            modelBuilder.Entity<DriverWithdrawalRequest>()
+                .Property(w => w.DestinationSnapshot).HasConversion(converter);
+
             // A payout destination is an immutable audit record containing the
             // beneficiary account identifier captured at preparation time.
             // It is never returned as raw JSON and must be encrypted just like
