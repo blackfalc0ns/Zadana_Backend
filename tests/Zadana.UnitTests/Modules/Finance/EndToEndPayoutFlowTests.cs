@@ -153,6 +153,7 @@ public class EndToEndPayoutFlowTests
             new NoOpAdminAlertService(),
             Mock.Of<INotificationService>(),
             Mock.Of<IOneSignalPushService>(),
+            Mock.Of<IDriverWalletNotificationService>(),
             settlementProcessingSettingsService);
     }
 

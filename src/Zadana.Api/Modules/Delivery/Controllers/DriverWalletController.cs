@@ -322,8 +322,7 @@ public class DriverWalletController : ApiControllerBase
         [FromServices] ICurrentUserService currentUserService,
         [FromServices] IDriverRepository driverRepository,
         [FromServices] IApplicationDbContext context,
-        [FromServices] INotificationService notificationService,
-        [FromServices] IOneSignalPushService oneSignalPushService,
+        [FromServices] IDriverWalletNotificationService driverWalletNotificationService,
         [FromServices] IAdminAlertService adminAlertService,
         CancellationToken cancellationToken = default,
         [FromServices] IOptions<FinancialSettingsOptions>? financialSettings = null)
@@ -525,45 +524,9 @@ public class DriverWalletController : ApiControllerBase
                 "The driver already has a pending or processing withdrawal request.");
         }
 
-        var data = DriverNotificationDataBuilder.Build(
-            screen: "wallet",
-            @event: "wallet.withdrawal_submitted",
-            withdrawalId: withdrawal.Id,
-            extra: new
-            {
-                amount = withdrawal.Amount,
-                status = withdrawal.Status.ToString()
-            });
-
-        await notificationService.SendToUserAsync(
+        await driverWalletNotificationService.NotifyWithdrawalSubmittedAsync(
             driver.UserId,
-            new NotificationDispatchRequest(
-                "استلمنا طلب السحب",
-                "Withdrawal request submitted",
-                $"استلمنا طلب سحب بقيمة {withdrawal.Amount:0.##}.",
-                $"Your withdrawal request for {withdrawal.Amount:0.##} was submitted.",
-                NotificationTypes.DriverWalletUpdated,
-                NotificationCategories.Wallet,
-                NotificationPriorities.Normal,
-                withdrawal.Id,
-                data),
-            cancellationToken);
-
-        await notificationService.SendDriverWalletUpdatedAsync(driver.UserId, cancellationToken);
-
-        await oneSignalPushService.SendMobileNotificationAsync(
-            OneSignalMobilePushRequest.CreateHeadsUp(
-                driver.UserId.ToString(),
-                "\u062a\u0645 \u0627\u0633\u062a\u0644\u0627\u0645 \u0637\u0644\u0628 \u0627\u0644\u0633\u062d\u0628",
-                "Withdrawal request submitted",
-                $"\u062a\u0645 \u0627\u0633\u062a\u0644\u0627\u0645 \u0637\u0644\u0628 \u0633\u062d\u0628 \u0628\u0642\u064a\u0645\u0629 {withdrawal.Amount:0.##}.",
-                $"Your withdrawal request for {withdrawal.Amount:0.##} was submitted.",
-                NotificationTypes.DriverWalletUpdated,
-                withdrawal.Id,
-                data,
-                "/wallet",
-                NotificationCategories.Wallet,
-                OneSignalApplicationTarget.Driver),
+            withdrawal,
             cancellationToken);
 
         await adminAlertService.SendAsync(
@@ -630,7 +593,7 @@ public class DriverWalletController : ApiControllerBase
         [FromServices] ICurrentUserService currentUserService,
         [FromServices] IDriverRepository driverRepository,
         [FromServices] IApplicationDbContext context,
-        [FromServices] INotificationService notificationService,
+        [FromServices] IDriverWalletNotificationService driverWalletNotificationService,
         CancellationToken cancellationToken = default)
     {
         var driver = await GetDriverAsync(currentUserService, driverRepository, cancellationToken);
@@ -698,7 +661,10 @@ public class DriverWalletController : ApiControllerBase
                 "The withdrawal entered finance processing before cancellation completed. Refresh the wallet and review its current status.");
         }
 
-        await notificationService.SendDriverWalletUpdatedAsync(driver.UserId, cancellationToken);
+        await driverWalletNotificationService.NotifyWithdrawalCancelledAsync(
+            driver.UserId,
+            withdrawal,
+            cancellationToken);
         return Ok(MapWithdrawalDto(withdrawal, withdrawal.DriverPayoutMethod));
     }
 

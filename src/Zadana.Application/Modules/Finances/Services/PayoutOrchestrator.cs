@@ -5,7 +5,6 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Common.Settings;
-using Zadana.Application.Modules.Delivery.Support;
 using Zadana.Application.Modules.Payments.Gateways;
 using Zadana.Application.Modules.Payments.Interfaces;
 using Zadana.Application.Modules.Wallets.Services;
@@ -13,6 +12,7 @@ using Zadana.Domain.Modules.Finances.Enums;
 using Zadana.Domain.Modules.Social.Enums;
 using Zadana.Domain.Modules.Wallets.Entities;
 using Zadana.Domain.Modules.Wallets.Enums;
+using Zadana.Domain.Modules.Wallets.Support;
 using Zadana.SharedKernel.Exceptions;
 using Zadana.SharedKernel.Finance;
 using Zadana.SharedKernel.Serialization;
@@ -36,6 +36,7 @@ public sealed class PayoutOrchestrator
     private readonly IAdminAlertService _adminAlertService;
     private readonly INotificationService _notificationService;
     private readonly IOneSignalPushService _oneSignalPushService;
+    private readonly IDriverWalletNotificationService _driverWalletNotificationService;
     private readonly ISettlementProcessingSettingsService? _settlementProcessingSettingsService;
 
     public PayoutOrchestrator(
@@ -48,6 +49,7 @@ public sealed class PayoutOrchestrator
         IAdminAlertService adminAlertService,
         INotificationService notificationService,
         IOneSignalPushService oneSignalPushService,
+        IDriverWalletNotificationService driverWalletNotificationService,
         ISettlementProcessingSettingsService? settlementProcessingSettingsService = null)
     {
         _context = context;
@@ -59,6 +61,7 @@ public sealed class PayoutOrchestrator
         _adminAlertService = adminAlertService;
         _notificationService = notificationService;
         _oneSignalPushService = oneSignalPushService;
+        _driverWalletNotificationService = driverWalletNotificationService;
         _settlementProcessingSettingsService = settlementProcessingSettingsService;
     }
 
@@ -646,12 +649,16 @@ public sealed class PayoutOrchestrator
 
         EnsureSettlementCanBeTriggered(payout);
         EnsureManualConfirmationIsSafe(payout);
-        await EnsureManualConfirmationIsDueTodayAsync(payout, cancellationToken);
 
         var reservation = payout.ExecutionReservation;
         if (reservation is null || reservation.Mode != PayoutExecutionMode.Manual)
         {
             throw new BusinessRuleException("PAYOUT_MANUAL_CLAIM_REQUIRED", "Claim and submit the payout before confirming the manual bank transfer.");
+        }
+
+        if (!IsLegacyBackfilledManualSubmission(reservation))
+        {
+            await EnsureManualConfirmationIsDueTodayAsync(payout, cancellationToken);
         }
 
         if (reservation.Status != PayoutExecutionReservationStatus.Submitted)
@@ -1122,6 +1129,8 @@ public sealed class PayoutOrchestrator
             await MarkLinkedDriverWithdrawalFailedAsync(payout.Id, failureReason, cancellationToken);
             await _context.SaveChangesAsync(cancellationToken);
         }, cancellationToken);
+
+        await NotifyLinkedDriverWithdrawalFailedAsync(payout.Id, failureReason, cancellationToken);
     }
 
     private async Task MarkPayoutUnknownAsync(
@@ -1430,6 +1439,13 @@ public sealed class PayoutOrchestrator
                 "An in-flight gateway payout must be reconciled with the provider before manual confirmation.");
         }
     }
+
+    private static bool IsLegacyBackfilledManualSubmission(PayoutExecutionReservation reservation) =>
+        reservation.Status == PayoutExecutionReservationStatus.Submitted &&
+        PayoutExecutionReservationLegacy.IsBackfilledSubmission(
+            reservation.SubmissionReference,
+            reservation.ClaimedByUserId,
+            reservation.SubmittedByUserId);
 
     private async Task EnsureManualConfirmationIsDueTodayAsync(
         Payout payout,
@@ -2002,58 +2018,24 @@ public sealed class PayoutOrchestrator
 
             if (settlement.OwnerType == SettlementOwnerType.Driver)
             {
-                // Find the driver's user ID via linked withdrawal request
-                var driverUserId = await _context.DriverWithdrawalRequests
+                var linkedWithdrawal = await _context.DriverWithdrawalRequests
                     .AsNoTracking()
-                    .Where(w => w.PayoutId == payout.Id)
-                    .Join(_context.Drivers.AsNoTracking(),
-                        w => w.DriverId,
-                        d => d.Id,
-                        (w, d) => d.UserId)
+                    .Where(withdrawal => withdrawal.PayoutId == payout.Id)
+                    .Join(
+                        _context.Drivers.AsNoTracking(),
+                        withdrawal => withdrawal.DriverId,
+                        driver => driver.Id,
+                        (withdrawal, driver) => new { withdrawal, driver.UserId })
                     .FirstOrDefaultAsync(cancellationToken);
 
-                if (driverUserId == Guid.Empty)
+                if (linkedWithdrawal is null || linkedWithdrawal.UserId == Guid.Empty)
                 {
                     return;
                 }
 
-                var data = DriverNotificationDataBuilder.Build(
-                    screen: "wallet",
-                    @event: "wallet.payout_completed",
-                    extra: new
-                    {
-                        payoutId = payout.Id,
-                        settlementId = payout.SettlementId,
-                        amount = payout.Amount,
-                        transferReference = payout.TransferReference
-                    });
-
-                await _notificationService.SendToUserAsync(
-                    driverUserId,
-                    "أكملنا التحويل إلى حسابك البنكي",
-                    "Payout completed",
-                    $"حوّلنا مبلغ {payout.Amount:0.00} ريال إلى حسابك البنكي بنجاح.",
-                    $"A payout of {payout.Amount:0.00} SAR has been successfully transferred to your bank account.",
-                    NotificationTypes.DriverWalletUpdated,
-                    payout.Id,
-                    data,
-                    cancellationToken);
-
-                await _notificationService.SendDriverWalletUpdatedAsync(driverUserId, cancellationToken);
-
-                await _oneSignalPushService.SendMobileNotificationAsync(
-                    OneSignalMobilePushRequest.CreateHeadsUp(
-                        driverUserId.ToString(),
-                        "\u062a\u0645 \u0625\u062a\u0645\u0627\u0645 \u0627\u0644\u062a\u062d\u0648\u064a\u0644 \u0625\u0644\u0649 \u062d\u0633\u0627\u0628\u0643 \u0627\u0644\u0628\u0646\u0643\u064a",
-                        "Payout completed",
-                        $"\u062a\u0645 \u062a\u062d\u0648\u064a\u0644 \u0645\u0628\u0644\u063a {payout.Amount:0.00} \u0631\u064a\u0627\u0644 \u0625\u0644\u0649 \u062d\u0633\u0627\u0628\u0643 \u0627\u0644\u0628\u0646\u0643\u064a \u0628\u0646\u062c\u0627\u062d.",
-                        $"A payout of {payout.Amount:0.00} SAR has been successfully transferred to your bank account.",
-                        NotificationTypes.DriverWalletUpdated,
-                        payout.Id,
-                        data,
-                        "/wallet",
-                        NotificationCategories.Wallet,
-                        OneSignalApplicationTarget.Driver),
+                await _driverWalletNotificationService.NotifyWithdrawalPaidAsync(
+                    linkedWithdrawal.UserId,
+                    linkedWithdrawal.withdrawal,
                     cancellationToken);
             }
             else if (settlement.OwnerType == SettlementOwnerType.Vendor)
@@ -2113,67 +2095,64 @@ public sealed class PayoutOrchestrator
 
         try
         {
-            var driverUserId = await _context.DriverWithdrawalRequests
+            var linkedWithdrawal = await _context.DriverWithdrawalRequests
                 .AsNoTracking()
                 .Where(item => item.PayoutId == payout.Id)
                 .Join(
                     _context.Drivers.AsNoTracking(),
                     withdrawal => withdrawal.DriverId,
                     driver => driver.Id,
-                    (_, driver) => driver.UserId)
+                    (withdrawal, driver) => new { withdrawal, driver.UserId })
                 .FirstOrDefaultAsync(cancellationToken);
-            if (driverUserId == Guid.Empty)
+            if (linkedWithdrawal is null || linkedWithdrawal.UserId == Guid.Empty)
             {
                 return;
             }
 
-            var normalizedReason = string.IsNullOrWhiteSpace(reason)
-                ? "Bank transfer returned."
-                : reason.Trim();
-            var data = DriverNotificationDataBuilder.Build(
-                screen: "wallet",
-                @event: "wallet.withdrawal_returned",
-                extra: new
-                {
-                    payoutId = payout.Id,
-                    settlementId = payout.SettlementId,
-                    amount = payout.Amount,
-                    reason = normalizedReason
-                });
-
-            await _notificationService.SendToUserAsync(
-                driverUserId,
-                new NotificationDispatchRequest(
-                    "تم إرجاع الحوالة البنكية",
-                    "Bank transfer returned",
-                    "تعذر إيداع مبلغ السحب في الحساب البنكي وتمت إعادة المبلغ إلى رصيد محفظتك. راجع بيانات الحساب قبل تقديم طلب جديد.",
-                    "The withdrawal could not be deposited and the amount was restored to your wallet. Review your bank details before submitting a new request.",
-                    NotificationTypes.DriverWalletUpdated,
-                    NotificationCategories.Wallet,
-                    NotificationPriorities.High,
-                    payout.Id,
-                    data),
-                cancellationToken);
-
-            await _notificationService.SendDriverWalletUpdatedAsync(driverUserId, cancellationToken);
-            await _oneSignalPushService.SendMobileNotificationAsync(
-                OneSignalMobilePushRequest.CreateHeadsUp(
-                    driverUserId.ToString(),
-                    "تم إرجاع الحوالة البنكية",
-                    "Bank transfer returned",
-                    "تمت إعادة مبلغ السحب إلى رصيد محفظتك. راجع بيانات الحساب البنكي.",
-                    "The withdrawal amount was restored to your wallet. Review your bank account details.",
-                    NotificationTypes.DriverWalletUpdated,
-                    payout.Id,
-                    data,
-                    "/wallet",
-                    NotificationCategories.Wallet,
-                    OneSignalApplicationTarget.Driver),
+            await _driverWalletNotificationService.NotifyWithdrawalReturnedAsync(
+                linkedWithdrawal.UserId,
+                linkedWithdrawal.withdrawal,
+                payout.Id,
+                payout.Amount,
+                reason,
                 cancellationToken);
         }
         catch
         {
             // Notification failures must never roll back a recorded bank return.
+        }
+    }
+
+    private async Task NotifyLinkedDriverWithdrawalFailedAsync(
+        Guid payoutId,
+        string failureReason,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var linkedWithdrawal = await _context.DriverWithdrawalRequests
+                .AsNoTracking()
+                .Where(item => item.PayoutId == payoutId)
+                .Join(
+                    _context.Drivers.AsNoTracking(),
+                    withdrawal => withdrawal.DriverId,
+                    driver => driver.Id,
+                    (withdrawal, driver) => new { withdrawal, driver.UserId })
+                .FirstOrDefaultAsync(cancellationToken);
+
+            if (linkedWithdrawal is null || linkedWithdrawal.UserId == Guid.Empty)
+            {
+                return;
+            }
+
+            await _driverWalletNotificationService.NotifyWithdrawalFailedAsync(
+                linkedWithdrawal.UserId,
+                linkedWithdrawal.withdrawal,
+                cancellationToken);
+        }
+        catch
+        {
+            // Notification failures must never break payout reconciliation.
         }
     }
 }

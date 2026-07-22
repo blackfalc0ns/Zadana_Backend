@@ -12,6 +12,7 @@ using Zadana.Application.Modules.Wallets.Services;
 using Zadana.Domain.Modules.Vendors.Entities;
 using Zadana.Domain.Modules.Wallets.Entities;
 using Zadana.Domain.Modules.Wallets.Enums;
+using Zadana.Domain.Modules.Wallets.Support;
 using Zadana.SharedKernel.Exceptions;
 using Zadana.SharedKernel.Finance;
 using Zadana.SharedKernel.Serialization;
@@ -312,6 +313,72 @@ public sealed class PayoutExecutionSafetyTests
             item.WalletId == wallet.Id && item.Amount == payout.Amount && item.Direction == "IN");
     }
 
+    [Fact]
+    public async Task Legacy_backfilled_manual_submission_can_be_confirmed_outside_enabled_payout_days()
+    {
+        if (SaudiTime.Today.DayOfWeek is DayOfWeek.Monday or DayOfWeek.Thursday)
+        {
+            return;
+        }
+
+        await using var context = TestDbContextFactory.Create();
+        var owner = CreateVendorForToday();
+        owner.UpdatePayoutDay(PayoutScheduleDay.Monday);
+        var settlement = CreateApprovedSettlement(owner);
+        var payout = new Payout(settlement.Id, 100m);
+        context.Vendors.Add(owner);
+        context.Settlements.Add(settlement);
+        context.Payouts.Add(payout);
+        await context.SaveChangesAsync();
+
+        var settings = new SettlementProcessingSettingsService(context);
+        await settings.UpdateAsync(
+            SettlementProcessingMode.Manual,
+            [PayoutScheduleDay.Monday, PayoutScheduleDay.Thursday],
+            Guid.NewGuid());
+
+        var orchestrator = CreateOrchestrator(context, [], settings);
+        var adminId = Guid.NewGuid();
+        await orchestrator.ClaimManualAsync(payout.Id, adminId);
+        SimulateLegacyBackfilledSubmission(context, payout.Id);
+        payout.MarkAsProcessing(providerName: "Manual");
+        settlement.MarkAsProcessing();
+        await context.SaveChangesAsync();
+
+        var confirmingAdmin = Guid.NewGuid();
+        var proof = CreateProofAttachment(payout.Id, PayoutProofKind.ManualTransfer, confirmingAdmin);
+        context.PayoutProofAttachments.Add(proof);
+        await context.SaveChangesAsync();
+
+        await orchestrator.ConfirmManualAsync(
+            payout.Id,
+            "BANK-LEGACY-FINAL-001",
+            proof.Id,
+            confirmingAdmin);
+
+        var stored = await context.Payouts.SingleAsync(item => item.Id == payout.Id);
+        stored.Status.Should().Be(PayoutStatus.Paid);
+    }
+
+    private static void SimulateLegacyBackfilledSubmission(IApplicationDbContext context, Guid payoutId)
+    {
+        if (context is not DbContext dbContext)
+        {
+            throw new InvalidOperationException("Expected EF DbContext for legacy reservation simulation.");
+        }
+
+        var reservation = dbContext.Set<PayoutExecutionReservation>()
+            .Single(item => item.PayoutId == payoutId);
+        var entry = dbContext.Entry(reservation);
+        entry.Property(nameof(PayoutExecutionReservation.Status)).CurrentValue =
+            PayoutExecutionReservationStatus.Submitted;
+        entry.Property(nameof(PayoutExecutionReservation.ClaimedByUserId)).CurrentValue = null;
+        entry.Property(nameof(PayoutExecutionReservation.SubmittedByUserId)).CurrentValue = null;
+        entry.Property(nameof(PayoutExecutionReservation.SubmissionReference)).CurrentValue =
+            PayoutExecutionReservationLegacy.BackfillSubmissionReference;
+        dbContext.SaveChanges();
+    }
+
     private static PayoutOrchestrator CreateOrchestrator(
         IApplicationDbContext context,
         IEnumerable<IPayoutGateway> gateways,
@@ -331,6 +398,7 @@ public sealed class PayoutExecutionSafetyTests
             new NoOpAdminAlertService(),
             Mock.Of<INotificationService>(),
             Mock.Of<IOneSignalPushService>(),
+            Mock.Of<IDriverWalletNotificationService>(),
             settings);
     }
 

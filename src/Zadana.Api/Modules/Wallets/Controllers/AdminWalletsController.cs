@@ -11,7 +11,6 @@ using Zadana.Api.Controllers;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Common.Settings;
 using Zadana.Application.Modules.Finances.Services;
-using Zadana.Application.Modules.Delivery.Support;
 using Zadana.Domain.Modules.Identity.Constants;
 using Zadana.Application.Modules.Wallets.DTOs;
 using Zadana.Domain.Modules.Finances.Enums;
@@ -430,8 +429,7 @@ public class AdminWalletsController : ApiControllerBase
         [FromServices] IApplicationDbContext context,
         [FromServices] FinancialEventPostingService financialEventPostingService,
         [FromServices] WalletProjectionUpdater walletProjectionUpdater,
-        [FromServices] INotificationService notificationService,
-        [FromServices] IOneSignalPushService oneSignalPushService,
+        [FromServices] IDriverWalletNotificationService driverWalletNotificationService,
         CancellationToken cancellationToken = default)
     {
         var wallet = await context.Wallets.FirstOrDefaultAsync(w => w.Id == id, cancellationToken)
@@ -488,46 +486,12 @@ public class AdminWalletsController : ApiControllerBase
 
             if (driverUserId != Guid.Empty)
             {
-                var data = DriverNotificationDataBuilder.Build(
-                    screen: "wallet",
-                    @event: "wallet.admin_adjustment",
-                    extra: new
-                    {
-                        walletId = wallet.Id,
-                        amount = txn.Amount,
-                        direction = txn.Direction,
-                        transactionId = txn.Id
-                    });
-
-                await notificationService.SendToUserAsync(
+                await driverWalletNotificationService.NotifyAdminWalletAdjustmentAsync(
                     driverUserId,
-                    new NotificationDispatchRequest(
-                        "عدّلنا رصيد المحفظة",
-                        "Wallet balance adjusted",
-                        "عدّلنا رصيد محفظتك من الإدارة.",
-                        "Your wallet balance was adjusted by the team.",
-                        NotificationTypes.DriverWalletUpdated,
-                        NotificationCategories.Wallet,
-                        NotificationPriorities.Normal,
-                        txn.Id,
-                        data),
-                    cancellationToken);
-
-                await notificationService.SendDriverWalletUpdatedAsync(driverUserId, cancellationToken);
-
-                await oneSignalPushService.SendMobileNotificationAsync(
-                    OneSignalMobilePushRequest.CreateHeadsUp(
-                        driverUserId.ToString(),
-                        "\u062a\u0645 \u062a\u0639\u062f\u064a\u0644 \u0631\u0635\u064a\u062f \u0627\u0644\u0645\u062d\u0641\u0638\u0629",
-                        "Wallet balance adjusted",
-                        "\u062a\u0645 \u062a\u0639\u062f\u064a\u0644 \u0631\u0635\u064a\u062f \u0645\u062d\u0641\u0638\u062a\u0643 \u0645\u0646 \u0642\u0628\u0644 \u0627\u0644\u0625\u062f\u0627\u0631\u0629.",
-                        "Your wallet balance was adjusted by the team.",
-                        NotificationTypes.DriverWalletUpdated,
-                        txn.Id,
-                        data,
-                        "/wallet",
-                        NotificationCategories.Wallet,
-                        OneSignalApplicationTarget.Driver),
+                    wallet.Id,
+                    txn.Id,
+                    txn.Amount,
+                    txn.Direction,
                     cancellationToken);
             }
         }
@@ -625,8 +589,7 @@ public class AdminWalletsController : ApiControllerBase
         [FromServices] FinancialEventPostingService financialEventPostingService,
         [FromServices] WalletProjectionUpdater walletProjectionUpdater,
         [FromServices] IOptions<FinancialSettingsOptions> financialSettings,
-        [FromServices] INotificationService notificationService,
-        [FromServices] IOneSignalPushService oneSignalPushService,
+        [FromServices] IDriverWalletNotificationService driverWalletNotificationService,
         CancellationToken cancellationToken = default,
         [FromServices] ICurrentUserService? currentUserService = null,
         [FromServices] PayoutOrchestrator? payoutOrchestrator = null,
@@ -784,87 +747,20 @@ public class AdminWalletsController : ApiControllerBase
 
         if (shouldNotifyDriver && driverUserId != Guid.Empty)
         {
-            var approvedAndPaid = request.IsApproved && withdrawal.Status == DriverWithdrawalStatus.Paid;
-            var approvedAndProcessing = request.IsApproved && withdrawal.Status == DriverWithdrawalStatus.Processing;
-            var approvedAndFailed = request.IsApproved && withdrawal.Status == DriverWithdrawalStatus.Failed;
-            var eventName = approvedAndPaid
-                ? "wallet.withdrawal_paid"
-                : approvedAndProcessing
-                    ? "wallet.withdrawal_processing"
-                    : approvedAndFailed
-                        ? "wallet.withdrawal_failed"
-                        : "wallet.withdrawal_rejected";
-            var titleAr = approvedAndPaid
-                ? "حوّلنا مبلغ السحب"
-                : approvedAndProcessing
-                    ? "جاري تحويل السحب"
-                    : approvedAndFailed
-                        ? "فشل تحويل السحب"
-                        : "رفضنا طلب السحب";
-            var titleEn = approvedAndPaid
-                ? "Withdrawal paid"
-                : approvedAndProcessing
-                    ? "Withdrawal transfer started"
-                    : approvedAndFailed
-                        ? "Withdrawal transfer failed"
-                        : "Withdrawal rejected";
-            var bodyAr = approvedAndPaid
-                ? $"حوّلنا طلب السحب رقم #{withdrawal.Id} بنجاح."
-                : approvedAndProcessing
-                    ? $"جاري تحويل طلب السحب رقم #{withdrawal.Id}."
-                    : approvedAndFailed
-                        ? $"فشل تحويل طلب السحب رقم #{withdrawal.Id}. تواصل مع الدعم."
-                        : $"رفضنا طلب السحب رقم #{withdrawal.Id}.";
-            var bodyEn = approvedAndPaid
-                ? $"Your withdrawal request #{withdrawal.Id} was paid successfully."
-                : approvedAndProcessing
-                    ? $"Your withdrawal request #{withdrawal.Id} is being transferred."
-                    : approvedAndFailed
-                        ? $"Your withdrawal request #{withdrawal.Id} transfer failed. Please contact support."
-                        : $"Your withdrawal request #{withdrawal.Id} was rejected.";
-
-            var data = DriverNotificationDataBuilder.Build(
-                screen: "wallet",
-                @event: eventName,
-                withdrawalId: withdrawal.Id,
-                extra: new
-                {
-                    amount = withdrawal.Amount,
-                    status = withdrawal.Status.ToString(),
-                    transferReference = withdrawal.TransferReference,
-                    failureReason = withdrawal.FailureReason
-                });
-
-            await notificationService.SendToUserAsync(
-                driverUserId,
-                new NotificationDispatchRequest(
-                    titleAr,
-                    titleEn,
-                    bodyAr,
-                    bodyEn,
-                    NotificationTypes.DriverWalletUpdated,
-                    NotificationCategories.Wallet,
-                    NotificationPriorities.High,
-                    withdrawal.Id,
-                    data),
-                cancellationToken);
-
-            await notificationService.SendDriverWalletUpdatedAsync(driverUserId, cancellationToken);
-
-            await oneSignalPushService.SendMobileNotificationAsync(
-                OneSignalMobilePushRequest.CreateHeadsUp(
-                    driverUserId.ToString(),
-                    titleAr,
-                    titleEn,
-                    bodyAr,
-                    bodyEn,
-                    NotificationTypes.DriverWalletUpdated,
-                    withdrawal.Id,
-                    data,
-                    "/wallet",
-                    category: NotificationCategories.Wallet,
-                    targetApplication: OneSignalApplicationTarget.Driver),
-                cancellationToken);
+            if (!request.IsApproved)
+            {
+                await driverWalletNotificationService.NotifyWithdrawalRejectedAsync(
+                    driverUserId,
+                    withdrawal,
+                    cancellationToken);
+            }
+            else if (withdrawal.Status == DriverWithdrawalStatus.Processing)
+            {
+                await driverWalletNotificationService.NotifyWithdrawalProcessingAsync(
+                    driverUserId,
+                    withdrawal,
+                    cancellationToken);
+            }
         }
 
         var manualWorkflowRequired = request.IsApproved &&

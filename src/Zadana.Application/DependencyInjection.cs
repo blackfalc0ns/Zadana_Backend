@@ -12,6 +12,7 @@ using Zadana.Application.Modules.Orders.Interfaces;
 using Zadana.Application.Modules.Orders.Services;
 using Zadana.Application.Modules.Vendors.Interfaces;
 using Zadana.Application.Modules.Vendors.Services;
+using Zadana.Application.Modules.Wallets.Services;
 using Zadana.Application.Modules.Identity.Services;
 
 namespace Zadana.Application;
@@ -50,6 +51,7 @@ public static class DependencyInjection
         services.AddScoped<DriverCodEnforcementService>();
         services.AddScoped<ISettlementProcessingSettingsService, SettlementProcessingSettingsService>();
         services.AddScoped<PayoutOrchestrator>();
+        services.AddScoped<IDriverWalletNotificationService, DriverWalletNotificationService>();
         services.AddScoped<PayoutBankReconciliationService>();
         services.AddScoped<ICurrentVendorService, CurrentVendorService>();
         services.AddScoped<IOrderStatusNotificationDispatcher, OrderStatusNotificationDispatcher>();

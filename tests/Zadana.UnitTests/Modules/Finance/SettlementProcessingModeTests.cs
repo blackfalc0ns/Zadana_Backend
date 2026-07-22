@@ -209,6 +209,7 @@ public sealed class SettlementProcessingModeTests
             Mock.Of<IAdminAlertService>(),
             Mock.Of<INotificationService>(),
             Mock.Of<IOneSignalPushService>(),
+            Mock.Of<IDriverWalletNotificationService>(),
             settings);
     }
 }

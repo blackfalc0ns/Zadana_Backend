@@ -202,14 +202,13 @@ public class DriverWalletControllerTests
         await context.SaveChangesAsync(CancellationToken.None);
 
         var adminAlertService = Mock.Of<IAdminAlertService>();
-        var oneSignalPushService = Mock.Of<IOneSignalPushService>();
+        var driverWalletNotificationService = Mock.Of<IDriverWalletNotificationService>();
         var act = () => controller.CreateWithdrawal(
             new CreateDriverWithdrawalRequest(Guid.NewGuid(), 20m),
             currentUserService,
             driverRepository.Object,
             context,
-            notificationService,
-            oneSignalPushService,
+            driverWalletNotificationService,
             adminAlertService,
             CancellationToken.None);
 
@@ -238,8 +237,7 @@ public class DriverWalletControllerTests
         context.DriverPayoutMethods.Add(payoutMethod);
         await context.SaveChangesAsync();
 
-        var notificationService = CreateNotificationService();
-        var pushService = CreatePushService();
+        var notificationService = CreateDriverWalletNotificationService();
         var adminAlertService = CreateAdminAlertService();
         var request = new CreateDriverWithdrawalRequest(payoutMethod.Id, 40m, "mobile-request-001");
 
@@ -249,7 +247,6 @@ public class DriverWalletControllerTests
             driverRepository.Object,
             context,
             notificationService.Object,
-            pushService.Object,
             adminAlertService.Object);
         var second = await controller.CreateWithdrawal(
             request,
@@ -257,7 +254,6 @@ public class DriverWalletControllerTests
             driverRepository.Object,
             context,
             notificationService.Object,
-            pushService.Object,
             adminAlertService.Object);
 
         var firstDto = ((OkObjectResult)first.Result!).Value.Should()
@@ -279,7 +275,6 @@ public class DriverWalletControllerTests
             driverRepository.Object,
             context,
             notificationService.Object,
-            pushService.Object,
             adminAlertService.Object);
         await mismatchedRetry.Should().ThrowAsync<BusinessRuleException>()
             .Where(error => error.ErrorCode == "WITHDRAWAL_IDEMPOTENCY_KEY_REUSED");
@@ -306,8 +301,7 @@ public class DriverWalletControllerTests
         context.DriverPayoutMethods.Add(payoutMethod);
         await context.SaveChangesAsync();
 
-        var notificationService = CreateNotificationService();
-        var pushService = CreatePushService();
+        var notificationService = CreateDriverWalletNotificationService();
         var adminAlertService = CreateAdminAlertService();
         await controller.CreateWithdrawal(
             new CreateDriverWithdrawalRequest(payoutMethod.Id, 40m, "mobile-request-001"),
@@ -315,7 +309,6 @@ public class DriverWalletControllerTests
             driverRepository.Object,
             context,
             notificationService.Object,
-            pushService.Object,
             adminAlertService.Object);
 
         var act = () => controller.CreateWithdrawal(
@@ -324,7 +317,6 @@ public class DriverWalletControllerTests
             driverRepository.Object,
             context,
             notificationService.Object,
-            pushService.Object,
             adminAlertService.Object);
 
         await act.Should().ThrowAsync<BusinessRuleException>()
@@ -374,21 +366,24 @@ public class DriverWalletControllerTests
         context.WalletHolds.Add(hold);
         await context.SaveChangesAsync();
 
-        var notificationService = CreateNotificationService();
+        var driverWalletNotificationService = CreateDriverWalletNotificationService();
         var result = await controller.CancelWithdrawal(
             withdrawal.Id,
             currentUserService,
             driverRepository.Object,
             context,
-            notificationService.Object);
+            driverWalletNotificationService.Object);
 
         ((OkObjectResult)result.Result!).Value.Should()
             .BeOfType<DriverWithdrawalRequestDto>()
             .Which.Status.Should().Be(DriverWithdrawalStatus.Cancelled.ToString());
         withdrawal.Status.Should().Be(DriverWithdrawalStatus.Cancelled);
         hold.Status.Should().Be(WalletHoldStatus.Cancelled);
-        notificationService.Verify(
-            service => service.SendDriverWalletUpdatedAsync(driver.UserId, It.IsAny<CancellationToken>()),
+        driverWalletNotificationService.Verify(
+            service => service.NotifyWithdrawalCancelledAsync(
+                driver.UserId,
+                It.Is<DriverWithdrawalRequest>(item => item.Id == withdrawal.Id),
+                It.IsAny<CancellationToken>()),
             Times.Once);
     }
 
@@ -512,6 +507,32 @@ public class DriverWalletControllerTests
         return driver;
     }
 
+    private static Mock<IDriverWalletNotificationService> CreateDriverWalletNotificationService()
+    {
+        var service = new Mock<IDriverWalletNotificationService>();
+        service.Setup(item => item.NotifyWithdrawalSubmittedAsync(
+                It.IsAny<Guid>(),
+                It.IsAny<DriverWithdrawalRequest>(),
+                It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+        service.Setup(item => item.NotifyWithdrawalCancelledAsync(
+                It.IsAny<Guid>(),
+                It.IsAny<DriverWithdrawalRequest>(),
+                It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+        service.Setup(item => item.NotifyWithdrawalProcessingAsync(
+                It.IsAny<Guid>(),
+                It.IsAny<DriverWithdrawalRequest>(),
+                It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+        service.Setup(item => item.NotifyWithdrawalRejectedAsync(
+                It.IsAny<Guid>(),
+                It.IsAny<DriverWithdrawalRequest>(),
+                It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+        return service;
+    }
+
     private static Mock<INotificationService> CreateNotificationService()
     {
         var service = new Mock<INotificationService>();
@@ -591,8 +612,7 @@ public class AdminWalletsControllerTests
             null!,
             null!,
             null!,
-            Mock.Of<INotificationService>(),
-            Mock.Of<IOneSignalPushService>(),
+            Mock.Of<IDriverWalletNotificationService>(),
             CancellationToken.None,
             currentUserService: CreateAdminCurrentUser(),
             payoutOrchestrator: null,
@@ -665,8 +685,7 @@ public class AdminWalletsControllerTests
             null!,
             null!,
             null!,
-            Mock.Of<INotificationService>(),
-            Mock.Of<IOneSignalPushService>(),
+            Mock.Of<IDriverWalletNotificationService>(),
             CancellationToken.None,
             currentUserService: CreateAdminCurrentUser(),
             payoutOrchestrator: null,
@@ -679,8 +698,7 @@ public class AdminWalletsControllerTests
             null!,
             null!,
             null!,
-            Mock.Of<INotificationService>(),
-            Mock.Of<IOneSignalPushService>(),
+            Mock.Of<IDriverWalletNotificationService>(),
             CancellationToken.None,
             currentUserService: CreateAdminCurrentUser(),
             payoutOrchestrator: null,
@@ -739,8 +757,7 @@ public class AdminWalletsControllerTests
             null!,
             null!,
             null!,
-            Mock.Of<INotificationService>(),
-            Mock.Of<IOneSignalPushService>(),
+            Mock.Of<IDriverWalletNotificationService>(),
             CancellationToken.None,
             currentUserService: CreateAdminCurrentUser(),
             payoutOrchestrator: null,
@@ -754,8 +771,7 @@ public class AdminWalletsControllerTests
             null!,
             null!,
             null!,
-            Mock.Of<INotificationService>(),
-            Mock.Of<IOneSignalPushService>(),
+            Mock.Of<IDriverWalletNotificationService>(),
             CancellationToken.None,
             currentUserService: CreateAdminCurrentUser(),
             payoutOrchestrator: CreatePayoutOrchestrator(context, [], settlementSettings.Object),
@@ -809,8 +825,7 @@ public class AdminWalletsControllerTests
             null!,
             null!,
             null!,
-            Mock.Of<INotificationService>(),
-            Mock.Of<IOneSignalPushService>(),
+            Mock.Of<IDriverWalletNotificationService>(),
             CancellationToken.None,
             currentUserService: CreateAdminCurrentUser());
 
@@ -856,8 +871,7 @@ public class AdminWalletsControllerTests
             null!,
             null!,
             null!,
-            Mock.Of<INotificationService>(),
-            Mock.Of<IOneSignalPushService>(),
+            Mock.Of<IDriverWalletNotificationService>(),
             CancellationToken.None,
             currentUserService: CreateAdminCurrentUser(),
             payoutOrchestrator: CreatePayoutOrchestrator(context, [], settlementSettings.Object),
@@ -878,8 +892,7 @@ public class AdminWalletsControllerTests
     {
         await using var context = TestDbContextFactory.Create();
         var controller = new AdminWalletsController();
-        var notificationService = Mock.Of<INotificationService>();
-        var oneSignalPushService = Mock.Of<IOneSignalPushService>();
+        var driverWalletNotificationService = Mock.Of<IDriverWalletNotificationService>();
 
         var driverId = Guid.NewGuid();
         var wallet = new Wallet(WalletOwnerType.Driver, driverId);
@@ -910,8 +923,7 @@ public class AdminWalletsControllerTests
             null!,
             null!,
             null!,
-            notificationService,
-            oneSignalPushService,
+            driverWalletNotificationService,
             CancellationToken.None,
             currentUserService: CreateAdminCurrentUser());
 
@@ -943,6 +955,7 @@ public class AdminWalletsControllerTests
             Mock.Of<IAdminAlertService>(),
             Mock.Of<INotificationService>(),
             Mock.Of<IOneSignalPushService>(),
+            Mock.Of<IDriverWalletNotificationService>(),
             settings);
     }
 
