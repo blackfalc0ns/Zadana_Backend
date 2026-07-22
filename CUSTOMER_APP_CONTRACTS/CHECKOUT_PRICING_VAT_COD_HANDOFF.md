@@ -40,7 +40,7 @@ Mobile should send these canonical values:
 
 Notes:
 
-- `apple_pay` is still returned in payment methods but is currently unavailable
+- `apple_pay` is available when Moyasar card checkout is enabled (`is_available` follows the card gateway). Use the returned `payment.provider_config` with methods including `applepay`
 - backend also normalizes aliases like `cod`, `cash_on_delivery`, `credit_card`, and `bank_transfer`
 - mobile should still prefer canonical values above in both query params and request bodies
 

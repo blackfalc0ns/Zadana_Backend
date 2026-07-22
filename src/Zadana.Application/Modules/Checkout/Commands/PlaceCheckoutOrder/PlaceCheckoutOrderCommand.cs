@@ -89,10 +89,6 @@ public class PlaceCheckoutOrderCommandHandler : IRequestHandler<PlaceCheckoutOrd
 
         var paymentMethodCode = CheckoutSupport.NormalizePaymentMethodCode(request.PaymentMethod)
             ?? throw new BusinessRuleException("PAYMENT_METHOD_NOT_SUPPORTED", "Selected payment method is not supported.");
-        if (paymentMethodCode == "apple_pay")
-        {
-            throw new BusinessRuleException("PAYMENT_METHOD_NOT_SUPPORTED", "Apple Pay is not available yet.");
-        }
 
         var cart = await CheckoutSupport.GetRequiredCartAsync(_context, request.UserId, cancellationToken, asTracking: true);
         var address = await CheckoutSupport.ResolveSelectedAddressAsync(_context, request.UserId, request.AddressId, cancellationToken);
@@ -264,7 +260,7 @@ public class PlaceCheckoutOrderCommandHandler : IRequestHandler<PlaceCheckoutOrd
 
         CheckoutPaymentSessionDto? paymentSession = null;
 
-        if (paymentMethodCode == "card")
+        if (paymentMethodCode is "card" or "apple_pay")
         {
             if (!_gatewayResolver.TryResolve(CardProvider, out var gateway) || gateway is null)
             {
@@ -275,11 +271,15 @@ public class PlaceCheckoutOrderCommandHandler : IRequestHandler<PlaceCheckoutOrd
             {
                 CurrencyPolicy.EnsureOfficial(order.Currency);
                 var idempotencyKey = $"payment-create:{order.Id:N}:{payment.Id:N}";
+                var channel = paymentMethodCode == "apple_pay"
+                    ? PaymentMethodChannel.ApplePay
+                    : PaymentMethodChannel.Card;
+                var providerMethod = paymentMethodCode == "apple_pay" ? "applepay" : "creditcard";
                 var session = await gateway.CreateSessionAsync(
                     new CreatePaymentSessionCommand(
                         OrderId: order.Id,
                         PaymentId: payment.Id,
-                        Channel: PaymentMethodChannel.Card,
+                        Channel: channel,
                         Amount: order.TotalAmount,
                         Currency: order.Currency,
                         Description: $"Order {order.OrderNumber}",
@@ -298,7 +298,7 @@ public class PlaceCheckoutOrderCommandHandler : IRequestHandler<PlaceCheckoutOrd
 
                 payment.ApplyProviderSession(
                     providerName: session.ProviderName,
-                    providerMethod: "creditcard",
+                    providerMethod: providerMethod,
                     providerPaymentId: session.ProviderPaymentId,
                     providerInvoiceId: session.ProviderInvoiceId,
                     idempotencyKey: idempotencyKey,

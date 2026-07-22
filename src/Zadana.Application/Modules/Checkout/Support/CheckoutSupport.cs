@@ -725,7 +725,7 @@ internal static class CheckoutSupport
     public static List<CheckoutPaymentMethodDto> BuildPaymentMethods(bool cardAvailable) =>
     [
         new CheckoutPaymentMethodDto("card", "بطاقة ائتمان / مدى", "Credit / Debit Card", "فيزا، ماستركارد، مدى", "Visa, Mastercard, Mada", cardAvailable, cardAvailable),
-        new CheckoutPaymentMethodDto("apple_pay", "Apple Pay", "Apple Pay", "دفع سريع وآمن", "Fast and secure payment", false, false),
+        new CheckoutPaymentMethodDto("apple_pay", "Apple Pay", "Apple Pay", "دفع سريع وآمن", "Fast and secure payment", cardAvailable, false),
         new CheckoutPaymentMethodDto("cash", "الدفع عند الاستلام", "Cash on Delivery", "ادفع كاش وقت استلام الطلب", "Pay cash when you receive the order", true, !cardAvailable),
         new CheckoutPaymentMethodDto("bank", "تحويل بنكي", "Bank Transfer", "تحويل مباشر من البنك", "Direct transfer from bank", true, false)
     ];

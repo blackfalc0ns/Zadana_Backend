@@ -192,7 +192,6 @@ public class PlaceOrderCommandHandlerTests
     [Theory]
     [InlineData("Wallet")]
     [InlineData("Mada")]
-    [InlineData("ApplePay")]
     public async Task Handle_WhenPaymentMethodRequiresDedicatedFundingFlow_ShouldThrowBusinessRuleException(string paymentMethod)
     {
         var userId = Guid.NewGuid();

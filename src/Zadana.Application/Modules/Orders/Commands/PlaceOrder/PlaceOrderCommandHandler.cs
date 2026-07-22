@@ -76,7 +76,7 @@ public class PlaceOrderCommandHandler : IRequestHandler<PlaceOrderCommand, Guid>
             throw new BusinessRuleException("INVALID_PAYMENT", _localizer["INVALID_PAYMENT"]);
         }
 
-        if (paymentMethod is PaymentMethodType.Wallet or PaymentMethodType.Mada or PaymentMethodType.ApplePay)
+        if (paymentMethod is PaymentMethodType.Wallet or PaymentMethodType.Mada)
         {
             throw new BusinessRuleException(
                 "PAYMENT_METHOD_NOT_SUPPORTED",
