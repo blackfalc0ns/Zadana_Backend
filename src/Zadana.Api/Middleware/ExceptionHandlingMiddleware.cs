@@ -105,6 +105,13 @@ public class ExceptionHandlingMiddleware
 
         problemDetails.Extensions["traceId"] = context.TraceIdentifier;
 
+        if (context.Items.TryGetValue("errorDiagnostic", out var diagnostic) &&
+            diagnostic is string diagnosticText &&
+            !string.IsNullOrWhiteSpace(diagnosticText))
+        {
+            problemDetails.Extensions["diagnostic"] = diagnosticText;
+        }
+
         if (isDevelopment && problemDetails.Status == (int)HttpStatusCode.InternalServerError)
         {
             problemDetails.Extensions["debugException"] = exception.GetType().FullName;
