@@ -967,6 +967,21 @@
   <data name="DRIVER_COD_DEBT_NOT_SETTLED" xml:space="preserve">
     <value>Settle outstanding COD cash before requesting a withdrawal.</value>
   </data>
+  <data name="DRIVER_DAILY_WITHDRAWAL_LIMIT_REACHED" xml:space="preserve">
+    <value>The daily withdrawal request limit has been reached.</value>
+  </data>
+  <data name="DRIVER_ACTIVE_WITHDRAWAL_EXISTS" xml:space="preserve">
+    <value>The driver already has a pending or processing withdrawal request.</value>
+  </data>
+  <data name="DRIVER_WITHDRAWAL_CANNOT_CANCEL" xml:space="preserve">
+    <value>Only a pending withdrawal that has not entered finance processing can be cancelled by the driver.</value>
+  </data>
+  <data name="WITHDRAWAL_IDEMPOTENCY_KEY_TOO_LONG" xml:space="preserve">
+    <value>Withdrawal idempotency key cannot exceed 160 characters.</value>
+  </data>
+  <data name="WITHDRAWAL_IDEMPOTENCY_KEY_REUSED" xml:space="preserve">
+    <value>This idempotency key was already used for a different withdrawal request.</value>
+  </data>
   <data name="DRIVER_WALLET_ACCESS_BLOCKED" xml:space="preserve">
     <value>Wallet access is available after the driver account is active and approved.</value>
   </data>
@@ -975,6 +990,9 @@
   </data>
   <data name="DRIVER_BANK_IBAN_INVALID" xml:space="preserve">
     <value>Driver bank account must be a valid Saudi IBAN.</value>
+  </data>
+  <data name="INVALID_PAYOUT_DAY" xml:space="preserve">
+    <value>Payout day must be a valid day of the week.</value>
   </data>
   <data name="INVALID_UPLOAD_DIRECTORY" xml:space="preserve">
     <value>The upload directory is not allowed.</value>

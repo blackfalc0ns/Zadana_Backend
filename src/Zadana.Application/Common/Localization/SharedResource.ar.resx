@@ -968,14 +968,32 @@
   <data name="DRIVER_COD_DEBT_NOT_SETTLED" xml:space="preserve">
     <value>لازم تسدد مبالغ الدفع عند الاستلام المستحقة قبل طلب السحب.</value>
   </data>
+  <data name="DRIVER_DAILY_WITHDRAWAL_LIMIT_REACHED" xml:space="preserve">
+    <value>وصلت للحد اليومي لطلبات السحب.</value>
+  </data>
+  <data name="DRIVER_ACTIVE_WITHDRAWAL_EXISTS" xml:space="preserve">
+    <value>عندك طلب سحب قيد الانتظار أو المعالجة بالفعل.</value>
+  </data>
+  <data name="DRIVER_WITHDRAWAL_CANNOT_CANCEL" xml:space="preserve">
+    <value>تقدر تلغي فقط طلب السحب المعلّق اللي لسه ما دخلش المعالجة المالية.</value>
+  </data>
+  <data name="WITHDRAWAL_IDEMPOTENCY_KEY_TOO_LONG" xml:space="preserve">
+    <value>مفتاح منع التكرار للسحب ما يزيدش عن 160 حرف.</value>
+  </data>
+  <data name="WITHDRAWAL_IDEMPOTENCY_KEY_REUSED" xml:space="preserve">
+    <value>مفتاح منع التكرار ده اتستخدم قبل كده لطلب سحب مختلف.</value>
+  </data>
   <data name="DRIVER_WALLET_ACCESS_BLOCKED" xml:space="preserve">
-    <value>الوصول للمحفظة متاح بعد ما يكون حساب المندوب نشط ومعتمد.</value>
+    <value>وصول المحفظة متاح بعد ما يكون حساب المندوب نشط ومعتمد.</value>
   </data>
   <data name="DRIVER_BANK_ACCOUNT_REQUIRED" xml:space="preserve">
-    <value>السحب يدعم الحساب البنكي فقط.</value>
+    <value>طرق السحب المدعومة حالياً هي الحساب البنكي فقط.</value>
   </data>
   <data name="DRIVER_BANK_IBAN_INVALID" xml:space="preserve">
-    <value>حساب المندوب لازم يكون IBAN سعودي صحيح.</value>
+    <value>حساب المندوب البنكي لازم يكون IBAN سعودي صحيح.</value>
+  </data>
+  <data name="INVALID_PAYOUT_DAY" xml:space="preserve">
+    <value>يوم التحويل لازم يكون يوم صحيح من أيام الأسبوع.</value>
   </data>
   <data name="INVALID_UPLOAD_DIRECTORY" xml:space="preserve">
     <value>البيانات غير صحيح.</value>

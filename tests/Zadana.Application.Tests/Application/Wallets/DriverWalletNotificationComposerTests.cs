@@ -26,7 +26,7 @@ public class DriverWalletNotificationComposerTests
     public void ComposeWithdrawalCancelled_UsesCancelledEvent()
     {
         var withdrawal = CreateWithdrawal();
-        withdrawal.Cancel("Cancelled by driver.");
+        withdrawal.Cancel("ألغاه السائق.");
 
         var content = DriverWalletNotificationComposer.ComposeWithdrawalCancelled(withdrawal);
 

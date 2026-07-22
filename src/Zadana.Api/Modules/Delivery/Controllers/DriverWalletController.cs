@@ -69,7 +69,7 @@ public class DriverWalletController : ApiControllerBase
         {
             throw new BadRequestException(
                 "INVALID_PAYOUT_DAY",
-                "Payout day must be a valid day of the week.");
+                "يوم التحويل لازم يكون يوم صحيح من أيام الأسبوع. | Payout day must be a valid day of the week.");
         }
 
         await settlementProcessingSettingsService.EnsurePayoutDayEnabledAsync(
@@ -342,7 +342,7 @@ public class DriverWalletController : ApiControllerBase
         {
             throw new BadRequestException(
                 "INVALID_WITHDRAWAL_AMOUNT",
-                $"Withdrawal amount must be between {limits.DriverMinimumWithdrawalAmount:0.##} and {limits.DriverMaximumWithdrawalAmount:0.##} SAR.");
+                $"مبلغ السحب لازم يكون بين {limits.DriverMinimumWithdrawalAmount:0.##} و {limits.DriverMaximumWithdrawalAmount:0.##} ر.س. | Withdrawal amount must be between {limits.DriverMinimumWithdrawalAmount:0.##} and {limits.DriverMaximumWithdrawalAmount:0.##} SAR.");
         }
 
         var driver = await GetDriverAsync(currentUserService, driverRepository, cancellationToken);
@@ -382,7 +382,7 @@ public class DriverWalletController : ApiControllerBase
         {
             throw new BadRequestException(
                 "WITHDRAWAL_IDEMPOTENCY_KEY_TOO_LONG",
-                "Withdrawal idempotency key cannot exceed 160 characters.");
+                "مفتاح منع التكرار للسحب ما يزيدش عن 160 حرف. | Withdrawal idempotency key cannot exceed 160 characters.");
         }
 
         var dbContext = context as DbContext;
@@ -548,7 +548,7 @@ public class DriverWalletController : ApiControllerBase
 
             throw new BusinessRuleException(
                 "DRIVER_ACTIVE_WITHDRAWAL_EXISTS",
-                "The driver already has a pending or processing withdrawal request.");
+                "عندك طلب سحب قيد الانتظار أو المعالجة بالفعل. | The driver already has a pending or processing withdrawal request.");
         }
 
         var requestsToday = await context.DriverWithdrawalRequests.CountAsync(
@@ -561,7 +561,7 @@ public class DriverWalletController : ApiControllerBase
         {
             throw new BusinessRuleException(
                 "DRIVER_DAILY_WITHDRAWAL_LIMIT_REACHED",
-                "The daily withdrawal request limit has been reached.");
+                "وصلت للحد اليومي لطلبات السحب. | The daily withdrawal request limit has been reached.");
         }
 
         if (wallet.CodOwedBalance > 0)
@@ -626,7 +626,7 @@ public class DriverWalletController : ApiControllerBase
 
             throw new BusinessRuleException(
                 "DRIVER_ACTIVE_WITHDRAWAL_EXISTS",
-                "The driver already has a pending or processing withdrawal request.");
+                "عندك طلب سحب قيد الانتظار أو المعالجة بالفعل. | The driver already has a pending or processing withdrawal request.");
         }
 
         return (null, withdrawal);
@@ -735,7 +735,7 @@ public class DriverWalletController : ApiControllerBase
         {
             throw new BusinessRuleException(
                 "DRIVER_WITHDRAWAL_CANNOT_CANCEL",
-                "Only a pending withdrawal that has not entered finance processing can be cancelled by the driver.");
+                "تقدر تلغي فقط طلب السحب المعلّق اللي لسه ما دخلش المعالجة المالية. | Only a pending withdrawal that has not entered finance processing can be cancelled by the driver.");
         }
 
         var holds = await context.WalletHolds
@@ -747,10 +747,10 @@ public class DriverWalletController : ApiControllerBase
                 item.ReferenceType == "DriverWithdrawalRequest" &&
                 item.ReferenceId == withdrawal.Id)
             .ToListAsync(cancellationToken);
-        withdrawal.Cancel("Cancelled by driver.");
+        withdrawal.Cancel("ألغاه السائق.");
         foreach (var hold in holds)
         {
-            hold.Cancel("Cancelled by driver.");
+            hold.Cancel("ألغاه السائق.");
         }
 
         try
@@ -779,7 +779,7 @@ public class DriverWalletController : ApiControllerBase
 
             throw new BusinessRuleException(
                 "DRIVER_WITHDRAWAL_CANNOT_CANCEL",
-                "The withdrawal entered finance processing before cancellation completed. Refresh the wallet and review its current status.");
+                "طلب السحب دخل المعالجة المالية قبل ما يكتمل الإلغاء. حدّث المحفظة وراجع الحالة الحالية. | The withdrawal entered finance processing before cancellation completed. Refresh the wallet and review its current status.");
         }
 
         await driverWalletNotificationService.NotifyWithdrawalCancelledAsync(
@@ -841,7 +841,7 @@ public class DriverWalletController : ApiControllerBase
         {
             return new BusinessRuleException(
                 "DRIVER_ACTIVE_WITHDRAWAL_EXISTS",
-                "The driver already has a pending or processing withdrawal request.");
+                "عندك طلب سحب قيد الانتظار أو المعالجة بالفعل. | The driver already has a pending or processing withdrawal request.");
         }
 
         if (ContainsSqlErrorNumber(exception, 2601, 2627) &&
@@ -986,7 +986,7 @@ public class DriverWalletController : ApiControllerBase
 
         throw new BusinessRuleException(
             "WITHDRAWAL_IDEMPOTENCY_KEY_REUSED",
-            "This idempotency key was already used for a different withdrawal request.");
+            "مفتاح منع التكرار ده اتستخدم قبل كده لطلب سحب مختلف. | This idempotency key was already used for a different withdrawal request.");
     }
 
     private static async Task<Domain.Modules.Delivery.Entities.Driver> GetDriverAsync(
@@ -1002,7 +1002,7 @@ public class DriverWalletController : ApiControllerBase
         {
             throw new BusinessRuleException(
                 "DRIVER_WALLET_ACCESS_BLOCKED",
-                "Wallet access is available after the driver account is active and approved.");
+                "وصول المحفظة متاح بعد ما يكون حساب المندوب نشط ومعتمد. | Wallet access is available after the driver account is active and approved.");
         }
 
         return driver;
@@ -1086,14 +1086,14 @@ public class DriverWalletController : ApiControllerBase
         {
             throw new BusinessRuleException(
                 "DRIVER_BANK_ACCOUNT_REQUIRED",
-                "Only bank account payout methods are supported for withdrawals.");
+                "طرق السحب المدعومة حالياً هي الحساب البنكي فقط. | Only bank account payout methods are supported for withdrawals.");
         }
 
         if (!IsValidSaudiIban(accountIdentifier))
         {
             throw new BusinessRuleException(
                 "DRIVER_BANK_IBAN_INVALID",
-                "Driver bank account must be a valid Saudi IBAN.");
+                "حساب المندوب البنكي لازم يكون IBAN سعودي صحيح. | Driver bank account must be a valid Saudi IBAN.");
         }
     }
 
@@ -1117,9 +1117,9 @@ public class DriverWalletController : ApiControllerBase
             throw new BadRequestException("INVALID_REQUEST_BODY", "Request body is required.");
         }
 
-        EnsureRequiredString(request.Type, "INVALID_DRIVER_PAYOUT_METHOD_TYPE", "Payout method type is required.");
-        EnsureRequiredString(request.AccountHolderName, "INVALID_ACCOUNT_HOLDER_NAME", "Account holder name is required.");
-        EnsureRequiredString(request.AccountIdentifier, "INVALID_ACCOUNT_IDENTIFIER", "Account identifier is required.");
+        EnsureRequiredString(request.Type, "INVALID_DRIVER_PAYOUT_METHOD_TYPE", "نوع طريقة السحب مطلوب. | Payout method type is required.");
+        EnsureRequiredString(request.AccountHolderName, "INVALID_ACCOUNT_HOLDER_NAME", "اسم صاحب الحساب مطلوب. | Account holder name is required.");
+        EnsureRequiredString(request.AccountIdentifier, "INVALID_ACCOUNT_IDENTIFIER", "معرّف الحساب مطلوب. | Account identifier is required.");
     }
 
     private static void EnsurePayoutMethodRequest(UpdateDriverPayoutMethodRequest? request)
@@ -1129,9 +1129,9 @@ public class DriverWalletController : ApiControllerBase
             throw new BadRequestException("INVALID_REQUEST_BODY", "Request body is required.");
         }
 
-        EnsureRequiredString(request.Type, "INVALID_DRIVER_PAYOUT_METHOD_TYPE", "Payout method type is required.");
-        EnsureRequiredString(request.AccountHolderName, "INVALID_ACCOUNT_HOLDER_NAME", "Account holder name is required.");
-        EnsureRequiredString(request.AccountIdentifier, "INVALID_ACCOUNT_IDENTIFIER", "Account identifier is required.");
+        EnsureRequiredString(request.Type, "INVALID_DRIVER_PAYOUT_METHOD_TYPE", "نوع طريقة السحب مطلوب. | Payout method type is required.");
+        EnsureRequiredString(request.AccountHolderName, "INVALID_ACCOUNT_HOLDER_NAME", "اسم صاحب الحساب مطلوب. | Account holder name is required.");
+        EnsureRequiredString(request.AccountIdentifier, "INVALID_ACCOUNT_IDENTIFIER", "معرّف الحساب مطلوب. | Account identifier is required.");
     }
 
     private static ProfileChangeApprovalAlert BuildDriverPayoutMethodApprovalAlert(
