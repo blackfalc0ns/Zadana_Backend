@@ -332,6 +332,32 @@ public class IdentityAccountService : IIdentityAccountService
         return await PersistUserAsync(user);
     }
 
+    public async Task<bool> CheckPasswordAsync(Guid userId, string password, CancellationToken cancellationToken = default)
+    {
+        var user = await _userManager.FindByIdAsync(userId.ToString());
+        if (user == null || string.IsNullOrWhiteSpace(password))
+        {
+            return false;
+        }
+
+        return await _userManager.CheckPasswordAsync(user, password);
+    }
+
+    public async Task<IdentityOperationResult> AnonymizeClosedAccountAsync(
+        Guid userId,
+        CancellationToken cancellationToken = default)
+    {
+        var user = await _userManager.FindByIdAsync(userId.ToString());
+        if (user == null)
+        {
+            return new IdentityOperationResult(false, ["User account was not found."]);
+        }
+
+        user.AnonymizeForClosure();
+        user.IncrementPermissionVersion();
+        return await PersistUserAsync(user);
+    }
+
     public async Task<IdentityOperationResult> ResetPasswordByAdminAsync(
         Guid userId,
         string newPassword,

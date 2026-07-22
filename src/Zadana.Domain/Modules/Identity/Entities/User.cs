@@ -252,6 +252,35 @@ public class User : IdentityUser<Guid>
 
     public bool IsArchived() => ArchivedAtUtc.HasValue;
 
+    /// <summary>
+    /// Scrubs identity fields so the closed account appears deleted to the user
+    /// while keeping the row for financial/order history. Frees email/phone for re-registration.
+    /// </summary>
+    public void AnonymizeForClosure()
+    {
+        var shortId = Id.ToString("N")[..12];
+        var tombstoneEmail = $"deleted+{Id:N}@zadna.invalid";
+
+        FullName = "Deleted Account";
+        Email = tombstoneEmail;
+        UserName = tombstoneEmail;
+        NormalizedEmail = tombstoneEmail.ToUpperInvariant();
+        NormalizedUserName = tombstoneEmail.ToUpperInvariant();
+        PhoneNumber = $"+966deleted{shortId}";
+        ProfilePhotoUrl = null;
+        Address = null;
+        Latitude = null;
+        Longitude = null;
+        ReplyTo = null;
+        NotificationEmailsJson = null;
+        EscalationEmailsJson = null;
+        EmailOptInJson = null;
+        EmailConfirmed = false;
+        PhoneNumberConfirmed = false;
+        PresenceState = PresenceState.Offline;
+        UpdatedAtUtc = DateTime.UtcNow;
+    }
+
     // --- OTP Domain Behavior ---
     // OTP code is now stored as a SHA-256 hash; the plaintext is generated
     // here, returned to the caller (so it can be sent via SMS/email) and

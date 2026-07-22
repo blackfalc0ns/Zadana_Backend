@@ -24,6 +24,8 @@ public interface IIdentityAccountService
     Task<IdentityOperationResult> LockLoginAsync(Guid userId, string reason, CancellationToken cancellationToken = default);
     Task<IdentityOperationResult> UnlockLoginAsync(Guid userId, CancellationToken cancellationToken = default);
     Task<IdentityOperationResult> ArchiveAsync(Guid userId, string reason, CancellationToken cancellationToken = default);
+    Task<bool> CheckPasswordAsync(Guid userId, string password, CancellationToken cancellationToken = default);
+    Task<IdentityOperationResult> AnonymizeClosedAccountAsync(Guid userId, CancellationToken cancellationToken = default);
     Task<IdentityOperationResult> ResetPasswordByAdminAsync(Guid userId, string newPassword, CancellationToken cancellationToken = default);
     Task<OtpDispatchResult> GenerateRegistrationOtpAsync(Guid userId, CancellationToken cancellationToken = default);
     Task<OtpDispatchResult> ResendRegistrationOtpAsync(string identifier, CancellationToken cancellationToken = default);

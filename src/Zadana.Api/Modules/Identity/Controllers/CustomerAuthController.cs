@@ -4,9 +4,12 @@ using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.Localization;
 using Zadana.Api.Security;
 using Zadana.Api.Modules.Identity.Requests;
+using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Common.Localization;
 using Zadana.Application.Modules.Identity.Commands.RegisterCustomer;
+using Zadana.Application.Modules.Identity.Interfaces;
 using Zadana.Domain.Modules.Identity.Enums;
+using Zadana.SharedKernel.Exceptions;
 
 namespace Zadana.Api.Modules.Identity.Controllers;
 
@@ -109,4 +112,39 @@ public class CustomerAuthController : IdentityAuthControllerBase
     [HttpDelete("me/profile-photo")]
     public Task<IActionResult> DeleteCurrentUserProfilePhoto() =>
         DeleteCurrentUserProfilePhotoAsync();
+
+    /// <summary>
+    /// Closes (soft-deletes) the customer account. Appears as deleted to the user;
+    /// orders and payments remain for history.
+    /// </summary>
+    [Authorize(Policy = "CustomerOnly")]
+    [EnableRateLimiting(RateLimitPolicyNames.Auth)]
+    [HttpPost("close-account")]
+    public async Task<IActionResult> CloseAccount(
+        [FromBody] CloseAccountRequest? request,
+        [FromServices] ICurrentUserService currentUserService,
+        [FromServices] IAccountClosureService accountClosureService,
+        CancellationToken cancellationToken = default)
+    {
+        if (request is null)
+        {
+            throw new BadRequestException("INVALID_REQUEST_BODY", "Request body is required.");
+        }
+
+        var userId = currentUserService.UserId
+            ?? throw new UnauthorizedException("USER_NOT_AUTHENTICATED");
+
+        await accountClosureService.CloseCustomerAccountAsync(
+            userId,
+            request.Password,
+            request.Confirmation,
+            request.Reason,
+            cancellationToken);
+
+        return Ok(new
+        {
+            message = "تم حذف الحساب.|Account deleted.",
+            closed = true
+        });
+    }
 }

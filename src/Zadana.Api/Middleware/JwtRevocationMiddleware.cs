@@ -68,6 +68,7 @@ public sealed class JwtRevocationMiddleware
                     user.PermissionVersion,
                     user.AccountStatus,
                     user.IsLoginLocked,
+                    user.ArchivedAtUtc,
                     user.EmailConfirmed
                 })
                 .FirstOrDefaultAsync(context.RequestAborted);
@@ -75,6 +76,12 @@ public sealed class JwtRevocationMiddleware
             if (userState is null)
             {
                 await Reject(context, "USER_NOT_FOUND");
+                return;
+            }
+
+            if (userState.ArchivedAtUtc.HasValue)
+            {
+                await Reject(context, "ACCOUNT_CLOSED");
                 return;
             }
 

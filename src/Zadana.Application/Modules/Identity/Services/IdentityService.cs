@@ -70,6 +70,12 @@ public class IdentityService : IIdentityService
             throw new UnauthorizedException(_localizer["UnauthorizedAppAccess"]);
         }
 
+        // Closed accounts must look deleted to the end user on every login attempt.
+        if (user.ArchivedAtUtc.HasValue)
+        {
+            throw new UnauthorizedException(_localizer["ACCOUNT_CLOSED"], "ACCOUNT_CLOSED");
+        }
+
         if (user.IsLoginLocked)
         {
             if (user.Role == UserRole.Driver)
@@ -172,6 +178,11 @@ public class IdentityService : IIdentityService
         if (!tokenEntity.IsActive)
         {
             throw new UnauthorizedException(_localizer["InvalidRefreshToken"]);
+        }
+
+        if (tokenEntity.User.ArchivedAtUtc.HasValue)
+        {
+            throw new UnauthorizedException(_localizer["ACCOUNT_CLOSED"], "ACCOUNT_CLOSED");
         }
 
         if (tokenEntity.User.AccountStatus != AccountStatus.Active)

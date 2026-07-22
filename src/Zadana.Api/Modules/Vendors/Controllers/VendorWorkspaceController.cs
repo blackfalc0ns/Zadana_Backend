@@ -5,8 +5,12 @@ using System.Globalization;
 using System.Text.Json;
 using Zadana.Api.Controllers;
 using Zadana.Api.Modules.Finances.Services;
+using Zadana.Api.Modules.Identity.Requests;
 using Zadana.Application.Common.Interfaces;
+using Zadana.Application.Modules.Identity.Interfaces;
 using Zadana.Application.Modules.Orders.Support;
+using Zadana.Api.Security;
+using Microsoft.AspNetCore.RateLimiting;
 using Zadana.Domain.Modules.Catalog.Entities;
 using Zadana.Domain.Modules.Orders.Entities;
 using Zadana.Domain.Modules.Orders.Enums;
@@ -30,6 +34,43 @@ public class VendorWorkspaceController : ApiControllerBase
     {
         _dbContext = dbContext;
         _currentVendorService = currentVendorService;
+    }
+
+    /// <summary>
+    /// Closes (soft-deletes) the vendor owner account. Staff cannot use this.
+    /// Settlements, ledger, and order history remain for finance.
+    /// </summary>
+    [HttpPost("account/close")]
+    [EnableRateLimiting(RateLimitPolicyNames.Auth)]
+    public async Task<IActionResult> CloseAccount(
+        [FromBody] CloseAccountRequest? request,
+        [FromServices] ICurrentUserService currentUserService,
+        [FromServices] IAccountClosureService accountClosureService,
+        CancellationToken cancellationToken = default)
+    {
+        if (request is null)
+        {
+            throw new BadRequestException("INVALID_REQUEST_BODY", "Request body is required.");
+        }
+
+        var userId = currentUserService.UserId
+            ?? throw new UnauthorizedException("USER_NOT_AUTHENTICATED");
+
+        // Ensure vendor scope resolves (owner or staff); service enforces owner-only.
+        await _currentVendorService.GetRequiredVendorScopeAsync(cancellationToken);
+
+        await accountClosureService.CloseVendorAccountAsync(
+            userId,
+            request.Password,
+            request.Confirmation,
+            request.Reason,
+            cancellationToken);
+
+        return Ok(new
+        {
+            message = "تم حذف الحساب.|Account deleted.",
+            closed = true
+        });
     }
 
     [HttpGet("dashboard")]

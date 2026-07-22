@@ -1991,6 +1991,9 @@
   <data name="ACCOUNT_NOT_ACTIVE" xml:space="preserve">
     <value>الحساب غير نشط. سجّل دخولك مرة ثانية أو تواصل مع الدعم.</value>
   </data>
+  <data name="ACCOUNT_CLOSED" xml:space="preserve">
+    <value>تم حذف هذا الحساب.</value>
+  </data>
   <data name="EMAIL_NOT_VERIFIED" xml:space="preserve">
     <value>البريد غير موثق. وثّقه قبل ما تكمل.</value>
   </data>

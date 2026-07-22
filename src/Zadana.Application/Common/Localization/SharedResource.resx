@@ -1990,6 +1990,9 @@
   <data name="ACCOUNT_NOT_ACTIVE" xml:space="preserve">
     <value>The account is not active. Please sign in again or contact support.</value>
   </data>
+  <data name="ACCOUNT_CLOSED" xml:space="preserve">
+    <value>This account has been deleted.</value>
+  </data>
   <data name="EMAIL_NOT_VERIFIED" xml:space="preserve">
     <value>The account email is not verified. Please verify your email before continuing.</value>
   </data>

@@ -16,7 +16,9 @@ using Zadana.Application.Modules.Delivery.Commands.VerifyAssignmentOtp;
 using Zadana.Application.Modules.Delivery.DTOs;
 using Zadana.Application.Modules.Delivery.Interfaces;
 using Zadana.Application.Modules.Finances.Services;
+using Zadana.Application.Modules.Identity.Interfaces;
 using Zadana.Application.Modules.Orders.Commands.DriverUpdateOrderStatus;
+using Zadana.Api.Modules.Identity.Requests;
 using Zadana.Domain.Modules.Delivery.Entities;
 using Zadana.Domain.Modules.Delivery.Enums;
 using Zadana.Domain.Modules.Orders.Enums;
@@ -70,6 +72,41 @@ public class DriversController : ApiControllerBase
         return Ok(result);
     }
 
+
+    /// <summary>
+    /// Closes (soft-deletes) the driver account. Appears as deleted to the driver;
+    /// wallet, withdrawals, and delivery history remain for ops/finance.
+    /// </summary>
+    [HttpPost("me/close-account")]
+    [Authorize(Policy = "DriverOnly")]
+    [EnableRateLimiting(RateLimitPolicyNames.Auth)]
+    public async Task<IActionResult> CloseAccount(
+        [FromBody] CloseAccountRequest? request,
+        [FromServices] ICurrentUserService currentUserService,
+        [FromServices] IAccountClosureService accountClosureService,
+        CancellationToken cancellationToken = default)
+    {
+        if (request is null)
+        {
+            throw new BadRequestException("INVALID_REQUEST_BODY", "Request body is required.");
+        }
+
+        var userId = currentUserService.UserId
+            ?? throw new UnauthorizedException("DRIVER_NOT_AUTHENTICATED");
+
+        await accountClosureService.CloseDriverAccountAsync(
+            userId,
+            request.Password,
+            request.Confirmation,
+            request.Reason,
+            cancellationToken);
+
+        return Ok(new
+        {
+            message = "تم حذف الحساب.|Account deleted.",
+            closed = true
+        });
+    }
 
     [HttpGet("me/status")]
     [Authorize(Policy = "DriverOnly")]
