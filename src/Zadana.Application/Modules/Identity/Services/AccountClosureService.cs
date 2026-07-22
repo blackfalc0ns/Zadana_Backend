@@ -6,6 +6,7 @@ using Zadana.Application.Modules.Identity.Interfaces;
 using Zadana.Application.Modules.Vendors.Interfaces;
 using Zadana.Domain.Modules.Identity.Enums;
 using Zadana.Domain.Modules.Orders.Enums;
+using Zadana.Domain.Modules.Wallets.Entities;
 using Zadana.Domain.Modules.Wallets.Enums;
 using Zadana.SharedKernel.Exceptions;
 
@@ -15,6 +16,18 @@ public sealed class AccountClosureService : IAccountClosureService
 {
     private const string RequiredConfirmation = "DELETE";
     private const string DefaultCloseReason = "User requested account deletion";
+    private const decimal MoneyEpsilon = 0.009m;
+
+    private static readonly SettlementStatus[] ActiveSettlementStatuses =
+    [
+        SettlementStatus.Pending,
+        SettlementStatus.PendingReview,
+        SettlementStatus.Approved,
+        SettlementStatus.OnHold,
+        SettlementStatus.Processing,
+        SettlementStatus.Disputed,
+        SettlementStatus.PayoutFailed
+    ];
 
     private readonly IApplicationDbContext _dbContext;
     private readonly IIdentityAccountService _identityAccountService;
@@ -138,12 +151,16 @@ public sealed class AccountClosureService : IAccountClosureService
                 "ما تقدر تحذف الحساب وفيه طلب سحب قيد المعالجة. ألغِ الطلب أو انتظر اكتماله.|You cannot delete the account while a withdrawal is pending or processing.");
         }
 
+        await EnsureNoActiveSettlementAsync(SettlementOwnerType.Driver, driver.Id, cancellationToken);
+        await EnsureNoActiveWalletHoldAsync(WalletOwnerType.Driver, driver.Id, cancellationToken);
+
         var wallet = await _dbContext.Wallets
             .AsNoTracking()
             .FirstOrDefaultAsync(
                 item => item.OwnerType == WalletOwnerType.Driver && item.OwnerId == driver.Id,
                 cancellationToken);
-        if (wallet is not null && wallet.CodOwedBalance > 0)
+        EnsureNoWalletFunds(wallet);
+        if (wallet is not null && wallet.CodOwedBalance > MoneyEpsilon)
         {
             throw new BusinessRuleException(
                 "ACCOUNT_CLOSE_COD_OUTSTANDING",
@@ -208,17 +225,34 @@ public sealed class AccountClosureService : IAccountClosureService
                 "ما تقدر تحذف الحساب وفيه نزاع أو بلاغ مفتوح. انتظر إغلاقه أولًا.|You cannot delete the account while an open dispute or report is still active.");
         }
 
+        await EnsureNoActiveSettlementAsync(SettlementOwnerType.Vendor, vendor.Id, cancellationToken);
+        await EnsureNoActiveWalletHoldAsync(WalletOwnerType.Vendor, vendor.Id, cancellationToken);
+
+        var wallet = await _dbContext.Wallets
+            .AsNoTracking()
+            .FirstOrDefaultAsync(
+                item => item.OwnerType == WalletOwnerType.Vendor && item.OwnerId == vendor.Id,
+                cancellationToken);
+        EnsureNoWalletFunds(wallet);
+
+        var closeReason = NormalizeReason(reason);
+        vendor.Archive(closeReason);
+
+        await FinalizeClosureAsync(userId, closeReason, cancellationToken);
+    }
+
+    private async Task EnsureNoActiveSettlementAsync(
+        SettlementOwnerType ownerType,
+        Guid ownerId,
+        CancellationToken cancellationToken)
+    {
         var hasActiveSettlementOrPayout = await _dbContext.Settlements
             .AsNoTracking()
             .AnyAsync(
                 settlement =>
-                    settlement.OwnerType == SettlementOwnerType.Vendor &&
-                    settlement.OwnerId == vendor.Id &&
-                    (settlement.Status == SettlementStatus.Pending ||
-                     settlement.Status == SettlementStatus.PendingReview ||
-                     settlement.Status == SettlementStatus.Approved ||
-                     settlement.Status == SettlementStatus.OnHold ||
-                     settlement.Status == SettlementStatus.Processing),
+                    settlement.OwnerType == ownerType &&
+                    settlement.OwnerId == ownerId &&
+                    ActiveSettlementStatuses.Contains(settlement.Status),
                 cancellationToken);
         if (hasActiveSettlementOrPayout)
         {
@@ -226,25 +260,41 @@ public sealed class AccountClosureService : IAccountClosureService
                 "ACCOUNT_CLOSE_ACTIVE_SETTLEMENT",
                 "ما تقدر تحذف الحساب وفيه تسوية أو تحويل قيد المعالجة.|You cannot delete the account while a settlement or transfer is in progress.");
         }
+    }
 
+    private async Task EnsureNoActiveWalletHoldAsync(
+        WalletOwnerType ownerType,
+        Guid ownerId,
+        CancellationToken cancellationToken)
+    {
         var activeHoldAmount = await _dbContext.WalletHolds
             .AsNoTracking()
             .Where(hold =>
-                hold.OwnerType == WalletOwnerType.Vendor &&
-                hold.OwnerId == vendor.Id &&
+                hold.OwnerType == ownerType &&
+                hold.OwnerId == ownerId &&
                 hold.Status == WalletHoldStatus.Active)
             .SumAsync(hold => (decimal?)hold.Amount, cancellationToken) ?? 0m;
-        if (activeHoldAmount > 0)
+        if (activeHoldAmount > MoneyEpsilon)
         {
             throw new BusinessRuleException(
                 "ACCOUNT_CLOSE_ACTIVE_HOLD",
                 "ما تقدر تحذف الحساب وفيه مبالغ محجوزة على المحفظة.|You cannot delete the account while wallet holds are active.");
         }
+    }
 
-        var closeReason = NormalizeReason(reason);
-        vendor.Archive(closeReason);
+    private static void EnsureNoWalletFunds(Wallet? wallet)
+    {
+        if (wallet is null)
+        {
+            return;
+        }
 
-        await FinalizeClosureAsync(userId, closeReason, cancellationToken);
+        if (wallet.CurrentBalance > MoneyEpsilon || wallet.PendingBalance > MoneyEpsilon)
+        {
+            throw new BusinessRuleException(
+                "ACCOUNT_CLOSE_WALLET_BALANCE",
+                "ما تقدر تحذف الحساب وفيه رصيد في المحفظة. اسحب الرصيد أو صفّره أولًا.|You cannot delete the account while the wallet still has a balance.");
+        }
     }
 
     private async Task EnsureCanCloseAsync(

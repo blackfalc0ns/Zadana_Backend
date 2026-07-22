@@ -53,6 +53,7 @@ Authorization: Bearer (VendorOnly) — **المالك فقط** (ليس staff).
 | `ACCOUNT_CLOSE_OPEN_DISPUTE` | يوجد نزاع/بلاغ مفتوح على طلبات المتجر | امنع الحذف ووجّه للنزاعات |
 | `ACCOUNT_CLOSE_ACTIVE_SETTLEMENT` | تسوية/تحويل قيد المعالجة | امنع الحذف ووجّه للمالية |
 | `ACCOUNT_CLOSE_ACTIVE_HOLD` | مبالغ محجوزة على المحفظة | امنع الحذف |
+| `ACCOUNT_CLOSE_WALLET_BALANCE` | يوجد رصيد حالي أو معلّق في المحفظة | امنع الحذف واطلب سحب/تصفير الرصيد |
 | `ACCOUNT_CLOSE_CONFIRMATION_REQUIRED` | لم يُكتب DELETE | أظهر حقل التأكيد |
 | `ACCOUNT_CLOSE_PASSWORD_REQUIRED` | كلمة المرور فارغة | ركّز على حقل كلمة المرور |
 | `ACCOUNT_CLOSE_INVALID_PASSWORD` | كلمة مرور خاطئة | أعد المحاولة |
@@ -84,7 +85,8 @@ Authorization: Bearer (VendorOnly) — **المالك فقط** (ليس staff).
 2. طلبات غير مكتملة → `ACCOUNT_CLOSE_ACTIVE_ORDERS`.
 3. نزاع/بلاغ مفتوح → `ACCOUNT_CLOSE_OPEN_DISPUTE`.
 4. تسوية processing → `ACCOUNT_CLOSE_ACTIVE_SETTLEMENT`.
-5. تأكيد خاطئ (بدون DELETE) → رفض.
-6. كلمة مرور خاطئة → رفض بدون إغلاق.
-7. نجاح → logout فوري ورسالة حذف.
-8. محاولة login بعد الإغلاق → `ACCOUNT_CLOSED`.
+5. رصيد محفظة → `ACCOUNT_CLOSE_WALLET_BALANCE`.
+6. تأكيد خاطئ (بدون DELETE) → رفض.
+7. كلمة مرور خاطئة → رفض بدون إغلاق.
+8. نجاح → logout فوري ورسالة حذف.
+9. محاولة login بعد الإغلاق → `ACCOUNT_CLOSED`.
