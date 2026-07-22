@@ -269,7 +269,7 @@ public class DriverWalletControllerTests
             item.Id == firstDto.Id &&
             item.RequestIdempotencyKey == "mobile-request-001" &&
             item.RequestedPayoutDay == driver.PayoutDay &&
-            item.DestinationSnapshot != null);
+            item.DestinationSnapshot == null);
         context.WalletHolds.Should().ContainSingle(item =>
             item.ReferenceId == firstDto.Id && item.Status == WalletHoldStatus.Active);
 

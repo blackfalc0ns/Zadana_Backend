@@ -25,7 +25,7 @@ public class DriverWithdrawalRequestConfiguration : IEntityTypeConfiguration<Dri
             .HasMaxLength(20);
 
         builder.Property(x => x.DestinationSnapshot)
-            .HasMaxLength(8000);
+            .HasColumnType("nvarchar(max)");
 
         builder.Property(x => x.Status)
             .HasConversion<string>()

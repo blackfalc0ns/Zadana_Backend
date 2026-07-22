@@ -1,6 +1,7 @@
 using System.Net.Http;
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Zadana.Application.Common.Interfaces;
@@ -2085,7 +2086,17 @@ public sealed class PayoutOrchestrator
                     return;
                 }
 
-                var data = $"{{\"payoutId\":\"{payout.Id}\",\"settlementId\":\"{payout.SettlementId}\",\"amount\":{payout.Amount},\"transferReference\":\"{payout.TransferReference}\",\"targetUrl\":\"/finance\"}}";
+                var hasTransferProof = payout.ManualConfirmation?.ProofAttachmentId is not null &&
+                    payout.ManualConfirmation.ProofAttachmentId != Guid.Empty;
+                var data = JsonSerializer.Serialize(new
+                {
+                    payoutId = payout.Id,
+                    settlementId = payout.SettlementId,
+                    amount = payout.Amount,
+                    transferReference = payout.TransferReference,
+                    hasTransferProof,
+                    targetUrl = $"/finance?settlementId={payout.SettlementId:D}"
+                });
 
                 await _notificationService.SendToUserAsync(
                     vendorUserId,

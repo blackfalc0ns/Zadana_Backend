@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using System.Globalization;
 using System.Text.Json;
 using Zadana.Api.Controllers;
+using Zadana.Api.Modules.Finances.Services;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Modules.Orders.Support;
 using Zadana.Domain.Modules.Catalog.Entities;
@@ -12,6 +13,7 @@ using Zadana.Domain.Modules.Orders.Enums;
 using Zadana.Domain.Modules.Payments.Enums;
 using Zadana.Domain.Modules.Wallets.Enums;
 using Zadana.Domain.Modules.Vendors.Enums;
+using Zadana.SharedKernel.Exceptions;
 using Zadana.SharedKernel.Serialization;
 
 namespace Zadana.Api.Modules.Vendors.Controllers;
@@ -915,22 +917,25 @@ public class VendorWorkspaceController : ApiControllerBase
             .AsNoTracking()
             .Where(payout => payout.Settlement.OwnerType == SettlementOwnerType.Vendor && payout.Settlement.OwnerId == vendorId)
             .OrderByDescending(payout => payout.CreatedAtUtc)
-            .Select(payout => new
-            {
+            .Select(payout => new VendorPayoutFinanceRow(
                 payout.Id,
                 payout.SettlementId,
                 payout.Status,
+                payout.TransferReference,
                 payout.Amount,
                 payout.CreatedAtUtc,
-                payout.ProcessedAtUtc
-            })
+                payout.ProcessedAtUtc,
+                payout.ManualConfirmation != null && payout.ManualConfirmation.ProofAttachmentId != null,
+                payout.ManualConfirmation != null && payout.ManualConfirmation.ProofAttachment != null
+                    ? payout.ManualConfirmation.ProofAttachment.FileName
+                    : null))
             .ToListAsync(cancellationToken);
 
-        var payoutStatusBySettlementId = payouts
+        var payoutBySettlementId = payouts
             .GroupBy(payout => payout.SettlementId)
             .ToDictionary(
                 group => group.Key,
-                group => group.OrderByDescending(item => item.CreatedAtUtc).First().Status);
+                group => group.OrderByDescending(item => item.CreatedAtUtc).First());
 
         var primaryBank = await _dbContext.VendorBankAccounts
             .AsNoTracking()
@@ -1008,15 +1013,25 @@ public class VendorWorkspaceController : ApiControllerBase
                 new VendorFinanceKpiResponse("vendor-net", "VENDOR_FINANCE.KPIS.VENDOR_NET", vendorNetRevenue, 0, "up", "success")
             ],
             trend,
-            settlements.Select(settlement => new VendorSettlementResponse(
-                settlement.Id.ToString(),
-                $"SET-{settlement.CreatedAtUtc:yyMMdd}",
-                SaudiTime.ToSaudi(settlement.CreatedAtUtc).ToString("yyyy-MM-dd"),
-                ResolveVendorSettlementDisplayStatus(
+            settlements.Select(settlement =>
+            {
+                payoutBySettlementId.TryGetValue(settlement.Id, out var payout);
+                var displayStatus = ResolveVendorSettlementDisplayStatus(
                     settlement.Status,
-                    payoutStatusBySettlementId.GetValueOrDefault(settlement.Id)),
-                settlement.NetAmount,
-                settlement.OrdersCount)).ToList(),
+                    payout?.Status);
+                var exposePaidDetails = displayStatus == "paid";
+
+                return new VendorSettlementResponse(
+                    settlement.Id.ToString(),
+                    $"SET-{settlement.CreatedAtUtc:yyMMdd}",
+                    SaudiTime.ToSaudi(settlement.CreatedAtUtc).ToString("yyyy-MM-dd"),
+                    displayStatus,
+                    settlement.NetAmount,
+                    settlement.OrdersCount,
+                    exposePaidDetails ? payout?.TransferReference : null,
+                    exposePaidDetails && payout?.HasTransferProof == true,
+                    exposePaidDetails ? payout?.TransferProofFileName : null);
+            }).ToList(),
             ledger,
             BuildFinanceAlerts(pendingSettlement, availableBalance),
             new VendorFinanceBranchScopeResponse(
@@ -1028,6 +1043,53 @@ public class VendorWorkspaceController : ApiControllerBase
                     branch.IsPrimary)).ToList()),
             branchSections,
             (vendorPayoutSettings?.PayoutDay ?? PayoutScheduleDay.Monday).ToString()));
+    }
+
+    [HttpGet("finance/settlements/{settlementId:guid}/transfer-proof")]
+    public async Task<IActionResult> DownloadSettlementTransferProof(
+        Guid settlementId,
+        [FromServices] PayoutProofAttachmentService payoutProofAttachmentService,
+        CancellationToken cancellationToken = default)
+    {
+        var scope = await _currentVendorService.GetRequiredVendorScopeAsync(cancellationToken);
+        var vendorId = scope.VendorId;
+
+        var settlementExists = await _dbContext.Settlements
+            .AsNoTracking()
+            .AnyAsync(
+                settlement =>
+                    settlement.Id == settlementId &&
+                    settlement.OwnerType == SettlementOwnerType.Vendor &&
+                    settlement.OwnerId == vendorId,
+                cancellationToken);
+        if (!settlementExists)
+        {
+            throw new NotFoundException("Settlement", settlementId);
+        }
+
+        var payout = await _dbContext.Payouts
+            .AsNoTracking()
+            .Include(item => item.ManualConfirmation)
+            .Where(item =>
+                item.SettlementId == settlementId &&
+                item.Status == PayoutStatus.Paid)
+            .OrderByDescending(item => item.ProcessedAtUtc ?? item.CreatedAtUtc)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        var proofAttachmentId = payout?.ManualConfirmation?.ProofAttachmentId;
+        if (payout is null || !proofAttachmentId.HasValue || proofAttachmentId.Value == Guid.Empty)
+        {
+            throw new NotFoundException("SettlementTransferProof", settlementId);
+        }
+
+        var proof = await payoutProofAttachmentService.GetForDownloadAsync(
+            payout.Id,
+            proofAttachmentId.Value,
+            cancellationToken);
+
+        Response.Headers.CacheControl = "no-store, private";
+        Response.Headers.Append("X-Content-Type-Options", "nosniff");
+        return File(proof.Content, proof.ContentType, proof.FileName);
     }
 
     [HttpGet("finance/ledger")]
@@ -1846,6 +1908,17 @@ public class VendorWorkspaceController : ApiControllerBase
         string? Description,
         string? ReferenceType,
         Guid? ReferenceId);
+
+    private sealed record VendorPayoutFinanceRow(
+        Guid PayoutId,
+        Guid SettlementId,
+        PayoutStatus Status,
+        string? TransferReference,
+        decimal Amount,
+        DateTime CreatedAtUtc,
+        DateTime? ProcessedAtUtc,
+        bool HasTransferProof,
+        string? TransferProofFileName);
 }
 
 public record VendorDashboardSnapshotResponse(
@@ -1894,7 +1967,16 @@ public record VendorFinanceBranchSectionResponse(
 
 public record VendorFinanceKpiResponse(string Id, string LabelKey, decimal Value, decimal Delta, string Trend, string Tone);
 public record VendorFinanceTrendPointResponse(string Label, decimal Sales, decimal Payout);
-public record VendorSettlementResponse(string Id, string Code, string Date, string Status, decimal Amount, int OrdersCount);
+public record VendorSettlementResponse(
+    string Id,
+    string Code,
+    string Date,
+    string Status,
+    decimal Amount,
+    int OrdersCount,
+    string? TransferReference = null,
+    bool HasTransferProof = false,
+    string? TransferProofFileName = null);
 public record VendorLedgerEntryResponse(string Id, string Date, string TitleAr, string TitleEn, string Type, decimal Amount, string Direction, string Reference);
 public record VendorFinanceAlertResponse(string Id, string Severity, string TitleKey, string BodyKey, string ActionLabelKey);
 public record VendorFinanceLedgerPageResponse(List<VendorLedgerEntryResponse> Items, int Page, int PageSize, int TotalCount, int TotalPages);

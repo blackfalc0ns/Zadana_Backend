@@ -401,14 +401,16 @@ ReceiveDriverWalletUpdated
 |---|---|---|---|
 | `wallet.withdrawal_submitted` | بعد `POST /withdrawals` | استلمنا طلب السحب | Withdrawal request submitted |
 | `wallet.withdrawal_cancelled` | بعد `POST /withdrawals/{id}/cancel` | ألغينا طلب السحب | Withdrawal cancelled |
-| `wallet.withdrawal_processing` | بعد موافقة الإدارة وبدء التحويل | جاري تحويل السحب | Withdrawal transfer started |
+| `wallet.withdrawal_processing` | بعد تسجيل الإرسال البنكي وانتقال الطلب إلى `Processing` | جاري تحويل السحب | Withdrawal transfer started |
 | `wallet.withdrawal_paid` | بعد اكتمال التحويل البنكي | حوّلنا مبلغ السحب | Withdrawal paid |
 | `wallet.withdrawal_failed` | عند فشل التحويل البنكي | فشل تحويل السحب | Withdrawal transfer failed |
 | `wallet.withdrawal_returned` | عند إرجاع الحوالة من البنك | تم إرجاع الحوالة البنكية | Bank transfer returned |
 | `wallet.withdrawal_rejected` | عند رفض الإدارة للطلب | رفضنا طلب السحب | Withdrawal rejected |
 | `wallet.admin_adjustment` | عند تعديل رصيد المحفظة من الإدارة | عدّلنا رصيد المحفظة | Wallet balance adjusted |
 
-> **ملاحظة:** `wallet.withdrawal_paid` و`wallet.withdrawal_failed` و`wallet.withdrawal_returned` تُرسل من مسار التحويل البنكي (Orchestrator). `wallet.withdrawal_processing` و`wallet.withdrawal_rejected` تُرسل من قرار الإدارة.
+> **ملاحظة:** `wallet.withdrawal_paid` و`wallet.withdrawal_failed` و`wallet.withdrawal_returned` تُرسل من مسار التحويل البنكي (Orchestrator). `wallet.withdrawal_processing` يُرسل بعد تسجيل الإرسال البنكي. `wallet.withdrawal_rejected` يُرسل من قرار الإدارة.
+>
+> **تفاصيل ظهور مرجع التحويل وإثبات الدفع:** راجع [`DRIVER_PAYOUT_TRANSFER_VISIBILITY_MOBILE_HANDOFF_AR.md`](./DRIVER_PAYOUT_TRANSFER_VISIBILITY_MOBILE_HANDOFF_AR.md).
 
 ### حقول payload المشتركة
 

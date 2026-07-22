@@ -476,8 +476,7 @@ public class DriverWalletController : ApiControllerBase
                 payoutMethod.Id,
                 request.Amount,
                 idempotencyKey,
-                driver.PayoutDay,
-                PayoutDestinationSnapshotCodec.CreateDriverPayoutMethod(payoutMethod));
+                driver.PayoutDay);
             context.DriverWithdrawalRequests.Add(withdrawal);
             context.WalletHolds.Add(new WalletHold(
                 WalletOwnerType.Driver,
@@ -536,11 +535,12 @@ public class DriverWalletController : ApiControllerBase
 
             logger.LogError(
                 exception,
-                "Failed to process driver withdrawal for driver {DriverId}. PaymentMethodId: {PaymentMethodId}. Amount: {Amount}. IdempotencyKey: {IdempotencyKey}",
+                "Failed to process driver withdrawal for driver {DriverId}. PaymentMethodId: {PaymentMethodId}. Amount: {Amount}. IdempotencyKey: {IdempotencyKey}. SqlErrors: {SqlErrors}",
                 driver.Id,
                 payoutMethod.Id,
                 request.Amount,
-                idempotencyKey);
+                idempotencyKey,
+                DescribeSqlErrors(exception));
 
             throw MapWithdrawalDatabaseException(exception);
         }
@@ -698,11 +698,20 @@ public class DriverWalletController : ApiControllerBase
         }
 
         if (details.Contains("String or binary data would be truncated", StringComparison.OrdinalIgnoreCase) ||
+            details.Contains("max length", StringComparison.OrdinalIgnoreCase) ||
+            details.Contains("MaxLength", StringComparison.OrdinalIgnoreCase) ||
             ContainsSqlErrorNumber(exception, 8152, 2628))
         {
             return new BusinessRuleException(
                 "WITHDRAWAL_DESTINATION_SNAPSHOT_TOO_LARGE",
                 "تعذر حفظ بيانات حساب السحب لأنها طويلة جدًا. حدّث طريقة السحب أو تواصل مع الدعم. | The payout destination snapshot is too large to save. Update the payout method or contact support.");
+        }
+
+        if (ContainsSqlErrorNumber(exception, 1205, 1222))
+        {
+            return new BusinessRuleException(
+                "WITHDRAWAL_TEMPORARY_DATABASE_CONFLICT",
+                "الخادم مشغول بمعالجة طلب آخر. حاول مرة أخرى بعد ثوانٍ. | The server is busy processing another request. Please retry in a few seconds.");
         }
 
         if (details.Contains("IX_WalletHolds_IdempotencyKey", StringComparison.OrdinalIgnoreCase) ||
@@ -758,6 +767,25 @@ public class DriverWalletController : ApiControllerBase
         }
 
         return string.Join(" | ", parts);
+    }
+
+    private static string DescribeSqlErrors(Exception exception)
+    {
+        var errors = new List<string>();
+        for (var current = exception; current is not null; current = current.InnerException)
+        {
+            if (current is not SqlException sqlException)
+            {
+                continue;
+            }
+
+            foreach (SqlError error in sqlException.Errors)
+            {
+                errors.Add($"{error.Number}:{error.Message}");
+            }
+        }
+
+        return errors.Count == 0 ? "none" : string.Join(" | ", errors);
     }
 
     private static async Task RollbackWithdrawalAttemptAsync(
