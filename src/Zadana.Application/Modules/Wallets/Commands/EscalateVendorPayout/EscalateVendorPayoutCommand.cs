@@ -81,7 +81,7 @@ public class EscalateVendorPayoutCommandHandler : IRequestHandler<EscalateVendor
                 $"فشل التحويل رقم {payout.Id} للتسوية رقم {payout.SettlementId} ويحتاج إلى مراجعة.",
                 $"Payout {payout.Id} failed and settlement {payout.SettlementId} needs review.",
                 payout.SettlementId,
-                "/finances/settlements",
+                $"/finances/settlements?focus={payout.SettlementId:D}&payoutId={payout.Id:D}",
                 new
                 {
                     vendorId = request.VendorId,

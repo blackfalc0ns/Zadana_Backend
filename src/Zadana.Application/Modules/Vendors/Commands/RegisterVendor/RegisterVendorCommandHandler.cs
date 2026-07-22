@@ -161,7 +161,7 @@ public class RegisterVendorCommandHandler : IRequestHandler<RegisterVendorComman
                     $"قام التاجر {vendor.BusinessNameAr} بإرسال طلب الانضمام وبانتظار مراجعة الإدارة.",
                     $"Vendor {vendor.BusinessNameEn} submitted an onboarding request.",
                     vendor.Id,
-                    $"/vendors/{vendor.Id}",
+                    $"/vendors/{vendor.Id}/compliance?focus=review",
                     new
                     {
                         vendorId = vendor.Id,

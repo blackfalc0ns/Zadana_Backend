@@ -1351,7 +1351,7 @@ public sealed class OrderSupportCaseWorkflowService : IOrderSupportCaseWorkflowS
             .FirstOrDefaultAsync(cancellationToken)
             ?? "Driver";
 
-        var targetUrl = $"/disputes?caseId={supportCase.Id}";
+        var targetUrl = $"/support?tab=driver&driverCaseId={supportCase.Id}";
         var titleEn = action == "created" ? "Driver account support case" : "Driver account case updated";
         var bodyEn = $"{driverName} has a driver account support case that needs review.";
         var titleAr = action == "created" ? "???? ??? ????? ?????" : "????? ??? ???? ???? ?????";

@@ -58,7 +58,7 @@ public static class VendorProfileSectionAdminAlerts
             cancellationToken);
     }
 
-    private static string BuildComplianceTargetUrl(Guid vendorId) => $"/vendors/{vendorId}/compliance";
+    private static string BuildComplianceTargetUrl(Guid vendorId) => $"/vendors/{vendorId}/compliance?focus=review";
 
     private static string ResolveAlertType(string section) =>
         section.Trim().ToLowerInvariant() switch

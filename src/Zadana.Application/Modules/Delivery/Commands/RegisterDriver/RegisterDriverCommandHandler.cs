@@ -231,7 +231,7 @@ public class RegisterDriverCommandHandler : IRequestHandler<RegisterDriverComman
                     $"قام المندوب {user.FullName} بإرسال طلب الانضمام وبانتظار مراجعة الإدارة.",
                     $"Driver {user.FullName} submitted an onboarding request.",
                     driver.Id,
-                    $"/drivers/{driver.Id}",
+                    $"/drivers/{driver.Id}?tab=verification&focus=approval",
                     new
                     {
                         driverId = driver.Id,

@@ -72,7 +72,7 @@ public class CreateVendorCommandHandler : IRequestHandler<CreateVendorCommand, G
                 $"أنشأنا التاجر {vendor.BusinessNameAr} وهو الآن بانتظار مراجعة الإدارة.",
                 $"Vendor {vendor.BusinessNameEn} was created and is now pending admin review.",
                 vendor.Id,
-                $"/vendors/{vendor.Id}",
+                $"/vendors/{vendor.Id}/compliance?focus=review",
                 new
                 {
                     vendorId = vendor.Id,

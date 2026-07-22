@@ -71,7 +71,7 @@ public class SuspendVendorPayoutCommandHandler : IRequestHandler<SuspendVendorPa
                 $"تم تعليق التحويل رقم {payout.Id} للتسوية رقم {payout.SettlementId} ويحتاج إلى مراجعة.",
                 $"Payout {payout.Id} was suspended and settlement {payout.SettlementId} needs review.",
                 payout.SettlementId,
-                "/finances/settlements",
+                $"/finances/settlements?focus={payout.SettlementId:D}&payoutId={payout.Id:D}",
                 new
                 {
                     vendorId = request.VendorId,

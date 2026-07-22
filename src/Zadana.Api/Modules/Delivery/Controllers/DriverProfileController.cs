@@ -348,7 +348,7 @@ public class DriverProfileController : ApiControllerBase
             $"أرسل المندوب {GetDriverDisplayName(driver)} تعديل بيانات شخصية وينتظر اعتماد المشرف.",
             $"Driver {GetDriverDisplayName(driver)} submitted personal profile changes pending admin approval.",
             driver.Id,
-            "/admin/access/approvals",
+            $"/drivers/{driver.Id}?tab=verification&focus=approval",
             new { driverId = driver.Id, userId = driver.UserId, section = "personal" });
 
     private static ProfileChangeApprovalAlert BuildVehicleApprovalAlert(Domain.Modules.Delivery.Entities.Driver driver) =>
@@ -361,7 +361,7 @@ public class DriverProfileController : ApiControllerBase
             $"أرسل المندوب {GetDriverDisplayName(driver)} تعديل بيانات هوية أو مركبة وينتظر اعتماد المشرف.",
             $"Driver {GetDriverDisplayName(driver)} submitted vehicle or identity changes pending admin approval.",
             driver.Id,
-            "/admin/access/approvals",
+            $"/drivers/{driver.Id}?tab=verification&focus=approval",
             new { driverId = driver.Id, userId = driver.UserId, section = "vehicle" });
 
     private static ProfileChangeApprovalAlert BuildDocumentsApprovalAlert(Domain.Modules.Delivery.Entities.Driver driver) =>
@@ -374,7 +374,7 @@ public class DriverProfileController : ApiControllerBase
             $"أرسل المندوب {GetDriverDisplayName(driver)} مستندات جديدة وينتظر اعتماد المشرف.",
             $"Driver {GetDriverDisplayName(driver)} submitted document changes pending admin approval.",
             driver.Id,
-            $"/drivers/{driver.Id}?tab=verification",
+            $"/drivers/{driver.Id}?tab=verification&focus=approval",
             new { driverId = driver.Id, userId = driver.UserId, section = "documents" });
 
     private static bool HasChanged(string? currentValue, string? requestedValue) =>
@@ -452,7 +452,7 @@ public class DriverProfileController : ApiControllerBase
                 bodyAr,
                 bodyEn,
                 driver.Id,
-                $"/drivers/{driver.Id}",
+                $"/drivers/{driver.Id}?tab=verification&focus=approval",
                 new
                 {
                     driverId = driver.Id,
