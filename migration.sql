@@ -2215,12 +2215,12 @@ BEGIN
                     END
                     ELSE
                     BEGIN
-                        DECLARE @var sysname;
-                        SELECT @var = [d].[name]
+                        DECLARE @varSlug sysname;
+                        SELECT @varSlug = [d].[name]
                         FROM [sys].[default_constraints] [d]
                         INNER JOIN [sys].[columns] [c] ON [d].[parent_column_id] = [c].[column_id] AND [d].[parent_object_id] = [c].[object_id]
                         WHERE ([d].[parent_object_id] = OBJECT_ID(N'[MasterProduct]') AND [c].[name] = N'Slug');
-                        IF @var IS NOT NULL EXEC(N'ALTER TABLE [MasterProduct] DROP CONSTRAINT [' + @var + '];');
+                        IF @varSlug IS NOT NULL EXEC(N'ALTER TABLE [MasterProduct] DROP CONSTRAINT [' + @varSlug + '];');
                         ALTER TABLE [MasterProduct] ALTER COLUMN [Slug] nvarchar(300) NOT NULL;
                     END
                 
@@ -12974,6 +12974,31 @@ IF NOT EXISTS (
 BEGIN
     INSERT INTO [__EFMigrationsHistory] ([MigrationId], [ProductVersion])
     VALUES (N'20260722103228_HardenDriverWithdrawalSettlementWorkflow', N'9.0.3');
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260722151444_ExpandEncryptedDestinationSnapshotCapacity'
+)
+BEGIN
+    ALTER TABLE [Payouts] ALTER COLUMN [DestinationSnapshot] nvarchar(max) NULL;
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260722151444_ExpandEncryptedDestinationSnapshotCapacity'
+)
+BEGIN
+    ALTER TABLE [DriverWithdrawalRequests] ALTER COLUMN [DestinationSnapshot] nvarchar(max) NULL;
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260722151444_ExpandEncryptedDestinationSnapshotCapacity'
+)
+BEGIN
+    INSERT INTO [__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+    VALUES (N'20260722151444_ExpandEncryptedDestinationSnapshotCapacity', N'9.0.3');
 END;
 
 COMMIT;
