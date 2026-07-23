@@ -689,6 +689,10 @@ public sealed class EmailCenterService : IEmailCenterService
                 {
                     templateJson = defaultRule.TemplateJson;
                 }
+                else
+                {
+                    templateJson = MergeMissingTemplateHeroes(templateJson, defaultRule.TemplateJson);
+                }
 
                 existingRule.Update(
                     defaultRule.TitleKey,
@@ -2189,6 +2193,44 @@ public sealed class EmailCenterService : IEmailCenterService
     private static string? NormalizeOptional(string? value) =>
         string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 
+    private static string MergeMissingTemplateHeroes(string? existingJson, string defaultJson)
+    {
+        var defaults = Deserialize<EmailTemplatePreviewDto>(defaultJson);
+        if (defaults is null)
+        {
+            return existingJson ?? defaultJson;
+        }
+
+        var existing = Deserialize<EmailTemplatePreviewDto>(existingJson ?? string.Empty)
+                       ?? new EmailTemplatePreviewDto(
+                           new Dictionary<string, string>(),
+                           new Dictionary<string, string>(),
+                           []);
+
+        var hasExistingHero =
+            !string.IsNullOrWhiteSpace(existing.HeroImageUrl) ||
+            !string.IsNullOrWhiteSpace(existing.HeroImageUrlAr) ||
+            !string.IsNullOrWhiteSpace(existing.HeroImageUrlEn);
+
+        var hasDefaultHero =
+            !string.IsNullOrWhiteSpace(defaults.HeroImageUrl) ||
+            !string.IsNullOrWhiteSpace(defaults.HeroImageUrlAr) ||
+            !string.IsNullOrWhiteSpace(defaults.HeroImageUrlEn);
+
+        if (hasExistingHero || !hasDefaultHero)
+        {
+            return existingJson ?? defaultJson;
+        }
+
+        return Serialize(existing with
+        {
+            HeroImageUrl = defaults.HeroImageUrl,
+            HeroImageUrlAr = defaults.HeroImageUrlAr,
+            HeroImageUrlEn = defaults.HeroImageUrlEn,
+            CtaLabel = string.IsNullOrWhiteSpace(existing.CtaLabel) ? defaults.CtaLabel : existing.CtaLabel
+        });
+    }
+
     private static string Serialize<T>(T value) => JsonSerializer.Serialize(value, JsonOptions);
 
     private static T? Deserialize<T>(string json)
@@ -2227,6 +2269,18 @@ internal static class EmailCenterDefaults
     private const string SupportCaseHeroImageUrlEn = "https://ik.imagekit.io/fnyx4x87z/email_tamplet/ChatGPT%20Image%20May%2026,%202026,%2001_04_45%20PM.png";
     private const string VendorWeeklySummaryHeroImageUrlAr = "https://ik.imagekit.io/fnyx4x87z/email_tamplet/ChatGPT%20Image%20May%2026,%202026,%2002_07_18%20PM.png";
     private const string VendorWeeklySummaryHeroImageUrlEn = "https://ik.imagekit.io/fnyx4x87z/email_tamplet/ChatGPT%20Image%20May%2026,%202026,%2002_10_42%20PM.png";
+    private const string AdminAccessInviteHeroImageUrlAr = "https://ik.imagekit.io/fnyx4x87z/email_tamplet/admin-panel-hero-ar.png";
+    private const string AdminAccessInviteHeroImageUrlEn = "https://ik.imagekit.io/fnyx4x87z/email_tamplet/admin-panel-hero-en.png";
+    private const string VendorBranchInviteHeroImageUrlAr = "https://ik.imagekit.io/fnyx4x87z/email_tamplet/vendor-branch-invite-ar.png";
+    private const string VendorBranchInviteHeroImageUrlEn = "https://ik.imagekit.io/fnyx4x87z/email_tamplet/vendor-branch-invite-en.png";
+    private const string PasswordResetHeroImageUrlAr = "https://ik.imagekit.io/fnyx4x87z/email_tamplet/password-reset-hero-ar.png";
+    private const string PasswordResetHeroImageUrlEn = "https://ik.imagekit.io/fnyx4x87z/email_tamplet/password-reset-hero-en.png";
+    private const string VendorFinanceDigestHeroImageUrlAr = "https://ik.imagekit.io/fnyx4x87z/email_tamplet/vendor-finance-digest-ar.png";
+    private const string VendorFinanceDigestHeroImageUrlEn = "https://ik.imagekit.io/fnyx4x87z/email_tamplet/vendor-finance-digest-en.png";
+    private const string DriverPayoutAlertHeroImageUrlAr = "https://ik.imagekit.io/fnyx4x87z/email_tamplet/driver-payout-alert-ar.png";
+    private const string DriverPayoutAlertHeroImageUrlEn = "https://ik.imagekit.io/fnyx4x87z/email_tamplet/driver-payout-alert-en.png";
+    private const string AccountRecoveryHeroImageUrlAr = "https://ik.imagekit.io/fnyx4x87z/email_tamplet/account-recovery-hero-ar.png";
+    private const string AccountRecoveryHeroImageUrlEn = "https://ik.imagekit.io/fnyx4x87z/email_tamplet/account-recovery-hero-en.png";
 
     public static IReadOnlyList<EmailSenderProfileConfig> BuildSenderProfiles() =>
     [
@@ -2456,7 +2510,11 @@ internal static class EmailCenterDefaults
                 new EmailTemplatePreviewDto(
                     new Dictionary<string, string> { ["en"] = "Your Zadana access is ready", ["ar"] = "جهّزنا وصولك في زادانا" },
                     new Dictionary<string, string> { ["en"] = "Your super admin access invitation is ready. Complete onboarding before the expiry date.", ["ar"] = "دعوة الوصول الخاصة بك جاهزة. فضلاً إكمال التفعيل قبل تاريخ الانتهاء." },
-                    ["{{full_name}}", "{{expiry_date}}", "{{invite_link}}"]),
+                    ["{{full_name}}", "{{expiry_date}}", "{{invite_link}}"],
+                    AdminAccessInviteHeroImageUrlEn,
+                    "Open admin panel",
+                    AdminAccessInviteHeroImageUrlAr,
+                    AdminAccessInviteHeroImageUrlEn),
                 "manual_only"),
             BuildRule(
                 "vendor-branch-invite",
@@ -2477,7 +2535,11 @@ internal static class EmailCenterDefaults
                 new EmailTemplatePreviewDto(
                     new Dictionary<string, string> { ["en"] = "Branch access onboarding", ["ar"] = "تهيئة وصول الفرع" },
                     new Dictionary<string, string> { ["en"] = "Branch team access has been prepared. Review role scope and complete activation.", ["ar"] = "جهّزنا وصول فريق الفرع. فضلاً راجع نطاق الدور واستكمال التفعيل." },
-                    ["{{branch_name}}", "{{vendor_name}}", "{{invite_link}}"]),
+                    ["{{branch_name}}", "{{vendor_name}}", "{{invite_link}}"],
+                    VendorBranchInviteHeroImageUrlEn,
+                    "Activate branch access",
+                    VendorBranchInviteHeroImageUrlAr,
+                    VendorBranchInviteHeroImageUrlEn),
                 "manual_only"),
             BuildRule(
                 "branch-password-reset",
@@ -2498,7 +2560,11 @@ internal static class EmailCenterDefaults
                 new EmailTemplatePreviewDto(
                     new Dictionary<string, string> { ["en"] = "Reset requested for branch credentials", ["ar"] = "طلبنا إعادة تعيين بيانات الفرع" },
                     new Dictionary<string, string> { ["en"] = "A secure password reset was requested for the branch account.", ["ar"] = "طلبنا إعادة تعيين آمن لبيانات الفرع." },
-                    ["{{branch_name}}", "{{reset_link}}", "{{requested_at}}"]),
+                    ["{{branch_name}}", "{{reset_link}}", "{{requested_at}}"],
+                    PasswordResetHeroImageUrlEn,
+                    "Reset password",
+                    PasswordResetHeroImageUrlAr,
+                    PasswordResetHeroImageUrlEn),
                 "manual_only"),
             BuildRule(
                 "vendor-finance-digest",
@@ -2519,7 +2585,11 @@ internal static class EmailCenterDefaults
                 new EmailTemplatePreviewDto(
                     new Dictionary<string, string> { ["en"] = "Vendor finance digest", ["ar"] = "ملخص مالية التاجر" },
                     new Dictionary<string, string> { ["en"] = "Daily finance digest for the selected vendor scope.", ["ar"] = "ملخص مالي يومي لنطاق التاجر المحدد." },
-                    ["{{business_date}}", "{{vendor_name}}"]),
+                    ["{{business_date}}", "{{vendor_name}}"],
+                    VendorFinanceDigestHeroImageUrlEn,
+                    "Open finance dashboard",
+                    VendorFinanceDigestHeroImageUrlAr,
+                    VendorFinanceDigestHeroImageUrlEn),
                 "manual_only"),
             BuildRule(
                 "driver-verification-update",
@@ -2566,7 +2636,11 @@ internal static class EmailCenterDefaults
                 new EmailTemplatePreviewDto(
                     new Dictionary<string, string> { ["en"] = "Driver payout alert", ["ar"] = "تنبيه دفعة المندوب" },
                     new Dictionary<string, string> { ["en"] = "A payout-related update is available for your driver account.", ["ar"] = "هناك تحديث متعلق بالدفعات على حساب المندوب الخاص بك." },
-                    ["{{amount}}", "{{payout_reference}}"]),
+                    ["{{amount}}", "{{payout_reference}}"],
+                    DriverPayoutAlertHeroImageUrlEn,
+                    "Open driver wallet",
+                    DriverPayoutAlertHeroImageUrlAr,
+                    DriverPayoutAlertHeroImageUrlEn),
                 "manual_only"),
             BuildRule(
                 "customer-support-escalation",
@@ -2616,7 +2690,11 @@ internal static class EmailCenterDefaults
                 new EmailTemplatePreviewDto(
                     new Dictionary<string, string> { ["en"] = "Customer account recovery", ["ar"] = "استعادة حساب العميل" },
                     new Dictionary<string, string> { ["en"] = "A recovery action was requested for your customer account.", ["ar"] = "طلبنا إجراء استعادة لحساب العميل الخاص بك." },
-                    ["{{reset_link}}", "{{requested_at}}"]),
+                    ["{{reset_link}}", "{{requested_at}}"],
+                    AccountRecoveryHeroImageUrlEn,
+                    "Recover account",
+                    AccountRecoveryHeroImageUrlAr,
+                    AccountRecoveryHeroImageUrlEn),
                 "manual_only")
         };
 
@@ -2690,10 +2768,10 @@ internal static class EmailCenterDefaults
                         ["ar"] = body["ar"]
                     },
                     ["{{vendor_name}}", "{{target_url}}"],
-                    isVendorApproved ? VendorApprovedHeroImageUrlEn : null,
-                    isVendorApproved ? "Open dashboard" : "Open workspace",
-                    isVendorApproved ? VendorApprovedHeroImageUrlAr : null,
-                    isVendorApproved ? VendorApprovedHeroImageUrlEn : null),
+                    isVendorApproved ? VendorApprovedHeroImageUrlEn : PasswordResetHeroImageUrlEn,
+                    isVendorApproved ? "Open dashboard" : "Reset password",
+                    isVendorApproved ? VendorApprovedHeroImageUrlAr : PasswordResetHeroImageUrlAr,
+                    isVendorApproved ? VendorApprovedHeroImageUrlEn : PasswordResetHeroImageUrlEn),
                 "live",
                 eventKey);
         }

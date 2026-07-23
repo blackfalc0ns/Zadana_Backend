@@ -1250,25 +1250,54 @@ public class VendorAccessController : ApiControllerBase
     }
 
     private static string BuildInvitationHtml(VendorStaffInvitation invitation, string inviteLink) =>
-        BuildInvitationHtml("Zadana", invitation, inviteLink);
+        BuildInvitationHtml("Zadana", invitation, inviteLink, null);
 
-    private static string BuildInvitationHtml(string vendorName, VendorStaffInvitation invitation, string inviteLink)
+    private string BuildInvitationHtml(string vendorName, VendorStaffInvitation invitation, string inviteLink)
+    {
+        var logoUrl = _configuration["Email:LogoUrl"];
+        if (string.IsNullOrWhiteSpace(logoUrl) ||
+            logoUrl.StartsWith("__SET_VIA_ENV__", StringComparison.OrdinalIgnoreCase))
+        {
+            logoUrl = "https://ik.imagekit.io/fnyx4x87z/logo/%D8%B4%D9%81%D8%A7%D9%81%20(4).png";
+        }
+
+        return BuildInvitationHtml(vendorName, invitation, inviteLink, logoUrl);
+    }
+
+    private static string BuildInvitationHtml(
+        string vendorName,
+        VendorStaffInvitation invitation,
+        string inviteLink,
+        string? logoUrl)
     {
         var safeVendor = WebUtility.HtmlEncode(vendorName);
         var safeName = WebUtility.HtmlEncode(invitation.TargetName);
         var safeLink = WebUtility.HtmlEncode(inviteLink);
         var expires = WebUtility.HtmlEncode(invitation.ExpiresAtUtc.ToString("yyyy-MM-dd HH:mm 'UTC'"));
+        var safeLogo = WebUtility.HtmlEncode(
+            string.IsNullOrWhiteSpace(logoUrl)
+                ? "https://ik.imagekit.io/fnyx4x87z/logo/%D8%B4%D9%81%D8%A7%D9%81%20(4).png"
+                : logoUrl.Trim());
+        const string heroUrl = "https://ik.imagekit.io/fnyx4x87z/email_tamplet/staff-invite-hero-en.png";
 
         return $$"""
-            <div style="font-family:Arial,Tahoma,sans-serif;background:#f7fbfc;padding:28px;color:#0f172a">
-              <div style="max-width:620px;margin:auto;background:#ffffff;border:1px solid #e2e8f0;border-radius:12px;padding:28px">
-                <h1 style="margin:0 0 12px;font-size:24px;color:#0f766e">Vendor staff invitation</h1>
-                <p style="font-size:16px;line-height:1.8;margin:0 0 14px">Hello {{safeName}}, you have been invited to join <strong>{{safeVendor}}</strong> on Zadana Vendor Panel.</p>
-                <p style="font-size:14px;line-height:1.8;margin:0 0 20px;color:#475569">This invitation is valid until {{expires}}. Open the link and create your password to activate access.</p>
-                <p style="text-align:center;margin:28px 0">
-                  <a href="{{safeLink}}" style="display:inline-block;background:#0f766e;color:white;text-decoration:none;border-radius:10px;padding:13px 22px;font-weight:700">Accept invitation</a>
-                </p>
-                <p style="font-size:13px;line-height:1.7;color:#64748b;text-align:left">If the button does not work, copy and paste this link into your browser:<br>{{safeLink}}</p>
+            <div style="font-family:Arial,Tahoma,sans-serif;line-height:1.55;color:#132126;background:#edf7f8;padding:12px 8px">
+              <div style="max-width:560px;margin:0 auto;background:#ffffff;border:1px solid #c7e3e7;border-radius:10px;overflow:hidden">
+                <div style="background:#007f92;padding:9px 12px;text-align:center">
+                  <img src="{{safeLogo}}" width="72" alt="Zadna" style="display:block;width:72px;max-width:72px;height:auto;border:0;margin:0 auto" />
+                </div>
+                <div style="padding:18px 20px 18px">
+                  <div style="max-width:440px;margin:0 auto 16px;border:1px solid #c7e3e7;border-radius:10px;overflow:hidden;background:#f7fbfc">
+                    <img src="{{heroUrl}}" width="440" alt="Zadna vendor staff invitation" style="display:block;width:100%;max-width:440px;height:auto;border:0;margin:0 auto" />
+                  </div>
+                  <h1 style="margin:0 0 10px;color:#073843;font-size:18px;line-height:1.25">Vendor staff invitation</h1>
+                  <p style="margin:0 0 12px;color:#405257;font-size:14px">Hello {{safeName}}, you have been invited to join <strong>{{safeVendor}}</strong> on Zadana Vendor Panel.</p>
+                  <p style="margin:0 0 16px;color:#405257;font-size:13px">This invitation is valid until {{expires}}. Open the link and create your password to activate access.</p>
+                  <p style="text-align:center;margin:24px 0">
+                    <a href="{{safeLink}}" style="display:inline-block;background:#007f92;color:#ffffff;text-decoration:none;border-radius:10px;padding:12px 20px;font-weight:700">Accept invitation</a>
+                  </p>
+                  <p style="margin:0;color:#6a7c82;font-size:12px">If the button does not work, copy and paste this link into your browser:<br>{{safeLink}}</p>
+                </div>
               </div>
             </div>
             """;
