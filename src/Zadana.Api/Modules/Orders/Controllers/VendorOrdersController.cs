@@ -69,18 +69,18 @@ public class VendorOrdersController : ApiControllerBase
 
         var file = ExcelExportBuilder.BuildFromObjects(
             ExportFileResult.StampFileName("vendor-orders", ".xlsx"),
-            "Orders",
+            ExportText.Label("Orders", "الطلبات"),
             [
-                new ExportColumn("Order Number", "orderNumber"),
-                new ExportColumn("Customer", "customer"),
-                new ExportColumn("Phone", "phone"),
-                new ExportColumn("Status", "status"),
-                new ExportColumn("Payment Status", "paymentStatus"),
-                new ExportColumn("Payment Method", "paymentMethod"),
-                new ExportColumn("Total", "total"),
-                new ExportColumn("Items", "items"),
-                new ExportColumn("Placed At", "placedAt"),
-                new ExportColumn("Late", "isLate")
+                ExportText.Column("Order Number", "رقم الطلب", "orderNumber"),
+                ExportText.Column("Customer", "العميل", "customer"),
+                ExportText.Column("Phone", "الهاتف", "phone"),
+                ExportText.Column("Status", "الحالة", "status"),
+                ExportText.Column("Payment Status", "حالة الدفع", "paymentStatus"),
+                ExportText.Column("Payment Method", "طريقة الدفع", "paymentMethod"),
+                ExportText.Column("Total", "الإجمالي", "total"),
+                ExportText.Column("Items", "العناصر", "items"),
+                ExportText.Column("Placed At", "تاريخ الطلب", "placedAt"),
+                ExportText.Column("Late", "متأخر", "isLate")
             ],
             result.Items,
             order => new Dictionary<string, string?>

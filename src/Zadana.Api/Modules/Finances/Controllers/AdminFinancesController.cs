@@ -263,18 +263,18 @@ public class AdminFinancesController(
 
         var file = ExcelExportBuilder.BuildFromObjects(
             ExportFileResult.StampFileName("ledger", ".xlsx"),
-            "Ledger",
+            ExportText.Label("Ledger", "دفتر الأستاذ"),
             [
-                new ExportColumn("ID", "id"),
-                new ExportColumn("Sequence", "sequence"),
-                new ExportColumn("Status", "status"),
-                new ExportColumn("Event Type", "eventType"),
-                new ExportColumn("Order ID", "orderId"),
-                new ExportColumn("Settlement ID", "settlementId"),
-                new ExportColumn("Debit Total", "debitTotal"),
-                new ExportColumn("Credit Total", "creditTotal"),
-                new ExportColumn("Posted At", "postedAt"),
-                new ExportColumn("Memo", "memo")
+                ExportText.Column("ID", "المعرّف", "id"),
+                ExportText.Column("Sequence", "التسلسل", "sequence"),
+                ExportText.Column("Status", "الحالة", "status"),
+                ExportText.Column("Event Type", "نوع الحدث", "eventType"),
+                ExportText.Column("Order ID", "معرّف الطلب", "orderId"),
+                ExportText.Column("Settlement ID", "معرّف التسوية", "settlementId"),
+                ExportText.Column("Debit Total", "إجمالي المدين", "debitTotal"),
+                ExportText.Column("Credit Total", "إجمالي الدائن", "creditTotal"),
+                ExportText.Column("Posted At", "تاريخ الترحيل", "postedAt"),
+                ExportText.Column("Memo", "المذكرة", "memo")
             ],
             enrichedEntries,
             entry => new Dictionary<string, string?>
@@ -303,7 +303,6 @@ public class AdminFinancesController(
         [FromQuery] string period = "month",
         CancellationToken cancellationToken = default)
     {
-        var reportTitle = string.IsNullOrWhiteSpace(title) ? "Finance Report" : title.Trim();
         var normalizedPeriod = string.IsNullOrWhiteSpace(period) ? "month" : period.Trim().ToLowerInvariant();
         var dashboard = await mediator.Send(new GetAdminFinanceDashboardQuery(normalizedPeriod), cancellationToken);
         var statement = await BuildStatementSummaryAsync(normalizedPeriod, cancellationToken);
@@ -346,9 +345,9 @@ public class AdminFinancesController(
 
         var tableColumns = new List<ExportColumn>
         {
-            new("Metric", "metric"),
-            new("Value", "value"),
-            new("Trend", "trend")
+            ExportText.Column("Metric", "المؤشر", "metric"),
+            ExportText.Column("Value", "القيمة", "value"),
+            ExportText.Column("Trend", "الاتجاه", "trend")
         };
         var tableRows = kpiRows.ToList();
 
@@ -356,7 +355,7 @@ public class AdminFinancesController(
         {
             tableRows.Add(new Dictionary<string, string?>
             {
-                ["metric"] = "— Revenue composition —",
+                ["metric"] = ExportText.Label("— Revenue composition —", "— تكوين الإيراد —"),
                 ["value"] = string.Empty,
                 ["trend"] = string.Empty
             });
@@ -375,7 +374,7 @@ public class AdminFinancesController(
         {
             tableRows.Add(new Dictionary<string, string?>
             {
-                ["metric"] = "— Alerts —",
+                ["metric"] = ExportText.Label("— Alerts —", "— التنبيهات —"),
                 ["value"] = string.Empty,
                 ["trend"] = string.Empty
             });
@@ -392,25 +391,26 @@ public class AdminFinancesController(
 
         var file = PdfExportBuilder.BuildStatement(
             ExportFileResult.StampFileName("finance-report", ".pdf"),
-            reportTitle,
-            subtitle: $"Period: {statement.PeriodLabel}",
+            ExportText.Label("Finance Report", "التقرير المالي"),
+            subtitle: ExportText.Label($"Period: {statement.PeriodLabel}", $"الفترة: {statement.PeriodLabel}"),
             meta:
             [
-                new ExportKeyValue("Route", string.IsNullOrWhiteSpace(route) ? string.Empty : route.Trim()),
-                new ExportKeyValue("Summary", string.IsNullOrWhiteSpace(summary) ? string.Empty : summary.Trim()),
-                new ExportKeyValue("Period", statement.PeriodLabel),
-                new ExportKeyValue("Generated At (UTC)", DateTime.UtcNow.ToString("o"))
+                ExportText.Field("Title", "العنوان", string.IsNullOrWhiteSpace(title) ? string.Empty : title.Trim()),
+                ExportText.Field("Route", "المسار", string.IsNullOrWhiteSpace(route) ? string.Empty : route.Trim()),
+                ExportText.Field("Summary", "الملخص", string.IsNullOrWhiteSpace(summary) ? string.Empty : summary.Trim()),
+                ExportText.Field("Period", "الفترة", statement.PeriodLabel),
+                ExportText.Field("Generated At (UTC)", "تاريخ الإنشاء (UTC)", DateTime.UtcNow.ToString("o"))
             ],
             columns: tableColumns,
             rows: tableRows,
             totals:
             [
-                new ExportKeyValue("Statement Revenue", statement.Revenue.ToString("0.##")),
-                new ExportKeyValue("Statement Expenses", statement.Expenses.ToString("0.##")),
-                new ExportKeyValue("VAT Payable", statement.VatPayable.ToString("0.##")),
-                new ExportKeyValue("Net Income", statement.NetIncome.ToString("0.##")),
-                new ExportKeyValue("Gross Collections", dashboard.GrossCollections.FormattedValue),
-                new ExportKeyValue("Platform Net Revenue", dashboard.PlatformNetRevenue.FormattedValue)
+                ExportText.Field("Statement Revenue", "إيراد الكشف", statement.Revenue.ToString("0.##")),
+                ExportText.Field("Statement Expenses", "مصروفات الكشف", statement.Expenses.ToString("0.##")),
+                ExportText.Field("VAT Payable", "ضريبة مستحقة", statement.VatPayable.ToString("0.##")),
+                ExportText.Field("Net Income", "صافي الدخل", statement.NetIncome.ToString("0.##")),
+                ExportText.Field("Gross Collections", "إجمالي التحصيل", dashboard.GrossCollections.FormattedValue),
+                ExportText.Field("Platform Net Revenue", "صافي إيراد المنصة", dashboard.PlatformNetRevenue.FormattedValue)
             ]);
 
         return ExportFileResult.From(file);
@@ -496,14 +496,14 @@ public class AdminFinancesController(
             ? kpi.LabelKey
             : kpi.Id switch
             {
-                "gross_collections" => "Gross Collections",
-                "platform_net_revenue" => "Platform Net Revenue",
-                "commission_revenue" => "Commission Revenue",
-                "delivery_revenue" => "Delivery Revenue",
-                "cod_fees" => "COD Fees Collected",
-                "vat_collected" => "VAT Collected",
-                "driver_payouts" => "Driver Payouts",
-                "refund_exposure" => "Refund Exposure",
+                "gross_collections" => ExportText.Label("Gross Collections", "إجمالي التحصيل"),
+                "platform_net_revenue" => ExportText.Label("Platform Net Revenue", "صافي إيراد المنصة"),
+                "commission_revenue" => ExportText.Label("Commission Revenue", "إيراد العمولة"),
+                "delivery_revenue" => ExportText.Label("Delivery Revenue", "إيراد التوصيل"),
+                "cod_fees" => ExportText.Label("COD Fees Collected", "رسوم الدفع عند الاستلام"),
+                "vat_collected" => ExportText.Label("VAT Collected", "ضريبة محصّلة"),
+                "driver_payouts" => ExportText.Label("Driver Payouts", "مدفوعات المناديب"),
+                "refund_exposure" => ExportText.Label("Refund Exposure", "تعرّض الاسترداد"),
                 _ => kpi.Id.Replace('_', ' ')
             };
 
@@ -512,10 +512,10 @@ public class AdminFinancesController(
             ? segment.LabelKey
             : segment.Id switch
             {
-                "commissions" => "Commissions",
-                "delivery_fees" => "Delivery Fees",
-                "cod_fees" => "COD Fees",
-                "vat" => "VAT",
+                "commissions" => ExportText.Label("Commissions", "العمولات"),
+                "delivery_fees" => ExportText.Label("Delivery Fees", "رسوم التوصيل"),
+                "cod_fees" => ExportText.Label("COD Fees", "رسوم الدفع عند الاستلام"),
+                "vat" => ExportText.Label("VAT", "الضريبة"),
                 _ => segment.Id.Replace('_', ' ')
             };
 

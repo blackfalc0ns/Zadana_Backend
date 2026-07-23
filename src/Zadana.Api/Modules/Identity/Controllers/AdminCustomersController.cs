@@ -72,16 +72,16 @@ public class AdminCustomersController : ApiControllerBase
 
         var columns = new List<ExportColumn>
         {
-            new("ID", "id"),
-            new("Full Name", "fullName"),
-            new("Email", "email"),
-            new("Phone", "phone"),
-            new("City", "city"),
-            new("Status", "status"),
-            new("Orders", "orders"),
-            new("Total Spent", "totalSpent"),
-            new("Last Order", "lastOrder"),
-            new("Created At", "createdAt")
+            ExportText.Column("ID", "المعرّف", "id"),
+            ExportText.Column("Full Name", "الاسم الكامل", "fullName"),
+            ExportText.Column("Email", "البريد", "email"),
+            ExportText.Column("Phone", "الهاتف", "phone"),
+            ExportText.Column("City", "المدينة", "city"),
+            ExportText.Column("Status", "الحالة", "status"),
+            ExportText.Column("Orders", "الطلبات", "orders"),
+            ExportText.Column("Total Spent", "إجمالي الإنفاق", "totalSpent"),
+            ExportText.Column("Last Order", "آخر طلب", "lastOrder"),
+            ExportText.Column("Created At", "تاريخ الإنشاء", "createdAt")
         };
 
         var rows = result.Items.Select(customer => (IReadOnlyDictionary<string, string?>)new Dictionary<string, string?>
@@ -100,7 +100,7 @@ public class AdminCustomersController : ApiControllerBase
 
         var file = ExcelExportBuilder.Build(
             ExportFileResult.StampFileName("customers", ".xlsx"),
-            "Customers",
+            ExportText.Label("Customers", "العملاء"),
             columns,
             rows);
 

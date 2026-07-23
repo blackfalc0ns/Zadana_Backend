@@ -1173,34 +1173,34 @@ public class VendorWorkspaceController : ApiControllerBase
 
         var file = PdfExportBuilder.BuildStatement(
             ExportFileResult.StampFileName("vendor-finance-statement", ".pdf"),
-            "Vendor Finance Statement",
-            subtitle: $"Period: {normalizedPeriod}",
+            ExportText.Label("Vendor Finance Statement", "كشف مالية التاجر"),
+            subtitle: ExportText.Label($"Period: {normalizedPeriod}", $"الفترة: {normalizedPeriod}"),
             meta:
             [
-                new ExportKeyValue("Period", normalizedPeriod),
-                new ExportKeyValue("From (UTC)", from.ToString("o")),
-                new ExportKeyValue("To (UTC)", to.ToString("o")),
-                new ExportKeyValue("Branch ID", selectedBranchId?.ToString() ?? "all"),
-                new ExportKeyValue("Available Balance", availableBalance.ToString("0.##")),
-                new ExportKeyValue("Pending Settlement", pendingSettlement.ToString("0.##")),
-                new ExportKeyValue("Hold Amount", holdAmount.ToString("0.##")),
-                new ExportKeyValue("Gross Sales", grossSales.ToString("0.##")),
-                new ExportKeyValue("Platform Fees", fees.ToString("0.##")),
-                new ExportKeyValue("Vendor Net", vendorNetRevenue.ToString("0.##"))
+                ExportText.Field("Period", "الفترة", normalizedPeriod),
+                ExportText.Field("From (UTC)", "من (UTC)", from.ToString("o")),
+                ExportText.Field("To (UTC)", "إلى (UTC)", to.ToString("o")),
+                ExportText.Field("Branch ID", "معرّف الفرع", selectedBranchId?.ToString() ?? ExportText.Label("all", "الكل")),
+                ExportText.Field("Available Balance", "الرصيد المتاح", availableBalance.ToString("0.##")),
+                ExportText.Field("Pending Settlement", "تسوية معلّقة", pendingSettlement.ToString("0.##")),
+                ExportText.Field("Hold Amount", "مبلغ الحجز", holdAmount.ToString("0.##")),
+                ExportText.Field("Gross Sales", "إجمالي المبيعات", grossSales.ToString("0.##")),
+                ExportText.Field("Platform Fees", "رسوم المنصة", fees.ToString("0.##")),
+                ExportText.Field("Vendor Net", "صافي التاجر", vendorNetRevenue.ToString("0.##"))
             ],
             columns:
             [
-                new ExportColumn("Date", "date"),
-                new ExportColumn("Title", "title"),
-                new ExportColumn("Type", "type"),
-                new ExportColumn("Direction", "direction"),
-                new ExportColumn("Amount", "amount"),
-                new ExportColumn("Reference", "reference")
+                ExportText.Column("Date", "التاريخ", "date"),
+                ExportText.Column("Title", "العنوان", "title"),
+                ExportText.Column("Type", "النوع", "type"),
+                ExportText.Column("Direction", "الاتجاه", "direction"),
+                ExportText.Column("Amount", "المبلغ", "amount"),
+                ExportText.Column("Reference", "المرجع", "reference")
             ],
             rows: ledger.Select(entry => (IReadOnlyDictionary<string, string?>)new Dictionary<string, string?>
             {
                 ["date"] = entry.Date,
-                ["title"] = entry.TitleEn,
+                ["title"] = ExportText.Value(entry.TitleEn, entry.TitleAr),
                 ["type"] = entry.Type,
                 ["direction"] = entry.Direction,
                 ["amount"] = entry.Amount.ToString("0.##"),
@@ -1208,8 +1208,8 @@ public class VendorWorkspaceController : ApiControllerBase
             }),
             totals:
             [
-                new ExportKeyValue("Available Balance", availableBalance.ToString("0.##")),
-                new ExportKeyValue("Vendor Net", vendorNetRevenue.ToString("0.##"))
+                ExportText.Field("Available Balance", "الرصيد المتاح", availableBalance.ToString("0.##")),
+                ExportText.Field("Vendor Net", "صافي التاجر", vendorNetRevenue.ToString("0.##"))
             ]);
 
         return ExportFileResult.From(file);

@@ -146,34 +146,34 @@ public sealed class AdminSettlementsController(
 
         var file = PdfExportBuilder.BuildStatement(
             ExportFileResult.StampFileName($"settlement-statement-{settlement.Id:N}", ".pdf"),
-            "Settlement Statement",
+            ExportText.Label("Settlement Statement", "كشف التسوية"),
             subtitle: entityCode,
             meta:
             [
-                new ExportKeyValue("Entity", entityName),
-                new ExportKeyValue("Code", entityCode),
-                new ExportKeyValue("Owner Type", settlement.OwnerType.ToString()),
-                new ExportKeyValue("Owner ID", settlement.OwnerId.ToString()),
-                new ExportKeyValue("Status", settlement.Status.ToString()),
-                new ExportKeyValue("Period From", settlement.PeriodFrom.ToString("o")),
-                new ExportKeyValue("Period To", settlement.PeriodTo.ToString("o")),
-                new ExportKeyValue("Gross", settlement.GrossAmount.ToString("0.##")),
-                new ExportKeyValue("Commission", settlement.CommissionAmount.ToString("0.##")),
-                new ExportKeyValue("Refund", settlement.RefundAmount.ToString("0.##")),
-                new ExportKeyValue("Adjustment", settlement.AdjustmentAmount.ToString("0.##")),
-                new ExportKeyValue("Recovery", settlement.RecoveryAmount.ToString("0.##")),
-                new ExportKeyValue("Net", settlement.NetAmount.ToString("0.##"))
+                ExportText.Field("Entity", "الجهة", entityName),
+                ExportText.Field("Code", "الكود", entityCode),
+                ExportText.Field("Owner Type", "نوع المالك", settlement.OwnerType.ToString()),
+                ExportText.Field("Owner ID", "معرّف المالك", settlement.OwnerId.ToString()),
+                ExportText.Field("Status", "الحالة", settlement.Status.ToString()),
+                ExportText.Field("Period From", "من فترة", settlement.PeriodFrom.ToString("o")),
+                ExportText.Field("Period To", "إلى فترة", settlement.PeriodTo.ToString("o")),
+                ExportText.Field("Gross", "الإجمالي", settlement.GrossAmount.ToString("0.##")),
+                ExportText.Field("Commission", "العمولة", settlement.CommissionAmount.ToString("0.##")),
+                ExportText.Field("Refund", "الاسترداد", settlement.RefundAmount.ToString("0.##")),
+                ExportText.Field("Adjustment", "التعديل", settlement.AdjustmentAmount.ToString("0.##")),
+                ExportText.Field("Recovery", "الاسترجاع", settlement.RecoveryAmount.ToString("0.##")),
+                ExportText.Field("Net", "الصافي", settlement.NetAmount.ToString("0.##"))
             ],
             columns:
             [
-                new ExportColumn("Line Type", "lineType"),
-                new ExportColumn("Order ID", "orderId"),
-                new ExportColumn("Amount", "amount"),
-                new ExportColumn("Commission", "commission"),
-                new ExportColumn("Refund", "refund"),
-                new ExportColumn("Adjustment", "adjustment"),
-                new ExportColumn("Recovery", "recovery"),
-                new ExportColumn("Net", "net")
+                ExportText.Column("Line Type", "نوع السطر", "lineType"),
+                ExportText.Column("Order ID", "معرّف الطلب", "orderId"),
+                ExportText.Column("Amount", "المبلغ", "amount"),
+                ExportText.Column("Commission", "العمولة", "commission"),
+                ExportText.Column("Refund", "الاسترداد", "refund"),
+                ExportText.Column("Adjustment", "التعديل", "adjustment"),
+                ExportText.Column("Recovery", "الاسترجاع", "recovery"),
+                ExportText.Column("Net", "الصافي", "net")
             ],
             rows: settlement.Items.Select(item => (IReadOnlyDictionary<string, string?>)new Dictionary<string, string?>
             {
@@ -188,8 +188,8 @@ public sealed class AdminSettlementsController(
             }),
             totals:
             [
-                new ExportKeyValue("Gross", settlement.GrossAmount.ToString("0.##")),
-                new ExportKeyValue("Net", settlement.NetAmount.ToString("0.##"))
+                ExportText.Field("Gross", "الإجمالي", settlement.GrossAmount.ToString("0.##")),
+                ExportText.Field("Net", "الصافي", settlement.NetAmount.ToString("0.##"))
             ]);
 
         return ExportFileResult.From(file);

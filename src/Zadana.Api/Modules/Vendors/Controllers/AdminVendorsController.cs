@@ -108,17 +108,17 @@ public class AdminVendorsController : ApiControllerBase
 
         var file = ExcelExportBuilder.BuildFromObjects(
             ExportFileResult.StampFileName("vendors", ".xlsx"),
-            "Vendors",
+            ExportText.Label("Vendors", "التجار"),
             [
-                new ExportColumn("ID", "id"),
-                new ExportColumn("Business Name AR", "nameAr"),
-                new ExportColumn("Business Name EN", "nameEn"),
-                new ExportColumn("Owner", "owner"),
-                new ExportColumn("Email", "email"),
-                new ExportColumn("Phone", "phone"),
-                new ExportColumn("Status", "status"),
-                new ExportColumn("City", "city"),
-                new ExportColumn("Created At", "createdAt")
+                ExportText.Column("ID", "المعرّف", "id"),
+                ExportText.Column("Business Name AR", "الاسم التجاري عربي", "nameAr"),
+                ExportText.Column("Business Name EN", "الاسم التجاري إنجليزي", "nameEn"),
+                ExportText.Column("Owner", "المالك", "owner"),
+                ExportText.Column("Email", "البريد", "email"),
+                ExportText.Column("Phone", "الهاتف", "phone"),
+                ExportText.Column("Status", "الحالة", "status"),
+                ExportText.Column("City", "المدينة", "city"),
+                ExportText.Column("Created At", "تاريخ الإنشاء", "createdAt")
             ],
             items,
             vendor => new Dictionary<string, string?>
@@ -189,14 +189,14 @@ public class AdminVendorsController : ApiControllerBase
 
         var file = ExcelExportBuilder.BuildFromObjects(
             ExportFileResult.StampFileName($"vendor-activity-{vendorId:N}", ".xlsx"),
-            "Activity",
+            ExportText.Label("Activity", "النشاط"),
             [
-                new ExportColumn("Type", "type"),
-                new ExportColumn("Severity", "severity"),
-                new ExportColumn("Actor", "actor"),
-                new ExportColumn("Role", "role"),
-                new ExportColumn("Created At", "createdAt"),
-                new ExportColumn("Message", "message")
+                ExportText.Column("Type", "النوع", "type"),
+                ExportText.Column("Severity", "الخطورة", "severity"),
+                ExportText.Column("Actor", "الفاعل", "actor"),
+                ExportText.Column("Role", "الدور", "role"),
+                ExportText.Column("Created At", "تاريخ الإنشاء", "createdAt"),
+                ExportText.Column("Message", "الرسالة", "message")
             ],
             result.Items,
             entry => new Dictionary<string, string?>
@@ -306,15 +306,15 @@ public class AdminVendorsController : ApiControllerBase
 
         var file = ExcelExportBuilder.BuildFromObjects(
             ExportFileResult.StampFileName($"vendor-orders-{vendorId:N}", ".xlsx"),
-            "Orders",
+            ExportText.Label("Orders", "الطلبات"),
             [
-                new ExportColumn("Order Number", "orderNumber"),
-                new ExportColumn("Customer", "customer"),
-                new ExportColumn("Status", "status"),
-                new ExportColumn("Payment Status", "paymentStatus"),
-                new ExportColumn("Total", "total"),
-                new ExportColumn("Items", "items"),
-                new ExportColumn("Placed At", "placedAt")
+                ExportText.Column("Order Number", "رقم الطلب", "orderNumber"),
+                ExportText.Column("Customer", "العميل", "customer"),
+                ExportText.Column("Status", "الحالة", "status"),
+                ExportText.Column("Payment Status", "حالة الدفع", "paymentStatus"),
+                ExportText.Column("Total", "الإجمالي", "total"),
+                ExportText.Column("Items", "العناصر", "items"),
+                ExportText.Column("Placed At", "تاريخ الطلب", "placedAt")
             ],
             result.Items,
             order => new Dictionary<string, string?>
@@ -396,17 +396,17 @@ public class AdminVendorsController : ApiControllerBase
 
         var file = PdfExportBuilder.BuildReceipt(
             ExportFileResult.StampFileName($"payout-receipt-{payout.PayoutNumber}", ".pdf"),
-            "Payout Receipt",
+            ExportText.Label("Payout Receipt", "إيصال دفعة"),
             [
-                new ExportKeyValue("Vendor ID", vendorId.ToString()),
-                new ExportKeyValue("Payment #", payout.PayoutNumber),
-                new ExportKeyValue("Amount", payout.Amount.ToString("0.##")),
-                new ExportKeyValue("Status", payout.Status),
-                new ExportKeyValue("Bank", payout.BankName ?? string.Empty),
-                new ExportKeyValue("IBAN", payout.Iban ?? string.Empty),
-                new ExportKeyValue("Reference", payout.TransferReference ?? string.Empty),
-                new ExportKeyValue("Created At", payout.CreatedAtUtc.ToString("o")),
-                new ExportKeyValue("Processed At", payout.ProcessedAtUtc?.ToString("o") ?? string.Empty)
+                ExportText.Field("Vendor ID", "معرّف التاجر", vendorId.ToString()),
+                ExportText.Field("Payment #", "رقم الدفعة", payout.PayoutNumber),
+                ExportText.Field("Amount", "المبلغ", payout.Amount.ToString("0.##")),
+                ExportText.Field("Status", "الحالة", payout.Status),
+                ExportText.Field("Bank", "البنك", payout.BankName ?? string.Empty),
+                ExportText.Field("IBAN", "الآيبان", payout.Iban ?? string.Empty),
+                ExportText.Field("Reference", "المرجع", payout.TransferReference ?? string.Empty),
+                ExportText.Field("Created At", "تاريخ الإنشاء", payout.CreatedAtUtc.ToString("o")),
+                ExportText.Field("Processed At", "تاريخ المعالجة", payout.ProcessedAtUtc?.ToString("o") ?? string.Empty)
             ]);
 
         return ExportFileResult.From(file);

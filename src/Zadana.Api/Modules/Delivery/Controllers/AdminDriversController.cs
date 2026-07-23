@@ -137,17 +137,17 @@ public class AdminDriversController : ApiControllerBase
 
         var file = ExcelExportBuilder.BuildFromObjects(
             ExportFileResult.StampFileName($"driver-finance-{id:N}", ".xlsx"),
-            "Finance Entries",
+            ExportText.Label("Finance Entries", "قيود المالية"),
             [
-                new ExportColumn("ID", "id"),
-                new ExportColumn("Reference", "reference"),
-                new ExportColumn("Type", "type"),
-                new ExportColumn("Status", "status"),
-                new ExportColumn("Amount", "amount"),
-                new ExportColumn("Fee", "fee"),
-                new ExportColumn("Method", "method"),
-                new ExportColumn("Created At", "createdAt"),
-                new ExportColumn("Driver", "driver")
+                ExportText.Column("ID", "المعرّف", "id"),
+                ExportText.Column("Reference", "المرجع", "reference"),
+                ExportText.Column("Type", "النوع", "type"),
+                ExportText.Column("Status", "الحالة", "status"),
+                ExportText.Column("Amount", "المبلغ", "amount"),
+                ExportText.Column("Fee", "الرسوم", "fee"),
+                ExportText.Column("Method", "الطريقة", "method"),
+                ExportText.Column("Created At", "تاريخ الإنشاء", "createdAt"),
+                ExportText.Column("Driver", "المندوب", "driver")
             ],
             result.Items,
             entry => new Dictionary<string, string?>
@@ -194,18 +194,18 @@ public class AdminDriversController : ApiControllerBase
         var driverName = await ResolveDriverDisplayNameAsync(id, cancellationToken);
         var file = PdfExportBuilder.BuildReceipt(
             ExportFileResult.StampFileName($"driver-finance-receipt-{entryId:N}", ".pdf"),
-            "Driver Finance Receipt",
+            ExportText.Label("Driver Finance Receipt", "إيصال مالية المندوب"),
             [
-                new ExportKeyValue("Driver", driverName),
-                new ExportKeyValue("Driver ID", id.ToString()),
-                new ExportKeyValue("Entry ID", entry.Id.ToString()),
-                new ExportKeyValue("Reference", entry.Reference),
-                new ExportKeyValue("Type", entry.Type),
-                new ExportKeyValue("Status", entry.Status),
-                new ExportKeyValue("Amount", entry.Amount.ToString("0.##")),
-                new ExportKeyValue("Fee", entry.Fee.ToString("0.##")),
-                new ExportKeyValue("Method", entry.Method),
-                new ExportKeyValue("Created At", entry.CreatedAtUtc.ToString("o"))
+                ExportText.Field("Driver", "المندوب", driverName),
+                ExportText.Field("Driver ID", "معرّف المندوب", id.ToString()),
+                ExportText.Field("Entry ID", "معرّف القيد", entry.Id.ToString()),
+                ExportText.Field("Reference", "المرجع", entry.Reference),
+                ExportText.Field("Type", "النوع", entry.Type),
+                ExportText.Field("Status", "الحالة", entry.Status),
+                ExportText.Field("Amount", "المبلغ", entry.Amount.ToString("0.##")),
+                ExportText.Field("Fee", "الرسوم", entry.Fee.ToString("0.##")),
+                ExportText.Field("Method", "الطريقة", entry.Method),
+                ExportText.Field("Created At", "تاريخ الإنشاء", entry.CreatedAtUtc.ToString("o"))
             ]);
 
         return ExportFileResult.From(file);
@@ -238,26 +238,26 @@ public class AdminDriversController : ApiControllerBase
 
         var file = PdfExportBuilder.BuildStatement(
             ExportFileResult.StampFileName($"driver-finance-statement-{id:N}", ".pdf"),
-            "Driver Finance Statement",
+            ExportText.Label("Driver Finance Statement", "كشف مالية المندوب"),
             subtitle: driverName,
             meta:
             [
-                new ExportKeyValue("Driver", driverName),
-                new ExportKeyValue("Driver ID", id.ToString()),
-                new ExportKeyValue("Current Balance", (driver?.Finance.CurrentBalance ?? 0m).ToString("0.##")),
-                new ExportKeyValue("Pending Balance", (driver?.Finance.PendingBalance ?? 0m).ToString("0.##")),
-                new ExportKeyValue("Total Earnings", (driver?.Finance.TotalEarnings ?? 0m).ToString("0.##")),
-                new ExportKeyValue("COD Collected", (driver?.Finance.CodCollected ?? 0m).ToString("0.##")),
-                new ExportKeyValue("Entries", result.TotalCount.ToString())
+                ExportText.Field("Driver", "المندوب", driverName),
+                ExportText.Field("Driver ID", "معرّف المندوب", id.ToString()),
+                ExportText.Field("Current Balance", "الرصيد الحالي", (driver?.Finance.CurrentBalance ?? 0m).ToString("0.##")),
+                ExportText.Field("Pending Balance", "الرصيد المعلّق", (driver?.Finance.PendingBalance ?? 0m).ToString("0.##")),
+                ExportText.Field("Total Earnings", "إجمالي الأرباح", (driver?.Finance.TotalEarnings ?? 0m).ToString("0.##")),
+                ExportText.Field("COD Collected", "تحصيل عند الاستلام", (driver?.Finance.CodCollected ?? 0m).ToString("0.##")),
+                ExportText.Field("Entries", "عدد القيود", result.TotalCount.ToString())
             ],
             columns:
             [
-                new ExportColumn("Reference", "reference"),
-                new ExportColumn("Type", "type"),
-                new ExportColumn("Status", "status"),
-                new ExportColumn("Amount", "amount"),
-                new ExportColumn("Method", "method"),
-                new ExportColumn("Created At", "createdAt")
+                ExportText.Column("Reference", "المرجع", "reference"),
+                ExportText.Column("Type", "النوع", "type"),
+                ExportText.Column("Status", "الحالة", "status"),
+                ExportText.Column("Amount", "المبلغ", "amount"),
+                ExportText.Column("Method", "الطريقة", "method"),
+                ExportText.Column("Created At", "تاريخ الإنشاء", "createdAt")
             ],
             rows: result.Items.Select(entry => (IReadOnlyDictionary<string, string?>)new Dictionary<string, string?>
             {
