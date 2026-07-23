@@ -3,8 +3,10 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Localization;
 using System.Text.Json;
+using Zadana.Api.Common.Export;
 using Zadana.Api.Controllers;
 using Zadana.Api.Modules.Vendors.Requests;
+using Zadana.Application.Common.Export;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Common.Localization;
 using Zadana.Application.Modules.Catalog.Queries.GetVendorProducts;
@@ -89,6 +91,52 @@ public class AdminVendorsController : ApiControllerBase
         return Ok(result);
     }
 
+    [HttpGet("export")]
+    public async Task<IActionResult> ExportVendors(
+        [FromQuery] VendorStatus? status,
+        [FromQuery] string? search,
+        [FromQuery] Guid[]? ids,
+        CancellationToken cancellationToken = default)
+    {
+        var result = await Sender.Send(new GetAllVendorsQuery(status, search, 1, ExportLimits.MaxRows), cancellationToken);
+        var items = result.Items.AsEnumerable();
+        if (ids is { Length: > 0 })
+        {
+            var selected = ids.ToHashSet();
+            items = items.Where(item => selected.Contains(item.Id));
+        }
+
+        var file = ExcelExportBuilder.BuildFromObjects(
+            ExportFileResult.StampFileName("vendors", ".xlsx"),
+            "Vendors",
+            [
+                new ExportColumn("ID", "id"),
+                new ExportColumn("Business Name AR", "nameAr"),
+                new ExportColumn("Business Name EN", "nameEn"),
+                new ExportColumn("Owner", "owner"),
+                new ExportColumn("Email", "email"),
+                new ExportColumn("Phone", "phone"),
+                new ExportColumn("Status", "status"),
+                new ExportColumn("City", "city"),
+                new ExportColumn("Created At", "createdAt")
+            ],
+            items,
+            vendor => new Dictionary<string, string?>
+            {
+                ["id"] = vendor.Id.ToString(),
+                ["nameAr"] = vendor.BusinessNameAr,
+                ["nameEn"] = vendor.BusinessNameEn,
+                ["owner"] = vendor.OwnerName,
+                ["email"] = vendor.ContactEmail,
+                ["phone"] = vendor.ContactPhone,
+                ["status"] = vendor.Status,
+                ["city"] = vendor.City,
+                ["createdAt"] = vendor.CreatedAtUtc.ToString("o")
+            });
+
+        return ExportFileResult.From(file);
+    }
+
     /// <summary>
     /// عرض تفاصيل تاجر معين
     /// </summary>
@@ -119,6 +167,49 @@ public class AdminVendorsController : ApiControllerBase
             pageSize));
 
         return Ok(result);
+    }
+
+    [HttpGet("{vendorId:guid}/activity-log/export")]
+    public async Task<IActionResult> ExportVendorActivityLog(
+        Guid vendorId,
+        [FromQuery] string? type = null,
+        [FromQuery] string? severity = null,
+        [FromQuery] DateTime? dateFrom = null,
+        [FromQuery] DateTime? dateTo = null,
+        CancellationToken cancellationToken = default)
+    {
+        var result = await Sender.Send(new GetVendorActivityLogQuery(
+            vendorId,
+            type,
+            severity,
+            dateFrom,
+            dateTo,
+            1,
+            ExportLimits.MaxRows), cancellationToken);
+
+        var file = ExcelExportBuilder.BuildFromObjects(
+            ExportFileResult.StampFileName($"vendor-activity-{vendorId:N}", ".xlsx"),
+            "Activity",
+            [
+                new ExportColumn("Type", "type"),
+                new ExportColumn("Severity", "severity"),
+                new ExportColumn("Actor", "actor"),
+                new ExportColumn("Role", "role"),
+                new ExportColumn("Created At", "createdAt"),
+                new ExportColumn("Message", "message")
+            ],
+            result.Items,
+            entry => new Dictionary<string, string?>
+            {
+                ["type"] = entry.Type,
+                ["severity"] = entry.Severity,
+                ["actor"] = entry.ActorName,
+                ["role"] = entry.RoleLabel,
+                ["createdAt"] = entry.CreatedAtUtc.ToString("o"),
+                ["message"] = entry.Message
+            });
+
+        return ExportFileResult.From(file);
     }
 
     /// <summary>
@@ -201,6 +292,45 @@ public class AdminVendorsController : ApiControllerBase
         return Ok(result);
     }
 
+    [HttpGet("{vendorId:guid}/orders/export")]
+    public async Task<IActionResult> ExportVendorOrders(
+        Guid vendorId,
+        [FromQuery] string? search = null,
+        [FromQuery] string? status = null,
+        [FromQuery] string? paymentStatus = null,
+        CancellationToken cancellationToken = default)
+    {
+        var result = await Sender.Send(
+            new GetVendorOrdersQuery(vendorId, search, status, paymentStatus, 1, ExportLimits.MaxRows),
+            cancellationToken);
+
+        var file = ExcelExportBuilder.BuildFromObjects(
+            ExportFileResult.StampFileName($"vendor-orders-{vendorId:N}", ".xlsx"),
+            "Orders",
+            [
+                new ExportColumn("Order Number", "orderNumber"),
+                new ExportColumn("Customer", "customer"),
+                new ExportColumn("Status", "status"),
+                new ExportColumn("Payment Status", "paymentStatus"),
+                new ExportColumn("Total", "total"),
+                new ExportColumn("Items", "items"),
+                new ExportColumn("Placed At", "placedAt")
+            ],
+            result.Items,
+            order => new Dictionary<string, string?>
+            {
+                ["orderNumber"] = order.OrderNumber,
+                ["customer"] = order.CustomerName,
+                ["status"] = order.Status,
+                ["paymentStatus"] = order.PaymentStatus,
+                ["total"] = order.TotalAmount.ToString("0.##"),
+                ["items"] = order.ItemsCount.ToString(),
+                ["placedAt"] = order.PlacedAtUtc.ToString("o")
+            });
+
+        return ExportFileResult.From(file);
+    }
+
     [HttpGet("{vendorId:guid}/products")]
     public async Task<IActionResult> GetVendorProducts(
         Guid vendorId,
@@ -249,6 +379,37 @@ public class AdminVendorsController : ApiControllerBase
     {
         var result = await Sender.Send(new GetVendorPayoutsQuery(vendorId, page, pageSize));
         return Ok(result);
+    }
+
+    [HttpGet("{vendorId:guid}/payouts/{paymentId:guid}/receipt")]
+    public async Task<IActionResult> ExportVendorPayoutReceipt(
+        Guid vendorId,
+        Guid paymentId,
+        CancellationToken cancellationToken = default)
+    {
+        var result = await Sender.Send(new GetVendorPayoutsQuery(vendorId, 1, ExportLimits.MaxRows), cancellationToken);
+        var payout = result.Items.FirstOrDefault(item => item.Id == paymentId);
+        if (payout is null)
+        {
+            return NotFound();
+        }
+
+        var file = PdfExportBuilder.BuildReceipt(
+            ExportFileResult.StampFileName($"payout-receipt-{payout.PayoutNumber}", ".pdf"),
+            "Payout Receipt",
+            [
+                new ExportKeyValue("Vendor ID", vendorId.ToString()),
+                new ExportKeyValue("Payment #", payout.PayoutNumber),
+                new ExportKeyValue("Amount", payout.Amount.ToString("0.##")),
+                new ExportKeyValue("Status", payout.Status),
+                new ExportKeyValue("Bank", payout.BankName ?? string.Empty),
+                new ExportKeyValue("IBAN", payout.Iban ?? string.Empty),
+                new ExportKeyValue("Reference", payout.TransferReference ?? string.Empty),
+                new ExportKeyValue("Created At", payout.CreatedAtUtc.ToString("o")),
+                new ExportKeyValue("Processed At", payout.ProcessedAtUtc?.ToString("o") ?? string.Empty)
+            ]);
+
+        return ExportFileResult.From(file);
     }
 
     [HttpPost("{vendorId:guid}/settlements")]

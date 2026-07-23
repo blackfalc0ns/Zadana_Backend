@@ -2,7 +2,9 @@ using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Zadana.Api.Common.Export;
 using Zadana.Api.Localization;
+using Zadana.Application.Common.Export;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Modules.Finances.DTOs;
 using Zadana.Application.Modules.Finances.Services;
@@ -221,6 +223,98 @@ public class AdminFinancesController(
             page,
             pageSize,
             totalCount));
+    }
+
+    [HttpGet("ledger/export")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    public async Task<IActionResult> ExportLedger(
+        [FromQuery] Guid? orderId = null,
+        [FromQuery] Guid? settlementId = null,
+        [FromQuery] Guid? payoutId = null,
+        CancellationToken cancellationToken = default)
+    {
+        var query = context.JournalEntries
+            .AsNoTracking()
+            .Include(entry => entry.FinancialEvent)
+            .Include(entry => entry.Lines)
+            .AsQueryable();
+
+        if (orderId is not null)
+        {
+            query = query.Where(entry => entry.FinancialEvent.OrderId == orderId || entry.Lines.Any(line => line.OrderId == orderId));
+        }
+
+        if (settlementId is not null)
+        {
+            query = query.Where(entry => entry.FinancialEvent.SettlementId == settlementId || entry.Lines.Any(line => line.SettlementId == settlementId));
+        }
+
+        if (payoutId is not null)
+        {
+            query = query.Where(entry => entry.FinancialEvent.PayoutId == payoutId || entry.Lines.Any(line => line.PayoutId == payoutId));
+        }
+
+        var entries = await query
+            .OrderByDescending(entry => entry.SequenceNumber)
+            .Take(ExportLimits.MaxRows)
+            .ToListAsync(cancellationToken);
+
+        var enrichedEntries = await EnrichEntriesWithOwnerNamesAsync(entries, cancellationToken);
+
+        var file = ExcelExportBuilder.BuildFromObjects(
+            ExportFileResult.StampFileName("ledger", ".xlsx"),
+            "Ledger",
+            [
+                new ExportColumn("ID", "id"),
+                new ExportColumn("Sequence", "sequence"),
+                new ExportColumn("Status", "status"),
+                new ExportColumn("Event Type", "eventType"),
+                new ExportColumn("Order ID", "orderId"),
+                new ExportColumn("Settlement ID", "settlementId"),
+                new ExportColumn("Debit Total", "debitTotal"),
+                new ExportColumn("Credit Total", "creditTotal"),
+                new ExportColumn("Posted At", "postedAt"),
+                new ExportColumn("Memo", "memo")
+            ],
+            enrichedEntries,
+            entry => new Dictionary<string, string?>
+            {
+                ["id"] = entry.Id.ToString(),
+                ["sequence"] = entry.SequenceNumber.ToString(),
+                ["status"] = entry.Status.ToString(),
+                ["eventType"] = entry.EventType.ToString(),
+                ["orderId"] = entry.OrderId?.ToString(),
+                ["settlementId"] = entry.SettlementId?.ToString(),
+                ["debitTotal"] = entry.DebitTotal.ToString("0.##"),
+                ["creditTotal"] = entry.CreditTotal.ToString("0.##"),
+                ["postedAt"] = entry.PostedAtUtc.ToString("o"),
+                ["memo"] = entry.Memo
+            });
+
+        return ExportFileResult.From(file);
+    }
+
+    [HttpGet("report")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    public IActionResult ExportFinanceReport(
+        [FromQuery] string? title = null,
+        [FromQuery] string? route = null,
+        [FromQuery] string? summary = null)
+    {
+        var reportTitle = string.IsNullOrWhiteSpace(title) ? "Finance Report" : title.Trim();
+        var file = PdfExportBuilder.BuildStatement(
+            ExportFileResult.StampFileName("finance-report", ".pdf"),
+            reportTitle,
+            subtitle: "Finance shell export",
+            meta:
+            [
+                new ExportKeyValue("Title", reportTitle),
+                new ExportKeyValue("Route", string.IsNullOrWhiteSpace(route) ? string.Empty : route.Trim()),
+                new ExportKeyValue("Summary", string.IsNullOrWhiteSpace(summary) ? string.Empty : summary.Trim()),
+                new ExportKeyValue("Generated At (UTC)", DateTime.UtcNow.ToString("o"))
+            ]);
+
+        return ExportFileResult.From(file);
     }
 
     [HttpGet("ledger/{entryId:guid}")]

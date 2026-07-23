@@ -3,8 +3,10 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using Zadana.Api.Common.Export;
 using Zadana.Api.Controllers;
 using Zadana.Api.Modules.Identity.Requests;
+using Zadana.Application.Common.Export;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Modules.Identity.DTOs;
 using Zadana.Application.Modules.Identity.Queries.AdminCustomers;
@@ -51,6 +53,58 @@ public class AdminCustomersController : ApiControllerBase
         var result = await Sender.Send(new GetAdminCustomersQuery(
             search, status, city, isLocked, hasOrders, minSpent, maxSpent, sortBy, page, pageSize));
         return Ok(result);
+    }
+
+    [HttpGet("export")]
+    public async Task<IActionResult> ExportCustomers(
+        [FromQuery] string? search,
+        [FromQuery] string? status,
+        [FromQuery] string? city,
+        [FromQuery] bool? isLocked,
+        [FromQuery] bool? hasOrders,
+        [FromQuery] decimal? minSpent,
+        [FromQuery] decimal? maxSpent,
+        [FromQuery] string? sortBy,
+        CancellationToken cancellationToken = default)
+    {
+        var result = await Sender.Send(new GetAdminCustomersQuery(
+            search, status, city, isLocked, hasOrders, minSpent, maxSpent, sortBy, 1, ExportLimits.MaxRows), cancellationToken);
+
+        var columns = new List<ExportColumn>
+        {
+            new("ID", "id"),
+            new("Full Name", "fullName"),
+            new("Email", "email"),
+            new("Phone", "phone"),
+            new("City", "city"),
+            new("Status", "status"),
+            new("Orders", "orders"),
+            new("Total Spent", "totalSpent"),
+            new("Last Order", "lastOrder"),
+            new("Created At", "createdAt")
+        };
+
+        var rows = result.Items.Select(customer => (IReadOnlyDictionary<string, string?>)new Dictionary<string, string?>
+        {
+            ["id"] = customer.Id.ToString(),
+            ["fullName"] = customer.FullName,
+            ["email"] = customer.Email,
+            ["phone"] = customer.Phone,
+            ["city"] = customer.City,
+            ["status"] = customer.AccountStatus,
+            ["orders"] = customer.TotalOrders.ToString(),
+            ["totalSpent"] = customer.TotalSpent.ToString("0.##"),
+            ["lastOrder"] = customer.LastOrderAtUtc?.ToString("o"),
+            ["createdAt"] = customer.CreatedAtUtc.ToString("o")
+        });
+
+        var file = ExcelExportBuilder.Build(
+            ExportFileResult.StampFileName("customers", ".xlsx"),
+            "Customers",
+            columns,
+            rows);
+
+        return ExportFileResult.From(file);
     }
 
     [HttpGet("filter-options")]

@@ -3,9 +3,11 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System.Globalization;
 using System.Text.Json;
+using Zadana.Api.Common.Export;
 using Zadana.Api.Controllers;
 using Zadana.Api.Modules.Finances.Services;
 using Zadana.Api.Modules.Identity.Requests;
+using Zadana.Application.Common.Export;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Modules.Identity.Interfaces;
 using Zadana.Application.Modules.Orders.Support;
@@ -1084,6 +1086,133 @@ public class VendorWorkspaceController : ApiControllerBase
                     branch.IsPrimary)).ToList()),
             branchSections,
             (vendorPayoutSettings?.PayoutDay ?? PayoutScheduleDay.Monday).ToString()));
+    }
+
+    [HttpGet("finance/statement")]
+    public async Task<IActionResult> ExportFinanceStatement(
+        [FromQuery] string period = "month",
+        [FromQuery] Guid? branchId = null,
+        CancellationToken cancellationToken = default)
+    {
+        var scope = await _currentVendorService.GetRequiredVendorScopeAsync(cancellationToken);
+        var vendorId = scope.VendorId;
+        var financeAccess = await ResolveFinanceAccessAsync(scope, cancellationToken);
+        var selectedBranchId = ResolveSelectedFinanceBranchId(financeAccess, branchId);
+        var (normalizedPeriod, from, to) = ResolveFinancePeriod(period);
+
+        var ordersQuery = _dbContext.Orders
+            .AsNoTracking()
+            .Where(order =>
+                order.VendorId == vendorId &&
+                order.Status == OrderStatus.Delivered &&
+                order.DeliveredAtUtc.HasValue &&
+                order.DeliveredAtUtc.Value >= from &&
+                order.DeliveredAtUtc.Value < to);
+
+        ordersQuery = ApplyFinanceBranchFilter(ordersQuery, financeAccess, selectedBranchId);
+
+        var orders = await ordersQuery
+            .Select(order => new
+            {
+                order.TotalAmount,
+                order.DeliveryFee,
+                order.CommissionAmount
+            })
+            .ToListAsync(cancellationToken);
+
+        var settlements = await _dbContext.Settlements
+            .AsNoTracking()
+            .Where(settlement => settlement.OwnerType == SettlementOwnerType.Vendor && settlement.OwnerId == vendorId)
+            .Select(settlement => new { settlement.Status, settlement.NetAmount })
+            .ToListAsync(cancellationToken);
+
+        var vendorWallet = await _dbContext.Wallets
+            .AsNoTracking()
+            .FirstOrDefaultAsync(wallet => wallet.OwnerType == WalletOwnerType.Vendor && wallet.OwnerId == vendorId, cancellationToken);
+
+        var vendorWalletTransactions = vendorWallet is null
+            ? []
+            : await LoadFinanceWalletTransactionsAsync(
+                vendorWallet.Id,
+                from,
+                to,
+                selectedBranchId,
+                cancellationToken,
+                take: ExportLimits.MaxRows);
+
+        var grossSales = orders.Sum(order => order.TotalAmount);
+        var fees = orders.Sum(order => order.CommissionAmount);
+        var vendorNetRevenue = orders.Sum(order => Math.Max((order.TotalAmount - order.DeliveryFee) - order.CommissionAmount, 0m));
+        var pendingSettlement = settlements
+            .Where(settlement => settlement.Status is SettlementStatus.Pending or SettlementStatus.PendingReview or SettlementStatus.Processing)
+            .Sum(settlement => settlement.NetAmount);
+        var activeHoldAmount = await GetActiveVendorHoldAmountAsync(vendorId, cancellationToken);
+        var holdAmount = (vendorWallet?.PendingBalance ?? 0m) + activeHoldAmount;
+        var availableBalance = Math.Max(0m, (vendorWallet?.CurrentBalance ?? 0m) - holdAmount);
+
+        if (selectedBranchId.HasValue)
+        {
+            availableBalance = vendorNetRevenue;
+            pendingSettlement = 0m;
+            holdAmount = 0m;
+        }
+
+        var ledger = vendorWalletTransactions
+            .OrderByDescending(txn => txn.CreatedAtUtc)
+            .Select(txn => MapFinanceLedgerEntry(
+                txn.Id,
+                txn.OrderId,
+                txn.TxnType,
+                txn.Direction,
+                txn.Amount,
+                txn.CreatedAtUtc,
+                txn.Description,
+                txn.ReferenceType,
+                txn.ReferenceId))
+            .ToList();
+
+        var file = PdfExportBuilder.BuildStatement(
+            ExportFileResult.StampFileName("vendor-finance-statement", ".pdf"),
+            "Vendor Finance Statement",
+            subtitle: $"Period: {normalizedPeriod}",
+            meta:
+            [
+                new ExportKeyValue("Period", normalizedPeriod),
+                new ExportKeyValue("From (UTC)", from.ToString("o")),
+                new ExportKeyValue("To (UTC)", to.ToString("o")),
+                new ExportKeyValue("Branch ID", selectedBranchId?.ToString() ?? "all"),
+                new ExportKeyValue("Available Balance", availableBalance.ToString("0.##")),
+                new ExportKeyValue("Pending Settlement", pendingSettlement.ToString("0.##")),
+                new ExportKeyValue("Hold Amount", holdAmount.ToString("0.##")),
+                new ExportKeyValue("Gross Sales", grossSales.ToString("0.##")),
+                new ExportKeyValue("Platform Fees", fees.ToString("0.##")),
+                new ExportKeyValue("Vendor Net", vendorNetRevenue.ToString("0.##"))
+            ],
+            columns:
+            [
+                new ExportColumn("Date", "date"),
+                new ExportColumn("Title", "title"),
+                new ExportColumn("Type", "type"),
+                new ExportColumn("Direction", "direction"),
+                new ExportColumn("Amount", "amount"),
+                new ExportColumn("Reference", "reference")
+            ],
+            rows: ledger.Select(entry => (IReadOnlyDictionary<string, string?>)new Dictionary<string, string?>
+            {
+                ["date"] = entry.Date,
+                ["title"] = entry.TitleEn,
+                ["type"] = entry.Type,
+                ["direction"] = entry.Direction,
+                ["amount"] = entry.Amount.ToString("0.##"),
+                ["reference"] = entry.Reference
+            }),
+            totals:
+            [
+                new ExportKeyValue("Available Balance", availableBalance.ToString("0.##")),
+                new ExportKeyValue("Vendor Net", vendorNetRevenue.ToString("0.##"))
+            ]);
+
+        return ExportFileResult.From(file);
     }
 
     [HttpGet("finance/settlements/{settlementId:guid}/transfer-proof")]

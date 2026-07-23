@@ -1,6 +1,8 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Zadana.Api.Common.Export;
 using Zadana.Api.Controllers;
+using Zadana.Application.Common.Export;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Modules.Orders.Commands.ConfirmVendorPickupOtp;
 using Zadana.Application.Modules.Orders.Commands.VendorUpdateOrderStatus;
@@ -44,6 +46,58 @@ public class VendorOrdersController : ApiControllerBase
             result.PageSize,
             result.TotalCount,
             result.TotalPages));
+    }
+
+    [HttpGet("export")]
+    public async Task<IActionResult> ExportOrders(
+        [FromQuery] string? search,
+        [FromQuery] string? status,
+        [FromQuery] string? paymentMethod,
+        CancellationToken cancellationToken = default)
+    {
+        var scope = await _currentVendorService.GetRequiredVendorScopeAsync(cancellationToken);
+        var result = await Sender.Send(
+            new GetVendorWorkspaceOrdersQuery(
+                scope.VendorId,
+                scope.BranchId,
+                search,
+                status,
+                paymentMethod,
+                1,
+                ExportLimits.MaxRows),
+            cancellationToken);
+
+        var file = ExcelExportBuilder.BuildFromObjects(
+            ExportFileResult.StampFileName("vendor-orders", ".xlsx"),
+            "Orders",
+            [
+                new ExportColumn("Order Number", "orderNumber"),
+                new ExportColumn("Customer", "customer"),
+                new ExportColumn("Phone", "phone"),
+                new ExportColumn("Status", "status"),
+                new ExportColumn("Payment Status", "paymentStatus"),
+                new ExportColumn("Payment Method", "paymentMethod"),
+                new ExportColumn("Total", "total"),
+                new ExportColumn("Items", "items"),
+                new ExportColumn("Placed At", "placedAt"),
+                new ExportColumn("Late", "isLate")
+            ],
+            result.Items,
+            order => new Dictionary<string, string?>
+            {
+                ["orderNumber"] = order.OrderNumber,
+                ["customer"] = order.CustomerName,
+                ["phone"] = order.CustomerPhone,
+                ["status"] = order.Status,
+                ["paymentStatus"] = order.PaymentStatus,
+                ["paymentMethod"] = order.PaymentMethod,
+                ["total"] = order.TotalAmount.ToString("0.##"),
+                ["items"] = order.ItemsCount.ToString(),
+                ["placedAt"] = order.PlacedAtUtc.ToString("o"),
+                ["isLate"] = order.IsLate ? "yes" : "no"
+            });
+
+        return ExportFileResult.From(file);
     }
 
     [HttpGet("{orderId:guid}")]

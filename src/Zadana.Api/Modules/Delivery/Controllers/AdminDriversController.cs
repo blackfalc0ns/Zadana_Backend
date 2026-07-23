@@ -2,8 +2,10 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using Zadana.Api.Common.Export;
 using Zadana.Api.Controllers;
 using Zadana.Api.Localization;
+using Zadana.Application.Common.Export;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Common.Localization;
 using Zadana.Application.Modules.Delivery.Commands.AddDriverIncident;
@@ -109,6 +111,165 @@ public class AdminDriversController : ApiControllerBase
         }
 
         return Ok(result);
+    }
+
+    [HttpGet("{id:guid}/finance/entries/export")]
+    public async Task<IActionResult> ExportDriverFinanceEntries(
+        Guid id,
+        [FromQuery] string? status = null,
+        [FromQuery] string? search = null,
+        CancellationToken cancellationToken = default)
+    {
+        var result = await _driverReadService.GetAdminDriverFinanceEntriesAsync(
+            id,
+            1,
+            ExportLimits.MaxRows,
+            status,
+            search,
+            cancellationToken);
+
+        if (result is null)
+        {
+            return NotFound();
+        }
+
+        var driverName = await ResolveDriverDisplayNameAsync(id, cancellationToken);
+
+        var file = ExcelExportBuilder.BuildFromObjects(
+            ExportFileResult.StampFileName($"driver-finance-{id:N}", ".xlsx"),
+            "Finance Entries",
+            [
+                new ExportColumn("ID", "id"),
+                new ExportColumn("Reference", "reference"),
+                new ExportColumn("Type", "type"),
+                new ExportColumn("Status", "status"),
+                new ExportColumn("Amount", "amount"),
+                new ExportColumn("Fee", "fee"),
+                new ExportColumn("Method", "method"),
+                new ExportColumn("Created At", "createdAt"),
+                new ExportColumn("Driver", "driver")
+            ],
+            result.Items,
+            entry => new Dictionary<string, string?>
+            {
+                ["id"] = entry.Id.ToString(),
+                ["reference"] = entry.Reference,
+                ["type"] = entry.Type,
+                ["status"] = entry.Status,
+                ["amount"] = entry.Amount.ToString("0.##"),
+                ["fee"] = entry.Fee.ToString("0.##"),
+                ["method"] = entry.Method,
+                ["createdAt"] = entry.CreatedAtUtc.ToString("o"),
+                ["driver"] = driverName
+            });
+
+        return ExportFileResult.From(file);
+    }
+
+    [HttpGet("{id:guid}/finance/entries/{entryId:guid}/receipt")]
+    public async Task<IActionResult> ExportDriverFinanceEntryReceipt(
+        Guid id,
+        Guid entryId,
+        CancellationToken cancellationToken = default)
+    {
+        var result = await _driverReadService.GetAdminDriverFinanceEntriesAsync(
+            id,
+            1,
+            ExportLimits.MaxRows,
+            null,
+            null,
+            cancellationToken);
+
+        if (result is null)
+        {
+            return NotFound();
+        }
+
+        var entry = result.Items.FirstOrDefault(item => item.Id == entryId);
+        if (entry is null)
+        {
+            return NotFound();
+        }
+
+        var driverName = await ResolveDriverDisplayNameAsync(id, cancellationToken);
+        var file = PdfExportBuilder.BuildReceipt(
+            ExportFileResult.StampFileName($"driver-finance-receipt-{entryId:N}", ".pdf"),
+            "Driver Finance Receipt",
+            [
+                new ExportKeyValue("Driver", driverName),
+                new ExportKeyValue("Driver ID", id.ToString()),
+                new ExportKeyValue("Entry ID", entry.Id.ToString()),
+                new ExportKeyValue("Reference", entry.Reference),
+                new ExportKeyValue("Type", entry.Type),
+                new ExportKeyValue("Status", entry.Status),
+                new ExportKeyValue("Amount", entry.Amount.ToString("0.##")),
+                new ExportKeyValue("Fee", entry.Fee.ToString("0.##")),
+                new ExportKeyValue("Method", entry.Method),
+                new ExportKeyValue("Created At", entry.CreatedAtUtc.ToString("o"))
+            ]);
+
+        return ExportFileResult.From(file);
+    }
+
+    [HttpGet("{id:guid}/finance/statement")]
+    public async Task<IActionResult> ExportDriverFinanceStatement(
+        Guid id,
+        [FromQuery] string? status = null,
+        [FromQuery] string? search = null,
+        CancellationToken cancellationToken = default)
+    {
+        var result = await _driverReadService.GetAdminDriverFinanceEntriesAsync(
+            id,
+            1,
+            ExportLimits.MaxRows,
+            status,
+            search,
+            cancellationToken);
+
+        if (result is null)
+        {
+            return NotFound();
+        }
+
+        var driver = await _driverReadService.GetAdminDriverDetailAsync(id, cancellationToken);
+        var driverName = driver is null
+            ? await ResolveDriverDisplayNameAsync(id, cancellationToken)
+            : $"{driver.FirstName} {driver.LastName}".Trim();
+
+        var file = PdfExportBuilder.BuildStatement(
+            ExportFileResult.StampFileName($"driver-finance-statement-{id:N}", ".pdf"),
+            "Driver Finance Statement",
+            subtitle: driverName,
+            meta:
+            [
+                new ExportKeyValue("Driver", driverName),
+                new ExportKeyValue("Driver ID", id.ToString()),
+                new ExportKeyValue("Current Balance", (driver?.Finance.CurrentBalance ?? 0m).ToString("0.##")),
+                new ExportKeyValue("Pending Balance", (driver?.Finance.PendingBalance ?? 0m).ToString("0.##")),
+                new ExportKeyValue("Total Earnings", (driver?.Finance.TotalEarnings ?? 0m).ToString("0.##")),
+                new ExportKeyValue("COD Collected", (driver?.Finance.CodCollected ?? 0m).ToString("0.##")),
+                new ExportKeyValue("Entries", result.TotalCount.ToString())
+            ],
+            columns:
+            [
+                new ExportColumn("Reference", "reference"),
+                new ExportColumn("Type", "type"),
+                new ExportColumn("Status", "status"),
+                new ExportColumn("Amount", "amount"),
+                new ExportColumn("Method", "method"),
+                new ExportColumn("Created At", "createdAt")
+            ],
+            rows: result.Items.Select(entry => (IReadOnlyDictionary<string, string?>)new Dictionary<string, string?>
+            {
+                ["reference"] = entry.Reference,
+                ["type"] = entry.Type,
+                ["status"] = entry.Status,
+                ["amount"] = entry.Amount.ToString("0.##"),
+                ["method"] = entry.Method,
+                ["createdAt"] = entry.CreatedAtUtc.ToString("o")
+            }));
+
+        return ExportFileResult.From(file);
     }
 
     // Update driver profile from admin panel
@@ -719,6 +880,27 @@ public class AdminDriversController : ApiControllerBase
             cancellationToken);
 
         return Ok(new { id = incidentId, message = ApiLocalizedMessages.Resolve(HttpContext, "DRIVER_INCIDENT_RECORDED_SUCCESS") });
+    }
+
+    private async Task<string> ResolveDriverDisplayNameAsync(Guid driverId, CancellationToken cancellationToken)
+    {
+        var detail = await _driverReadService.GetAdminDriverDetailAsync(driverId, cancellationToken);
+        if (detail is not null)
+        {
+            var name = $"{detail.FirstName} {detail.LastName}".Trim();
+            if (!string.IsNullOrWhiteSpace(name))
+            {
+                return name;
+            }
+        }
+
+        var fallback = await _context.Drivers
+            .AsNoTracking()
+            .Where(driver => driver.Id == driverId)
+            .Select(driver => driver.User.FullName)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        return string.IsNullOrWhiteSpace(fallback) ? driverId.ToString() : fallback;
     }
 }
 

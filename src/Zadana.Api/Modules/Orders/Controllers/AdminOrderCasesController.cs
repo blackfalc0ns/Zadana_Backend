@@ -1,7 +1,9 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Zadana.Api.Common.Export;
 using Zadana.Api.Controllers;
+using Zadana.Application.Common.Export;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Modules.Orders.DTOs;
 using Zadana.Application.Modules.Orders.Interfaces;
@@ -61,6 +63,108 @@ public class AdminOrderCasesController : ApiControllerBase
             cancellationToken);
 
         return Ok(result);
+    }
+
+    [HttpGet("export")]
+    public async Task<IActionResult> ExportCases(
+        [FromQuery] string? search,
+        [FromQuery] string? type,
+        [FromQuery] string? status,
+        [FromQuery] string? priority,
+        [FromQuery] string? queue,
+        [FromQuery] string? initiatorRole,
+        [FromQuery] Guid? vendorId,
+        [FromQuery] Guid? driverId,
+        CancellationToken cancellationToken = default)
+    {
+        var result = await _orderReadService.GetAdminOrderSupportCasesAsync(
+            search,
+            type,
+            status,
+            priority,
+            queue,
+            initiatorRole,
+            vendorId,
+            driverId,
+            1,
+            ExportLimits.MaxRows,
+            cancellationToken);
+
+        var file = ExcelExportBuilder.BuildFromObjects(
+            ExportFileResult.StampFileName("order-cases", ".xlsx"),
+            "Order Cases",
+            [
+                new ExportColumn("ID", "id"),
+                new ExportColumn("Order ID", "orderId"),
+                new ExportColumn("Order Display ID", "orderDisplayId"),
+                new ExportColumn("Customer Name", "customerName"),
+                new ExportColumn("Customer Email", "customerEmail"),
+                new ExportColumn("Merchant Name", "merchantName"),
+                new ExportColumn("Type", "type"),
+                new ExportColumn("Type Label", "typeLabel"),
+                new ExportColumn("Reason Code", "reasonCode"),
+                new ExportColumn("Reason", "reason"),
+                new ExportColumn("Amount", "amount"),
+                new ExportColumn("Case Status", "caseStatus"),
+                new ExportColumn("Case Status Label", "caseStatusLabel"),
+                new ExportColumn("Status", "status"),
+                new ExportColumn("Status Label", "statusLabel"),
+                new ExportColumn("Priority", "priority"),
+                new ExportColumn("Priority Label", "priorityLabel"),
+                new ExportColumn("Owner", "owner"),
+                new ExportColumn("Queue", "queue"),
+                new ExportColumn("Queue Label", "queueLabel"),
+                new ExportColumn("Risk", "risk"),
+                new ExportColumn("Created At", "createdAt"),
+                new ExportColumn("SLA", "sla"),
+                new ExportColumn("Note", "note"),
+                new ExportColumn("Payment Method", "paymentMethod"),
+                new ExportColumn("Payment Mask", "paymentMask"),
+                new ExportColumn("Initiator Role", "initiatorRole"),
+                new ExportColumn("Waiting On Role", "waitingOnRole"),
+                new ExportColumn("Settlement Status", "settlementStatus"),
+                new ExportColumn("Vendor Recovery Status", "vendorRecoveryStatus"),
+                new ExportColumn("Vendor Recovered", "vendorRecoveredAmount"),
+                new ExportColumn("Vendor Outstanding", "vendorOutstandingAmount")
+            ],
+            result.Items,
+            item => new Dictionary<string, string?>
+            {
+                ["id"] = item.Id.ToString(),
+                ["orderId"] = item.OrderId?.ToString(),
+                ["orderDisplayId"] = item.OrderDisplayId,
+                ["customerName"] = item.CustomerName,
+                ["customerEmail"] = item.CustomerEmail,
+                ["merchantName"] = item.MerchantName,
+                ["type"] = item.Type,
+                ["typeLabel"] = item.TypeLabel,
+                ["reasonCode"] = item.ReasonCode,
+                ["reason"] = item.Reason,
+                ["amount"] = item.Amount.ToString("0.##"),
+                ["caseStatus"] = item.CaseStatus,
+                ["caseStatusLabel"] = item.CaseStatusLabel,
+                ["status"] = item.Status,
+                ["statusLabel"] = item.StatusLabel,
+                ["priority"] = item.Priority,
+                ["priorityLabel"] = item.PriorityLabel,
+                ["owner"] = item.Owner,
+                ["queue"] = item.Queue,
+                ["queueLabel"] = item.QueueLabel,
+                ["risk"] = item.Risk,
+                ["createdAt"] = item.CreatedAt,
+                ["sla"] = item.Sla,
+                ["note"] = item.Note,
+                ["paymentMethod"] = item.PaymentMethod,
+                ["paymentMask"] = item.PaymentMask,
+                ["initiatorRole"] = item.InitiatorRole,
+                ["waitingOnRole"] = item.WaitingOnRole,
+                ["settlementStatus"] = item.SettlementStatus,
+                ["vendorRecoveryStatus"] = item.VendorRecoveryStatus,
+                ["vendorRecoveredAmount"] = item.VendorRecoveredAmount.ToString("0.##"),
+                ["vendorOutstandingAmount"] = item.VendorOutstandingAmount.ToString("0.##")
+            });
+
+        return ExportFileResult.From(file);
     }
 
     [HttpGet("{caseId:guid}")]

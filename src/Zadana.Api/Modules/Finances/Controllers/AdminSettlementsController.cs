@@ -2,6 +2,8 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Zadana.Api.Authorization;
+using Zadana.Api.Common.Export;
+using Zadana.Application.Common.Export;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Modules.Finances.Services;
 using Zadana.Application.Modules.Wallets.Services;
@@ -21,6 +23,7 @@ public sealed class AdminSettlementsController(
     IApplicationDbContext context,
     PayoutOrchestrator payoutOrchestrator,
     VendorPayoutWalletService vendorPayoutWalletService,
+    FinanceOwnerNameResolver financeOwnerNameResolver,
     ISettlementProcessingSettingsService? settlementProcessingSettingsService = null,
     ICurrentUserService? currentUserService = null) : ControllerBase
 {
@@ -113,6 +116,83 @@ public sealed class AdminSettlementsController(
                 item.NetAmount)).ToList(),
             settlement.Payouts.Select(ToPayoutDto).ToList(),
             await GetSettlementProcessingModeAsync(cancellationToken)));
+    }
+
+    [HttpGet("{id:guid}/statement")]
+    [RequireAccess(PermissionKeys.Admin.FinancesExport)]
+    public async Task<IActionResult> ExportSettlementStatement(Guid id, CancellationToken cancellationToken)
+    {
+        var settlement = await context.Settlements
+            .AsNoTracking()
+            .Include(item => item.Items)
+            .FirstOrDefaultAsync(item => item.Id == id, cancellationToken);
+
+        if (settlement is null)
+        {
+            return NotFound();
+        }
+
+        var financialOwnerType = settlement.OwnerType switch
+        {
+            SettlementOwnerType.Vendor => FinancialOwnerType.Vendor,
+            SettlementOwnerType.Driver => FinancialOwnerType.Driver,
+            _ => FinancialOwnerType.Platform
+        };
+        var entityName = await financeOwnerNameResolver.ResolveOwnerNameAsync(
+            financialOwnerType,
+            settlement.OwnerId,
+            cancellationToken) ?? $"{settlement.OwnerType} {settlement.OwnerId:N}";
+        var entityCode = $"SET-{settlement.CreatedAtUtc:yyMMdd}-{settlement.Id.ToString("N")[..8].ToUpperInvariant()}";
+
+        var file = PdfExportBuilder.BuildStatement(
+            ExportFileResult.StampFileName($"settlement-statement-{settlement.Id:N}", ".pdf"),
+            "Settlement Statement",
+            subtitle: entityCode,
+            meta:
+            [
+                new ExportKeyValue("Entity", entityName),
+                new ExportKeyValue("Code", entityCode),
+                new ExportKeyValue("Owner Type", settlement.OwnerType.ToString()),
+                new ExportKeyValue("Owner ID", settlement.OwnerId.ToString()),
+                new ExportKeyValue("Status", settlement.Status.ToString()),
+                new ExportKeyValue("Period From", settlement.PeriodFrom.ToString("o")),
+                new ExportKeyValue("Period To", settlement.PeriodTo.ToString("o")),
+                new ExportKeyValue("Gross", settlement.GrossAmount.ToString("0.##")),
+                new ExportKeyValue("Commission", settlement.CommissionAmount.ToString("0.##")),
+                new ExportKeyValue("Refund", settlement.RefundAmount.ToString("0.##")),
+                new ExportKeyValue("Adjustment", settlement.AdjustmentAmount.ToString("0.##")),
+                new ExportKeyValue("Recovery", settlement.RecoveryAmount.ToString("0.##")),
+                new ExportKeyValue("Net", settlement.NetAmount.ToString("0.##"))
+            ],
+            columns:
+            [
+                new ExportColumn("Line Type", "lineType"),
+                new ExportColumn("Order ID", "orderId"),
+                new ExportColumn("Amount", "amount"),
+                new ExportColumn("Commission", "commission"),
+                new ExportColumn("Refund", "refund"),
+                new ExportColumn("Adjustment", "adjustment"),
+                new ExportColumn("Recovery", "recovery"),
+                new ExportColumn("Net", "net")
+            ],
+            rows: settlement.Items.Select(item => (IReadOnlyDictionary<string, string?>)new Dictionary<string, string?>
+            {
+                ["lineType"] = item.LineType.ToString(),
+                ["orderId"] = item.OrderId?.ToString() ?? string.Empty,
+                ["amount"] = item.Amount.ToString("0.##"),
+                ["commission"] = item.Commission.ToString("0.##"),
+                ["refund"] = item.Refund.ToString("0.##"),
+                ["adjustment"] = item.Adjustment.ToString("0.##"),
+                ["recovery"] = item.Recovery.ToString("0.##"),
+                ["net"] = item.NetAmount.ToString("0.##")
+            }),
+            totals:
+            [
+                new ExportKeyValue("Gross", settlement.GrossAmount.ToString("0.##")),
+                new ExportKeyValue("Net", settlement.NetAmount.ToString("0.##"))
+            ]);
+
+        return ExportFileResult.From(file);
     }
 
     [HttpPost("generate")]

@@ -47,6 +47,7 @@ public sealed class AccessAuthorizationConvention : IApplicationModelConvention
                 [PermissionKeys.Admin.DriversView],
                 edit: [PermissionKeys.Admin.DriversEdit],
                 approve: [PermissionKeys.Admin.DriversApprove],
+                export: [PermissionKeys.Admin.DriversExport],
                 overrides: new Dictionary<string, string[]>(StringComparer.Ordinal)
                 {
                     ["BanDriver"] = [PermissionKeys.Admin.DriversApprove],
@@ -67,7 +68,8 @@ public sealed class AccessAuthorizationConvention : IApplicationModelConvention
                 [PermissionKeys.Admin.FinancesView],
                 create: [PermissionKeys.Admin.FinancesEdit],
                 edit: [PermissionKeys.Admin.FinancesEdit],
-                approve: [PermissionKeys.Admin.FinancesApprove]),
+                approve: [PermissionKeys.Admin.FinancesApprove],
+                export: [PermissionKeys.Admin.FinancesExport]),
             ["AdminFinanceAdjustments"] = new(
                 [PermissionKeys.Admin.FinancesView],
                 create: [PermissionKeys.Admin.FinancesEdit],
@@ -112,7 +114,8 @@ public sealed class AccessAuthorizationConvention : IApplicationModelConvention
             ["AdminSettlements"] = new(
                 [PermissionKeys.Admin.FinancesView],
                 edit: [PermissionKeys.Admin.FinancesEdit],
-                approve: [PermissionKeys.Admin.FinancesApprove]),
+                approve: [PermissionKeys.Admin.FinancesApprove],
+                export: [PermissionKeys.Admin.FinancesExport]),
             ["AdminPayoutReconciliation"] = new(
                 [PermissionKeys.Admin.FinancesView],
                 edit: [PermissionKeys.Admin.FinancesEdit],
@@ -125,7 +128,8 @@ public sealed class AccessAuthorizationConvention : IApplicationModelConvention
                 }),
             ["AdminCustomers"] = new(
                 [PermissionKeys.Admin.CustomersView],
-                edit: [PermissionKeys.Admin.CustomersEdit]),
+                edit: [PermissionKeys.Admin.CustomersEdit],
+                export: [PermissionKeys.Admin.CustomersExport]),
             ["AdminMarketingBanners"] = new(
                 [PermissionKeys.Admin.MarketingView],
                 create: [PermissionKeys.Admin.MarketingEdit],
@@ -152,7 +156,8 @@ public sealed class AccessAuthorizationConvention : IApplicationModelConvention
                 [PermissionKeys.Admin.DisputesView],
                 create: [PermissionKeys.Admin.DisputesEdit],
                 edit: [PermissionKeys.Admin.DisputesEdit],
-                approve: [PermissionKeys.Admin.DisputesApprove]),
+                approve: [PermissionKeys.Admin.DisputesApprove],
+                export: [PermissionKeys.Admin.DisputesExport]),
             ["AdminOrders"] = new(
                 [PermissionKeys.Admin.OrdersView],
                 edit: [PermissionKeys.Admin.OrdersEdit],
@@ -165,6 +170,7 @@ public sealed class AccessAuthorizationConvention : IApplicationModelConvention
                 create: [PermissionKeys.Admin.VendorsEdit],
                 edit: [PermissionKeys.Admin.VendorsEdit],
                 approve: [PermissionKeys.Admin.VendorsApprove],
+                export: [PermissionKeys.Admin.VendorsExport],
                 // Finance operations remain available from the vendor detail
                 // screen for convenience, but they must never inherit the
                 // comparatively broad VendorsEdit/VendorsApprove permissions.
@@ -174,7 +180,8 @@ public sealed class AccessAuthorizationConvention : IApplicationModelConvention
                     ["RetryVendorPayout"] = [PermissionKeys.Admin.FinancesApprove],
                     ["CompleteVendorPayout"] = [PermissionKeys.Admin.FinancesApprove],
                     ["SuspendVendorPayout"] = [PermissionKeys.Admin.FinancesApprove],
-                    ["EscalateVendorPayout"] = [PermissionKeys.Admin.FinancesApprove]
+                    ["EscalateVendorPayout"] = [PermissionKeys.Admin.FinancesApprove],
+                    ["ExportVendorPayoutReceipt"] = [PermissionKeys.Admin.FinancesExport]
                 }),
             ["AdminVendorWorkspaceState"] = new(
                 [PermissionKeys.Admin.VendorsView],
@@ -240,7 +247,8 @@ public sealed class AccessAuthorizationConvention : IApplicationModelConvention
             ["VendorOrders"] = new(
                 [PermissionKeys.Vendor.OrdersView],
                 edit: [PermissionKeys.Vendor.OrdersEdit],
-                approve: [PermissionKeys.Vendor.OrdersApprove]),
+                approve: [PermissionKeys.Vendor.OrdersApprove],
+                export: [PermissionKeys.Vendor.OrdersExport]),
             ["VendorCoupons"] = new(
                 [PermissionKeys.Vendor.OffersView],
                 create: [PermissionKeys.Vendor.OffersEdit],
@@ -253,7 +261,13 @@ public sealed class AccessAuthorizationConvention : IApplicationModelConvention
                 [PermissionKeys.Vendor.SupportView],
                 create: [PermissionKeys.Vendor.SupportEdit],
                 edit: [PermissionKeys.Vendor.SupportEdit]),
-            ["VendorWorkspace"] = new([PermissionKeys.Vendor.DashboardView]),
+            ["VendorWorkspace"] = new(
+                [PermissionKeys.Vendor.DashboardView],
+                export: [PermissionKeys.Vendor.FinanceExport],
+                overrides: new Dictionary<string, string[]>(StringComparer.Ordinal)
+                {
+                    ["ExportFinanceStatement"] = [PermissionKeys.Vendor.FinanceExport]
+                }),
             ["VendorWorkspaceState"] = new(
                 [PermissionKeys.Vendor.DashboardView],
                 edit: [PermissionKeys.Vendor.SettingsEdit]),
@@ -399,20 +413,25 @@ public sealed class AccessAuthorizationConvention : IApplicationModelConvention
         }
     }
 
-    private static string[] ResolvePermissions(ControllerAccessRule rule, ActionModel action)
-    {
-        if (rule.Overrides.TryGetValue(action.ActionName, out var overridePermissions))
+        private static string[] ResolvePermissions(ControllerAccessRule rule, ActionModel action)
         {
-            return overridePermissions;
-        }
+            if (rule.Overrides.TryGetValue(action.ActionName, out var overridePermissions))
+            {
+                return overridePermissions;
+            }
 
-        var actionDescriptor = $"{action.ActionName} {GetRouteTemplate(action)}";
-        if (ContainsAny(actionDescriptor, "search"))
-        {
-            return rule.Read;
-        }
+            var actionDescriptor = $"{action.ActionName} {GetRouteTemplate(action)}";
+            if (ContainsAny(actionDescriptor, "search"))
+            {
+                return rule.Read;
+            }
 
-        var methods = GetHttpMethods(action);
+            if (ContainsAny(actionDescriptor, "export", "statement", "receipt"))
+            {
+                return rule.Export.Length > 0 ? rule.Export : rule.Read;
+            }
+
+            var methods = GetHttpMethods(action);
         if (methods.Count == 0 || methods.All(method => HttpMethods.IsGet(method) || HttpMethods.IsHead(method)))
         {
             return rule.Read;
@@ -471,26 +490,29 @@ public sealed class AccessAuthorizationConvention : IApplicationModelConvention
             approve: [PermissionKeys.Admin.CatalogApprove]);
     }
 
-    private sealed class ControllerAccessRule
-    {
-        public ControllerAccessRule(
-            string[] read,
-            string[]? create = null,
-            string[]? edit = null,
-            string[]? approve = null,
-            Dictionary<string, string[]>? overrides = null)
+        private sealed class ControllerAccessRule
         {
-            Read = read;
-            Create = create ?? read;
-            Edit = edit ?? Create;
-            Approve = approve ?? Edit;
-            Overrides = overrides ?? new Dictionary<string, string[]>(StringComparer.Ordinal);
-        }
+            public ControllerAccessRule(
+                string[] read,
+                string[]? create = null,
+                string[]? edit = null,
+                string[]? approve = null,
+                string[]? export = null,
+                Dictionary<string, string[]>? overrides = null)
+            {
+                Read = read;
+                Create = create ?? read;
+                Edit = edit ?? Create;
+                Approve = approve ?? Edit;
+                Export = export ?? read;
+                Overrides = overrides ?? new Dictionary<string, string[]>(StringComparer.Ordinal);
+            }
 
-        public string[] Read { get; }
-        public string[] Create { get; }
-        public string[] Edit { get; }
-        public string[] Approve { get; }
-        public Dictionary<string, string[]> Overrides { get; }
-    }
+            public string[] Read { get; }
+            public string[] Create { get; }
+            public string[] Edit { get; }
+            public string[] Approve { get; }
+            public string[] Export { get; }
+            public Dictionary<string, string[]> Overrides { get; }
+        }
 }
