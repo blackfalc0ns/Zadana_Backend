@@ -22,4 +22,13 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
 
+  <ItemGroup>
+    <None Include="Common\Export\Fonts\NotoSansArabic-Regular.ttf">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <EmbeddedResource Include="Common\Export\Fonts\NotoSansArabic-Regular.ttf">
+      <LogicalName>Zadana.Application.Common.Export.Fonts.NotoSansArabic-Regular.ttf</LogicalName>
+    </EmbeddedResource>
+  </ItemGroup>
+
 </Project>

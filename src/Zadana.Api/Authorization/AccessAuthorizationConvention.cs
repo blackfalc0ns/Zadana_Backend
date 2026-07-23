@@ -426,7 +426,7 @@ public sealed class AccessAuthorizationConvention : IApplicationModelConvention
                 return rule.Read;
             }
 
-            if (ContainsAny(actionDescriptor, "export", "statement", "receipt"))
+            if (ContainsAny(actionDescriptor, "export", "statement", "receipt", "report"))
             {
                 return rule.Export.Length > 0 ? rule.Export : rule.Read;
             }

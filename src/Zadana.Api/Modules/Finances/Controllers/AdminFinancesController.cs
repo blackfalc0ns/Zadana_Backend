@@ -296,26 +296,228 @@ public class AdminFinancesController(
 
     [HttpGet("report")]
     [ProducesResponseType(StatusCodes.Status200OK)]
-    public IActionResult ExportFinanceReport(
+    public async Task<IActionResult> ExportFinanceReport(
         [FromQuery] string? title = null,
         [FromQuery] string? route = null,
-        [FromQuery] string? summary = null)
+        [FromQuery] string? summary = null,
+        [FromQuery] string period = "month",
+        CancellationToken cancellationToken = default)
     {
         var reportTitle = string.IsNullOrWhiteSpace(title) ? "Finance Report" : title.Trim();
+        var normalizedPeriod = string.IsNullOrWhiteSpace(period) ? "month" : period.Trim().ToLowerInvariant();
+        var dashboard = await mediator.Send(new GetAdminFinanceDashboardQuery(normalizedPeriod), cancellationToken);
+        var statement = await BuildStatementSummaryAsync(normalizedPeriod, cancellationToken);
+
+        var kpis = new[]
+        {
+            dashboard.GrossCollections,
+            dashboard.PlatformNetRevenue,
+            dashboard.CommissionRevenue,
+            dashboard.DeliveryRevenue,
+            dashboard.CodFeesCollected,
+            dashboard.VatCollected,
+            dashboard.DriverPayouts,
+            dashboard.RefundExposure
+        };
+
+        var kpiRows = kpis.Select(kpi => (IReadOnlyDictionary<string, string?>)new Dictionary<string, string?>
+        {
+            ["metric"] = ResolveKpiLabel(kpi),
+            ["value"] = kpi.FormattedValue,
+            ["trend"] = $"{kpi.Trend} {kpi.TrendPercent:0.##}%"
+        });
+
+        var compositionRows = dashboard.RevenueComposition.Select(segment =>
+            (IReadOnlyDictionary<string, string?>)new Dictionary<string, string?>
+            {
+                ["segment"] = ResolveCompositionLabel(segment),
+                ["amount"] = segment.Amount.ToString("0.##"),
+                ["percent"] = $"{segment.Percent:0.##}%"
+            });
+
+        var alertRows = dashboard.Alerts.Take(50).Select(alert =>
+            (IReadOnlyDictionary<string, string?>)new Dictionary<string, string?>
+            {
+                ["severity"] = alert.Severity,
+                ["entity"] = alert.EntityName ?? alert.EntityType,
+                ["amount"] = alert.Amount?.ToString("0.##") ?? string.Empty,
+                ["when"] = alert.Timestamp
+            });
+
+        var tableColumns = new List<ExportColumn>
+        {
+            new("Metric", "metric"),
+            new("Value", "value"),
+            new("Trend", "trend")
+        };
+        var tableRows = kpiRows.ToList();
+
+        if (dashboard.RevenueComposition.Count > 0)
+        {
+            tableRows.Add(new Dictionary<string, string?>
+            {
+                ["metric"] = "— Revenue composition —",
+                ["value"] = string.Empty,
+                ["trend"] = string.Empty
+            });
+            foreach (var row in compositionRows)
+            {
+                tableRows.Add(new Dictionary<string, string?>
+                {
+                    ["metric"] = row["segment"],
+                    ["value"] = row["amount"],
+                    ["trend"] = row["percent"]
+                });
+            }
+        }
+
+        if (dashboard.Alerts.Count > 0)
+        {
+            tableRows.Add(new Dictionary<string, string?>
+            {
+                ["metric"] = "— Alerts —",
+                ["value"] = string.Empty,
+                ["trend"] = string.Empty
+            });
+            foreach (var row in alertRows)
+            {
+                tableRows.Add(new Dictionary<string, string?>
+                {
+                    ["metric"] = $"{row["severity"]}: {row["entity"]}",
+                    ["value"] = row["amount"],
+                    ["trend"] = row["when"]
+                });
+            }
+        }
+
         var file = PdfExportBuilder.BuildStatement(
             ExportFileResult.StampFileName("finance-report", ".pdf"),
             reportTitle,
-            subtitle: "Finance shell export",
+            subtitle: $"Period: {statement.PeriodLabel}",
             meta:
             [
-                new ExportKeyValue("Title", reportTitle),
                 new ExportKeyValue("Route", string.IsNullOrWhiteSpace(route) ? string.Empty : route.Trim()),
                 new ExportKeyValue("Summary", string.IsNullOrWhiteSpace(summary) ? string.Empty : summary.Trim()),
+                new ExportKeyValue("Period", statement.PeriodLabel),
                 new ExportKeyValue("Generated At (UTC)", DateTime.UtcNow.ToString("o"))
+            ],
+            columns: tableColumns,
+            rows: tableRows,
+            totals:
+            [
+                new ExportKeyValue("Statement Revenue", statement.Revenue.ToString("0.##")),
+                new ExportKeyValue("Statement Expenses", statement.Expenses.ToString("0.##")),
+                new ExportKeyValue("VAT Payable", statement.VatPayable.ToString("0.##")),
+                new ExportKeyValue("Net Income", statement.NetIncome.ToString("0.##")),
+                new ExportKeyValue("Gross Collections", dashboard.GrossCollections.FormattedValue),
+                new ExportKeyValue("Platform Net Revenue", dashboard.PlatformNetRevenue.FormattedValue)
             ]);
 
         return ExportFileResult.From(file);
     }
+
+    private async Task<AdminFinanceStatementSummaryDto> BuildStatementSummaryAsync(
+        string period,
+        CancellationToken cancellationToken)
+    {
+        var now = DateTime.UtcNow;
+        var (start, end, label) = ResolveFinancePeriod(period, now);
+
+        var statementLines = await context.JournalLines
+            .AsNoTracking()
+            .Where(line =>
+                line.JournalEntry.Status == JournalEntryStatus.Posted &&
+                line.JournalEntry.PostedAtUtc >= start &&
+                line.JournalEntry.PostedAtUtc < end)
+            .Where(line =>
+                line.AccountCode == FinancialAccountCode.PlatformRevenue ||
+                line.AccountCode == FinancialAccountCode.RefundExpense ||
+                line.AccountCode == FinancialAccountCode.GatewayFeeExpense ||
+                line.AccountCode == FinancialAccountCode.TaxPayable)
+            .Select(line => new
+            {
+                line.AccountCode,
+                line.DebitAmount,
+                line.CreditAmount
+            })
+            .ToListAsync(cancellationToken);
+
+        var revenue = statementLines
+            .Where(line => line.AccountCode == FinancialAccountCode.PlatformRevenue)
+            .Sum(line => line.CreditAmount);
+
+        var expenses = statementLines
+            .Where(line =>
+                line.AccountCode == FinancialAccountCode.RefundExpense ||
+                line.AccountCode == FinancialAccountCode.GatewayFeeExpense)
+            .Sum(line => line.DebitAmount);
+
+        var vatPayable = statementLines
+            .Where(line => line.AccountCode == FinancialAccountCode.TaxPayable)
+            .Sum(line => line.CreditAmount);
+
+        return new AdminFinanceStatementSummaryDto(
+            Math.Round(revenue, 2),
+            Math.Round(expenses, 2),
+            Math.Round(vatPayable, 2),
+            Math.Round(revenue - expenses - vatPayable, 2),
+            label);
+    }
+
+    private static (DateTime Start, DateTime End, string Label) ResolveFinancePeriod(string period, DateTime now)
+    {
+        switch (period)
+        {
+            case "today":
+            {
+                var start = now.Date;
+                return (start, start.AddDays(1), start.ToString("yyyy-MM-dd"));
+            }
+            case "week":
+            {
+                var start = now.Date.AddDays(-7);
+                return (start, now, $"{start:yyyy-MM-dd}..{now:yyyy-MM-dd}");
+            }
+            case "quarter":
+            {
+                var start = now.Date.AddDays(-90);
+                return (start, now, $"{start:yyyy-MM-dd}..{now:yyyy-MM-dd}");
+            }
+            default:
+            {
+                var start = new DateTime(now.Year, now.Month, 1, 0, 0, 0, DateTimeKind.Utc);
+                return (start, start.AddMonths(1), $"{start:yyyy-MM}");
+            }
+        }
+    }
+
+    private static string ResolveKpiLabel(AdminFinanceKpiDto kpi) =>
+        string.IsNullOrWhiteSpace(kpi.Id)
+            ? kpi.LabelKey
+            : kpi.Id switch
+            {
+                "gross_collections" => "Gross Collections",
+                "platform_net_revenue" => "Platform Net Revenue",
+                "commission_revenue" => "Commission Revenue",
+                "delivery_revenue" => "Delivery Revenue",
+                "cod_fees" => "COD Fees Collected",
+                "vat_collected" => "VAT Collected",
+                "driver_payouts" => "Driver Payouts",
+                "refund_exposure" => "Refund Exposure",
+                _ => kpi.Id.Replace('_', ' ')
+            };
+
+    private static string ResolveCompositionLabel(AdminRevenueCompositionSegmentDto segment) =>
+        string.IsNullOrWhiteSpace(segment.Id)
+            ? segment.LabelKey
+            : segment.Id switch
+            {
+                "commissions" => "Commissions",
+                "delivery_fees" => "Delivery Fees",
+                "cod_fees" => "COD Fees",
+                "vat" => "VAT",
+                _ => segment.Id.Replace('_', ' ')
+            };
 
     [HttpGet("ledger/{entryId:guid}")]
     [ProducesResponseType(typeof(AdminLedgerEntryDto), StatusCodes.Status200OK)]
