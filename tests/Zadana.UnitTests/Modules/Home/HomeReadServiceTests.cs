@@ -30,6 +30,7 @@ public class HomeReadServiceTests
         await using var context = TestDbContextFactory.Create();
 
         var customer = CreateCustomer("header@test.com");
+        customer.UpdateProfilePhoto("https://cdn.example.com/users/header.jpg");
         context.Users.Add(customer);
 
         var newerAddress = new CustomerAddress(customer.Id, "Ahmed", "0101", "Street 1", AddressLabel.Work, city: "Cairo", area: "Nasr City");
@@ -48,7 +49,14 @@ public class HomeReadServiceTests
 
         var result = await service.GetHeaderAsync();
 
-        result.Should().BeEquivalentTo(new HomeHeaderDto("Customer", "header@test.com", "المنزل", "Maadi, Cairo", "Street 2", 2));
+        result.Should().BeEquivalentTo(new HomeHeaderDto(
+            "Customer",
+            "header@test.com",
+            "https://cdn.example.com/users/header.jpg",
+            "المنزل",
+            "Maadi, Cairo",
+            "Street 2",
+            2));
     }
 
     [Fact]

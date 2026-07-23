@@ -5,6 +5,7 @@ namespace Zadana.Application.Modules.Home.DTOs;
 public record HomeHeaderDto(
     [property: JsonPropertyName("full_name")] string FullName,
     [property: JsonPropertyName("email")] string Email,
+    [property: JsonPropertyName("profile_photo_url")] string? ProfilePhotoUrl,
     [property: JsonPropertyName("deliver_to_label")] string DeliverToLabel,
     [property: JsonPropertyName("location")] string Location,
     [property: JsonPropertyName("address_line")] string AddressLine,
@@ -69,6 +70,7 @@ public record HomeDynamicSectionDto(
 public record HomeContentDto(
     [property: JsonPropertyName("full_name")] string FullName,
     [property: JsonPropertyName("email")] string Email,
+    [property: JsonPropertyName("profile_photo_url")] string? ProfilePhotoUrl,
     [property: JsonPropertyName("deliver_to_label")] string DeliverToLabel,
     [property: JsonPropertyName("location")] string Location,
     [property: JsonPropertyName("address_line")] string AddressLine,

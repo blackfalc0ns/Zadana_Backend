@@ -2217,19 +2217,29 @@ public sealed class EmailCenterService : IEmailCenterService
             !string.IsNullOrWhiteSpace(defaults.HeroImageUrlAr) ||
             !string.IsNullOrWhiteSpace(defaults.HeroImageUrlEn);
 
-        if (hasExistingHero || !hasDefaultHero)
+        var existingBodyEn = existing.Body.GetValueOrDefault("en")?.Trim() ?? string.Empty;
+        var shouldRefreshStubCopy = StubTemplateBodiesEn.Contains(existingBodyEn);
+
+        if ((!hasExistingHero && hasDefaultHero) || shouldRefreshStubCopy)
         {
-            return existingJson ?? defaultJson;
+            // Unfinished / stub templates adopt the polished default package.
+            return defaultJson;
         }
 
-        return Serialize(existing with
-        {
-            HeroImageUrl = defaults.HeroImageUrl,
-            HeroImageUrlAr = defaults.HeroImageUrlAr,
-            HeroImageUrlEn = defaults.HeroImageUrlEn,
-            CtaLabel = string.IsNullOrWhiteSpace(existing.CtaLabel) ? defaults.CtaLabel : existing.CtaLabel
-        });
+        return existingJson ?? defaultJson;
     }
+
+    private static readonly HashSet<string> StubTemplateBodiesEn = new(StringComparer.Ordinal)
+    {
+        "Your super admin access invitation is ready. Complete onboarding before the expiry date.",
+        "Branch team access has been prepared. Review role scope and complete activation.",
+        "A secure password reset was requested for the branch account.",
+        "Daily finance digest for the selected vendor scope.",
+        "Your driver verification status has changed. Open the driver app for details.",
+        "A payout-related update is available for your driver account.",
+        "A recovery action was requested for your customer account.",
+        "This is an automated vendor account update from Zadana. Open your workspace for details."
+    };
 
     private static string Serialize<T>(T value) => JsonSerializer.Serialize(value, JsonOptions);
 
@@ -2508,8 +2518,16 @@ internal static class EmailCenterDefaults
                 new EmailRecipientTargetSelectionDto(["primary_account_email"], ["assigned_super_admin_manager"], []),
                 new EmailRecipientRouteDto(["support@zadna0.com"], [], [], ["support@zadna0.com"], ["contact@zadna0.com"], [], "Access Control Desk", "Security Governance"),
                 new EmailTemplatePreviewDto(
-                    new Dictionary<string, string> { ["en"] = "Your Zadana access is ready", ["ar"] = "جهّزنا وصولك في زادانا" },
-                    new Dictionary<string, string> { ["en"] = "Your super admin access invitation is ready. Complete onboarding before the expiry date.", ["ar"] = "دعوة الوصول الخاصة بك جاهزة. فضلاً إكمال التفعيل قبل تاريخ الانتهاء." },
+                    new Dictionary<string, string>
+                    {
+                        ["en"] = "Your Zadna admin access is ready, {{full_name}}",
+                        ["ar"] = "وصولك للوحة إدارة زادنا جاهز، {{full_name}}"
+                    },
+                    new Dictionary<string, string>
+                    {
+                        ["en"] = "Hi {{full_name}}, your Super Admin invitation is ready. Open the secure link and complete activation before {{expiry_date}}. If you did not expect this invitation, contact support@zadna0.com.",
+                        ["ar"] = "أهلاً {{full_name}}، دعوة لوحة الإدارة جاهزة. افتح الرابط الآمن وأكمل التفعيل قبل {{expiry_date}}. إذا لم تطلب هذه الدعوة، تواصل مع support@zadna0.com."
+                    },
                     ["{{full_name}}", "{{expiry_date}}", "{{invite_link}}"],
                     AdminAccessInviteHeroImageUrlEn,
                     "Open admin panel",
@@ -2533,8 +2551,16 @@ internal static class EmailCenterDefaults
                 new EmailRecipientTargetSelectionDto(["branch_manager", "vendor_owner"], ["assigned_super_admin_manager"], []),
                 new EmailRecipientRouteDto([], ["hello@zadna0.com"], [], ["contact@zadna0.com"], ["support@zadna0.com"], [], "Vendor Success Hub", "Marketplace Operations"),
                 new EmailTemplatePreviewDto(
-                    new Dictionary<string, string> { ["en"] = "Branch access onboarding", ["ar"] = "تهيئة وصول الفرع" },
-                    new Dictionary<string, string> { ["en"] = "Branch team access has been prepared. Review role scope and complete activation.", ["ar"] = "جهّزنا وصول فريق الفرع. فضلاً راجع نطاق الدور واستكمال التفعيل." },
+                    new Dictionary<string, string>
+                    {
+                        ["en"] = "Activate {{branch_name}} access on Zadna",
+                        ["ar"] = "فعّل وصول فرع {{branch_name}} في زادنا"
+                    },
+                    new Dictionary<string, string>
+                    {
+                        ["en"] = "{{vendor_name}} invited your team to manage {{branch_name}} on the Zadna Vendor Panel. Review the role scope, open the invite link, and finish activation to start handling orders.",
+                        ["ar"] = "{{vendor_name}} دعا فريقك لإدارة فرع {{branch_name}} من لوحة تاجر زادنا. راجع نطاق الدور، افتح رابط الدعوة، وأكمل التفعيل للبدء في إدارة الطلبات."
+                    },
                     ["{{branch_name}}", "{{vendor_name}}", "{{invite_link}}"],
                     VendorBranchInviteHeroImageUrlEn,
                     "Activate branch access",
@@ -2558,8 +2584,16 @@ internal static class EmailCenterDefaults
                 new EmailRecipientTargetSelectionDto(["branch_manager", "branch_staff"], ["vendor_company_manager"], []),
                 new EmailRecipientRouteDto([], [], [], ["support@zadna0.com"], ["contact@zadna0.com"], [], "Vendor Identity Support", "Vendor Security Desk"),
                 new EmailTemplatePreviewDto(
-                    new Dictionary<string, string> { ["en"] = "Reset requested for branch credentials", ["ar"] = "طلبنا إعادة تعيين بيانات الفرع" },
-                    new Dictionary<string, string> { ["en"] = "A secure password reset was requested for the branch account.", ["ar"] = "طلبنا إعادة تعيين آمن لبيانات الفرع." },
+                    new Dictionary<string, string>
+                    {
+                        ["en"] = "Reset password for {{branch_name}}",
+                        ["ar"] = "إعادة تعيين كلمة مرور فرع {{branch_name}}"
+                    },
+                    new Dictionary<string, string>
+                    {
+                        ["en"] = "A secure password reset was requested for {{branch_name}} at {{requested_at}}. Use the link below to set a new password. If you did not request this, ignore this email or contact support.",
+                        ["ar"] = "تم طلب إعادة تعيين آمنة لكلمة مرور فرع {{branch_name}} في {{requested_at}}. استخدم الرابط أدناه لتعيين كلمة مرور جديدة. إذا لم تطلب ذلك، تجاهل الرسالة أو تواصل مع الدعم."
+                    },
                     ["{{branch_name}}", "{{reset_link}}", "{{requested_at}}"],
                     PasswordResetHeroImageUrlEn,
                     "Reset password",
@@ -2583,8 +2617,16 @@ internal static class EmailCenterDefaults
                 new EmailRecipientTargetSelectionDto(["vendor_finance"], ["vendor_owner", "vendor_company_manager"], ["assigned_super_admin_manager"]),
                 new EmailRecipientRouteDto(["info@zadna0.com"], [], [], ["info@zadna0.com"], ["contact@zadna0.com"], [], "Finance Operations", "CFO Office"),
                 new EmailTemplatePreviewDto(
-                    new Dictionary<string, string> { ["en"] = "Vendor finance digest", ["ar"] = "ملخص مالية التاجر" },
-                    new Dictionary<string, string> { ["en"] = "Daily finance digest for the selected vendor scope.", ["ar"] = "ملخص مالي يومي لنطاق التاجر المحدد." },
+                    new Dictionary<string, string>
+                    {
+                        ["en"] = "{{vendor_name}} finance digest — {{business_date}}",
+                        ["ar"] = "ملخص مالية {{vendor_name}} — {{business_date}}"
+                    },
+                    new Dictionary<string, string>
+                    {
+                        ["en"] = "Hi {{vendor_name}}, here is your Zadna finance digest for {{business_date}}. Review settlements, outstanding balances, and payout readiness in your vendor dashboard.",
+                        ["ar"] = "أهلاً {{vendor_name}}، هذا ملخص مالية زادنا ليوم {{business_date}}. راجع التسويات والأرصدة المستحقة وجاهزية المدفوعات من لوحة التاجر."
+                    },
                     ["{{business_date}}", "{{vendor_name}}"],
                     VendorFinanceDigestHeroImageUrlEn,
                     "Open finance dashboard",
@@ -2608,8 +2650,16 @@ internal static class EmailCenterDefaults
                 new EmailRecipientTargetSelectionDto(["driver_account"], [], []),
                 new EmailRecipientRouteDto([], [], [], [], [], [], "Driver Operations", "Driver Compliance"),
                 new EmailTemplatePreviewDto(
-                    new Dictionary<string, string> { ["en"] = "Driver verification update", ["ar"] = "تحديث حالة توثيق المندوب" },
-                    new Dictionary<string, string> { ["en"] = "Your driver verification status has changed. Open the driver app for details.", ["ar"] = "حدّثنا حالة توثيق المندوب. افتح التطبيق للاطلاع على التفاصيل." },
+                    new Dictionary<string, string>
+                    {
+                        ["en"] = "Driver verification update for {{driver_name}}",
+                        ["ar"] = "تحديث توثيق المندوب {{driver_name}}"
+                    },
+                    new Dictionary<string, string>
+                    {
+                        ["en"] = "Hi {{driver_name}}, your verification status is now {{status}}. {{driver_note}} Open the driver app for full details and next steps.",
+                        ["ar"] = "أهلاً {{driver_name}}، حالة التوثيق أصبحت {{status}}. {{driver_note}} افتح تطبيق المندوب للتفاصيل والخطوات التالية."
+                    },
                     ["{{driver_name}}", "{{status}}", "{{driver_note}}"],
                     DriverVerificationHeroImageUrlEn,
                     "Open driver app",
@@ -2634,8 +2684,16 @@ internal static class EmailCenterDefaults
                 new EmailRecipientTargetSelectionDto(["driver_account"], [], []),
                 new EmailRecipientRouteDto([], [], [], ["info@zadna0.com"], [], [], "Driver Finance Desk", "Driver Finance Lead"),
                 new EmailTemplatePreviewDto(
-                    new Dictionary<string, string> { ["en"] = "Driver payout alert", ["ar"] = "تنبيه دفعة المندوب" },
-                    new Dictionary<string, string> { ["en"] = "A payout-related update is available for your driver account.", ["ar"] = "هناك تحديث متعلق بالدفعات على حساب المندوب الخاص بك." },
+                    new Dictionary<string, string>
+                    {
+                        ["en"] = "Payout update: {{payout_reference}}",
+                        ["ar"] = "تحديث دفعة: {{payout_reference}}"
+                    },
+                    new Dictionary<string, string>
+                    {
+                        ["en"] = "A payout update is ready on your Zadna driver wallet. Amount: {{amount}}. Reference: {{payout_reference}}. Open the app to review status and details.",
+                        ["ar"] = "يوجد تحديث على محفظة مندوب زادنا. المبلغ: {{amount}}. المرجع: {{payout_reference}}. افتح التطبيق لمراجعة الحالة والتفاصيل."
+                    },
                     ["{{amount}}", "{{payout_reference}}"],
                     DriverPayoutAlertHeroImageUrlEn,
                     "Open driver wallet",
@@ -2688,8 +2746,16 @@ internal static class EmailCenterDefaults
                 new EmailRecipientTargetSelectionDto(["customer_account"], [], []),
                 new EmailRecipientRouteDto([], [], [], ["support@zadna0.com"], [], [], "Identity Support", "Customer Security Desk"),
                 new EmailTemplatePreviewDto(
-                    new Dictionary<string, string> { ["en"] = "Customer account recovery", ["ar"] = "استعادة حساب العميل" },
-                    new Dictionary<string, string> { ["en"] = "A recovery action was requested for your customer account.", ["ar"] = "طلبنا إجراء استعادة لحساب العميل الخاص بك." },
+                    new Dictionary<string, string>
+                    {
+                        ["en"] = "Recover your Zadna account",
+                        ["ar"] = "استعادة حساب زادنا"
+                    },
+                    new Dictionary<string, string>
+                    {
+                        ["en"] = "A recovery request was submitted for your Zadna customer account at {{requested_at}}. Use the secure link to restore access. If you did not request this, ignore the email or contact support@zadna0.com.",
+                        ["ar"] = "تم تقديم طلب استعادة لحساب عميل زادنا في {{requested_at}}. استخدم الرابط الآمن لاسترجاع الوصول. إذا لم تطلب ذلك، تجاهل الرسالة أو تواصل مع support@zadna0.com."
+                    },
                     ["{{reset_link}}", "{{requested_at}}"],
                     AccountRecoveryHeroImageUrlEn,
                     "Recover account",
@@ -2725,8 +2791,8 @@ internal static class EmailCenterDefaults
                 }
                 : new Dictionary<string, string>
                 {
-                    ["en"] = Humanize(eventKey),
-                    ["ar"] = Humanize(eventKey)
+                    ["en"] = "Reset your Zadna vendor password",
+                    ["ar"] = "أعد تعيين كلمة مرور تاجر زادنا"
                 };
             var body = isVendorApproved
                 ? new Dictionary<string, string>
@@ -2736,8 +2802,8 @@ internal static class EmailCenterDefaults
                 }
                 : new Dictionary<string, string>
                 {
-                    ["en"] = "This is an automated vendor account update from Zadana. Open your workspace for details.",
-                    ["ar"] = "هذا تحديث آلي على حساب التاجر من زادنا. افتح لوحة التاجر للاطلاع على التفاصيل."
+                    ["en"] = "{{vendor_name}}, a secure password reset was requested for your Zadna vendor account. Open the link to set a new password. If you did not request this, contact contact@zadna0.com.",
+                    ["ar"] = "{{vendor_name}}، تم طلب إعادة تعيين آمنة لكلمة مرور حساب التاجر في زادنا. افتح الرابط لتعيين كلمة مرور جديدة. إذا لم تطلب ذلك، تواصل مع contact@zadna0.com."
                 };
 
             yield return BuildRule(
@@ -2817,8 +2883,4 @@ internal static class EmailCenterDefaults
             automationState,
             eventKey);
     }
-
-    private static string Humanize(string value) =>
-        string.Join(' ', value.Split('_', StringSplitOptions.RemoveEmptyEntries)
-            .Select(part => char.ToUpperInvariant(part[0]) + part[1..]));
 }

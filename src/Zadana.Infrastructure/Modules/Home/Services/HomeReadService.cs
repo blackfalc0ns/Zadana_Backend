@@ -116,6 +116,7 @@ public class HomeReadService : IHomeReadService
         return new HomeContentDto(
             user.FullName,
             user.Email,
+            user.ProfilePhotoUrl,
             header.DeliverToLabel,
             header.Location,
             header.AddressLine,
@@ -274,7 +275,7 @@ public class HomeReadService : IHomeReadService
         var userId = _currentUserService.UserId;
         if (!_currentUserService.IsAuthenticated || !userId.HasValue)
         {
-            return new HomeHeaderDto(string.Empty, string.Empty, string.Empty, string.Empty, string.Empty, 0);
+            return new HomeHeaderDto(string.Empty, string.Empty, null, string.Empty, string.Empty, string.Empty, 0);
         }
 
         var user = await BuildCurrentUserAsync(cancellationToken);
@@ -293,14 +294,14 @@ public class HomeReadService : IHomeReadService
 
         if (address is null)
         {
-            return new HomeHeaderDto(user.FullName, user.Email, string.Empty, string.Empty, string.Empty, notificationsCount);
+            return new HomeHeaderDto(user.FullName, user.Email, user.ProfilePhotoUrl, string.Empty, string.Empty, string.Empty, notificationsCount);
         }
 
         var deliverToLabel = LocalizeAddressLabel(address.Label);
         var location = BuildLocation(address.Area, address.City, address.AddressLine);
         var addressLine = address.AddressLine?.Trim() ?? string.Empty;
 
-        return new HomeHeaderDto(user.FullName, user.Email, deliverToLabel, location, addressLine, notificationsCount);
+        return new HomeHeaderDto(user.FullName, user.Email, user.ProfilePhotoUrl, deliverToLabel, location, addressLine, notificationsCount);
     }
 
     private async Task<HomeCurrentUserInfo> BuildCurrentUserAsync(CancellationToken cancellationToken)
@@ -308,7 +309,7 @@ public class HomeReadService : IHomeReadService
         var userId = _currentUserService.UserId;
         if (!_currentUserService.IsAuthenticated || !userId.HasValue)
         {
-            return new HomeCurrentUserInfo(string.Empty, string.Empty);
+            return new HomeCurrentUserInfo(string.Empty, string.Empty, null);
         }
 
         var user = await _context.Users
@@ -316,10 +317,11 @@ public class HomeReadService : IHomeReadService
             .Where(x => x.Id == userId.Value)
             .Select(x => new HomeCurrentUserInfo(
                 x.FullName,
-                x.Email ?? string.Empty))
+                x.Email ?? string.Empty,
+                x.ProfilePhotoUrl))
             .FirstOrDefaultAsync(cancellationToken);
 
-        return user ?? new HomeCurrentUserInfo(string.Empty, string.Empty);
+        return user ?? new HomeCurrentUserInfo(string.Empty, string.Empty, null);
     }
 
     private async Task<IReadOnlyList<HomeBannerDto>> GetBannersInternalAsync(int take, CancellationToken cancellationToken)
@@ -1233,7 +1235,7 @@ public class HomeReadService : IHomeReadService
 
     private sealed record HomeProductCatalog(IReadOnlyList<HomeProductSource> Products, Guid? CurrentUserId, IReadOnlySet<Guid> FavoritedMasterProductIds);
 
-    private sealed record HomeCurrentUserInfo(string FullName, string Email);
+    private sealed record HomeCurrentUserInfo(string FullName, string Email, string? ProfilePhotoUrl);
 
     private sealed record HomeProductSource(
         Guid Id,

@@ -1278,7 +1278,8 @@ public class VendorAccessController : ApiControllerBase
             string.IsNullOrWhiteSpace(logoUrl)
                 ? "https://ik.imagekit.io/fnyx4x87z/logo/%D8%B4%D9%81%D8%A7%D9%81%20(4).png"
                 : logoUrl.Trim());
-        const string heroUrl = "https://ik.imagekit.io/fnyx4x87z/email_tamplet/staff-invite-hero-en.png";
+        const string heroUrlEn = "https://ik.imagekit.io/fnyx4x87z/email_tamplet/staff-invite-hero-en.png";
+        const string heroUrlAr = "https://ik.imagekit.io/fnyx4x87z/email_tamplet/staff-invite-hero-ar.png";
 
         return $$"""
             <div style="font-family:Arial,Tahoma,sans-serif;line-height:1.55;color:#132126;background:#edf7f8;padding:12px 8px">
@@ -1288,15 +1289,28 @@ public class VendorAccessController : ApiControllerBase
                 </div>
                 <div style="padding:18px 20px 18px">
                   <div style="max-width:440px;margin:0 auto 16px;border:1px solid #c7e3e7;border-radius:10px;overflow:hidden;background:#f7fbfc">
-                    <img src="{{heroUrl}}" width="440" alt="Zadna vendor staff invitation" style="display:block;width:100%;max-width:440px;height:auto;border:0;margin:0 auto" />
+                    <img src="{{heroUrlEn}}" width="440" alt="Zadna vendor staff invitation" style="display:block;width:100%;max-width:440px;height:auto;border:0;margin:0 auto" />
                   </div>
                   <h1 style="margin:0 0 10px;color:#073843;font-size:18px;line-height:1.25">Vendor staff invitation</h1>
-                  <p style="margin:0 0 12px;color:#405257;font-size:14px">Hello {{safeName}}, you have been invited to join <strong>{{safeVendor}}</strong> on Zadana Vendor Panel.</p>
+                  <p style="margin:0 0 12px;color:#405257;font-size:14px">Hello {{safeName}}, you have been invited to join <strong>{{safeVendor}}</strong> on the Zadna Vendor Panel.</p>
                   <p style="margin:0 0 16px;color:#405257;font-size:13px">This invitation is valid until {{expires}}. Open the link and create your password to activate access.</p>
                   <p style="text-align:center;margin:24px 0">
                     <a href="{{safeLink}}" style="display:inline-block;background:#007f92;color:#ffffff;text-decoration:none;border-radius:10px;padding:12px 20px;font-weight:700">Accept invitation</a>
                   </p>
-                  <p style="margin:0;color:#6a7c82;font-size:12px">If the button does not work, copy and paste this link into your browser:<br>{{safeLink}}</p>
+                  <p style="margin:0 0 20px;color:#6a7c82;font-size:12px">If the button does not work, copy and paste this link into your browser:<br>{{safeLink}}</p>
+                  <hr style="border:none;border-top:1px solid #e2e8f0;margin:20px 0" />
+                  <div dir="rtl" style="font-family:Tahoma,Arial,sans-serif">
+                    <div style="max-width:440px;margin:0 auto 16px;border:1px solid #c7e3e7;border-radius:10px;overflow:hidden;background:#f7fbfc">
+                      <img src="{{heroUrlAr}}" width="440" alt="دعوة فريق تاجر زادنا" style="display:block;width:100%;max-width:440px;height:auto;border:0;margin:0 auto" />
+                    </div>
+                    <h2 style="margin:0 0 8px;color:#073843;font-size:18px;line-height:1.35">دعوة للانضمام لفريق التاجر</h2>
+                    <p style="margin:0 0 12px;color:#405257;font-size:14px">أهلاً {{safeName}}، تمت دعوتك للانضمام إلى <strong>{{safeVendor}}</strong> في لوحة تاجر زادنا.</p>
+                    <p style="margin:0 0 16px;color:#405257;font-size:13px">الدعوة سارية حتى {{expires}}. افتح الرابط وأنشئ كلمة المرور لتفعيل الوصول.</p>
+                    <p style="text-align:center;margin:24px 0">
+                      <a href="{{safeLink}}" style="display:inline-block;background:#007f92;color:#ffffff;text-decoration:none;border-radius:10px;padding:12px 20px;font-weight:700">قبول الدعوة</a>
+                    </p>
+                    <p style="margin:0;color:#6a7c82;font-size:12px">إذا لم يعمل الزر، انسخ الرابط والصقه في المتصفح:<br>{{safeLink}}</p>
+                  </div>
                 </div>
               </div>
             </div>
