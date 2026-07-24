@@ -8,7 +8,8 @@ public record RegisterVendorCommand(
     string FullName,
     string Email,
     string Phone,
-    string Password,
+    string? Password,
+    string? GoogleIdToken,
 
     // Vendor Info
     string BusinessNameAr,

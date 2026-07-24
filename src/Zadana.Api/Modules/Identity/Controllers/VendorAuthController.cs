@@ -8,6 +8,7 @@ using Zadana.Application.Common.Localization;
 using Zadana.Application.Modules.Identity.Commands.Login;
 using Zadana.Application.Modules.Identity.Commands.Logout;
 using Zadana.Application.Modules.Identity.Commands.RefreshToken;
+using Zadana.Application.Modules.Identity.Commands.VendorGoogleAuth;
 using Zadana.Application.Modules.Identity.Commands.VerifyOtp;
 using Zadana.Application.Modules.Identity.DTOs;
 using Zadana.Domain.Modules.Identity.Enums;
@@ -45,6 +46,29 @@ public class VendorAuthController : IdentityAuthControllerBase
         var result = await Sender.Send(new LoginCommand(request.Identifier, request.Password, new[] { UserRole.Vendor, UserRole.VendorStaff }));
         WriteRefreshCookie(result.Tokens);
         return Ok(StripRefreshToken(result));
+    }
+
+    [EnableRateLimiting(RateLimitPolicyNames.Auth)]
+    [HttpPost("google")]
+    [ValidateCsrfToken]
+    public async Task<IActionResult> GoogleAuth([FromBody] VendorGoogleAuthRequest request)
+    {
+        var result = await Sender.Send(new VendorGoogleAuthCommand(request.IdToken));
+        if (result.Mode == "login" && result.Auth is not null)
+        {
+            WriteRefreshCookie(result.Auth.Tokens);
+            return Ok(new
+            {
+                mode = result.Mode,
+                auth = StripRefreshToken(result.Auth)
+            });
+        }
+
+        return Ok(new
+        {
+            mode = result.Mode,
+            profile = result.Profile
+        });
     }
 
     [EnableRateLimiting(RateLimitPolicyNames.Auth)]

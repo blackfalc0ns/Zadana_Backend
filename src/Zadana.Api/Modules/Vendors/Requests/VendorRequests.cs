@@ -4,7 +4,7 @@ public record RegisterVendorRequest(
     string FullName,
     string Email,
     string Phone,
-    string Password,
+    string? Password,
     string BusinessNameAr,
     string BusinessNameEn,
     string BusinessType,
@@ -39,7 +39,8 @@ public record RegisterVendorRequest(
     decimal BranchLongitude,
     string BranchContactPhone,
     decimal BranchDeliveryRadiusKm,
-    string? PayoutDay = null);
+    string? PayoutDay = null,
+    string? GoogleIdToken = null);
 
 public record UpdateVendorProfileRequest(
     string BusinessNameAr,

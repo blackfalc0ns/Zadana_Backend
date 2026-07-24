@@ -11,6 +11,7 @@ public interface IIdentityAccountService
     Task<bool> ExistsByIdAsync(Guid userId, CancellationToken cancellationToken = default);
     Task<bool> ExistsByEmailOrPhoneAsync(string email, string phoneNumber, CancellationToken cancellationToken = default);
     Task<IdentityCreateResult> CreateAsync(CreateIdentityAccountRequest request, CancellationToken cancellationToken = default);
+    Task<IdentityOperationResult> ConfirmEmailAsync(Guid userId, CancellationToken cancellationToken = default);
     Task<IdentityOperationResult> DeleteAsync(Guid userId, CancellationToken cancellationToken = default);
     Task<CredentialValidationResult> ValidateCredentialsAsync(string identifier, string password, CancellationToken cancellationToken = default);
     Task<IdentityOperationResult> RecordLoginAsync(Guid userId, CancellationToken cancellationToken = default);

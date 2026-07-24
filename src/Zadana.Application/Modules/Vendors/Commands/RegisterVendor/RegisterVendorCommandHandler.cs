@@ -9,6 +9,7 @@ using Zadana.Application.Modules.Vendors.Interfaces;
 using Zadana.Domain.Modules.Identity.Enums;
 using Zadana.Domain.Modules.Wallets.Enums;
 using Zadana.Domain.Modules.Vendors.Entities;
+using Zadana.SharedKernel.Exceptions;
 
 namespace Zadana.Application.Modules.Vendors.Commands.RegisterVendor;
 
@@ -21,6 +22,8 @@ public class RegisterVendorCommandHandler : IRequestHandler<RegisterVendorComman
     private readonly IApplicationDbContext _context;
     private readonly ILogger<RegisterVendorCommandHandler> _logger;
     private readonly ISettlementProcessingSettingsService _settlementProcessingSettingsService;
+    private readonly IGoogleIdTokenVerifier _googleIdTokenVerifier;
+    private readonly IIdentityAccountService _identityAccountService;
 
     public RegisterVendorCommandHandler(
         IRegistrationWorkflow registrationWorkflow,
@@ -29,7 +32,9 @@ public class RegisterVendorCommandHandler : IRequestHandler<RegisterVendorComman
         IAdminAlertService adminAlertService,
         IApplicationDbContext context,
         ILogger<RegisterVendorCommandHandler> logger,
-        ISettlementProcessingSettingsService settlementProcessingSettingsService)
+        ISettlementProcessingSettingsService settlementProcessingSettingsService,
+        IGoogleIdTokenVerifier googleIdTokenVerifier,
+        IIdentityAccountService identityAccountService)
     {
         _registrationWorkflow = registrationWorkflow;
         _vendorRepository = vendorRepository;
@@ -38,6 +43,8 @@ public class RegisterVendorCommandHandler : IRequestHandler<RegisterVendorComman
         _context = context;
         _logger = logger;
         _settlementProcessingSettingsService = settlementProcessingSettingsService;
+        _googleIdTokenVerifier = googleIdTokenVerifier;
+        _identityAccountService = identityAccountService;
     }
 
     public async Task<AuthResponseDto> Handle(RegisterVendorCommand request, CancellationToken cancellationToken)
@@ -48,14 +55,40 @@ public class RegisterVendorCommandHandler : IRequestHandler<RegisterVendorComman
             request.City,
             cancellationToken);
 
+        var isGoogleSignup = !string.IsNullOrWhiteSpace(request.GoogleIdToken);
+        if (isGoogleSignup)
+        {
+            var googleProfile = await _googleIdTokenVerifier.VerifyAsync(request.GoogleIdToken!, cancellationToken);
+            if (!string.Equals(googleProfile.Email, request.Email.Trim(), StringComparison.OrdinalIgnoreCase))
+            {
+                throw new BusinessRuleException("GOOGLE_EMAIL_MISMATCH", "Google email does not match registration email.");
+            }
+        }
+
+        var password = isGoogleSignup
+            ? GenerateSecurePassword()
+            : request.Password!;
+
         var user = await _registrationWorkflow.RegisterAccountAsync(
             new CreateIdentityAccountRequest(
                 request.FullName,
                 request.Email,
                 request.Phone,
                 UserRole.Vendor,
-                request.Password),
+                password),
             cancellationToken);
+
+        if (isGoogleSignup)
+        {
+            var confirmResult = await _identityAccountService.ConfirmEmailAsync(user.Id, cancellationToken);
+            if (!confirmResult.Succeeded || confirmResult.Account is null)
+            {
+                await _registrationWorkflow.CompensateAccountCreationFailureAsync(user.Id, cancellationToken);
+                throw new BusinessRuleException("IDENTITY_OPERATION_FAILED", "Unable to confirm Google email.");
+            }
+
+            user = confirmResult.Account;
+        }
 
         Vendor? vendor = null;
         AuthResponseDto authResponse;
@@ -129,7 +162,10 @@ public class RegisterVendorCommandHandler : IRequestHandler<RegisterVendorComman
             bankAccount.MarkAsPreferredForSetup();
             _vendorRepository.AddBankAccount(bankAccount);
 
-            user = await _registrationWorkflow.SendRegistrationOtpAsync(user, cancellationToken);
+            if (!isGoogleSignup)
+            {
+                user = await _registrationWorkflow.SendRegistrationOtpAsync(user, cancellationToken);
+            }
 
             authResponse = await _registrationWorkflow.BuildAuthResponseAsync(
                 user,
@@ -145,6 +181,21 @@ public class RegisterVendorCommandHandler : IRequestHandler<RegisterVendorComman
 
         await QueueVendorApprovalAlertAsync(vendor, cancellationToken);
         return authResponse;
+    }
+
+    private static string GenerateSecurePassword()
+    {
+        // Identity password policies typically require mixed character classes.
+        const string alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz0123456789!@#$%^&*";
+        var bytes = new byte[32];
+        System.Security.Cryptography.RandomNumberGenerator.Fill(bytes);
+        var chars = new char[24];
+        for (var i = 0; i < chars.Length; i++)
+        {
+            chars[i] = alphabet[bytes[i] % alphabet.Length];
+        }
+
+        return new string(chars) + "Aa1!";
     }
 
     private async Task QueueVendorApprovalAlertAsync(Vendor vendor, CancellationToken cancellationToken)

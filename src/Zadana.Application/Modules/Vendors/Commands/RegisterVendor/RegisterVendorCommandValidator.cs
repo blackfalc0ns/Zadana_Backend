@@ -24,9 +24,13 @@ public class RegisterVendorCommandValidator : AbstractValidator<RegisterVendorCo
             .MaximumLength(20).WithMessage(localizer["MaxLength"].Value)
             .WithName(localizer["Phone"].Value);
         RuleFor(x => x.Password)
-            .NotEmpty().WithMessage(localizer["RequiredField"].Value)
-            .MinimumLength(8).WithMessage(localizer["PasswordMinLength"].Value)
+            .Must((command, password) =>
+                !string.IsNullOrWhiteSpace(command.GoogleIdToken) ||
+                (!string.IsNullOrWhiteSpace(password) && password.Length >= 8))
+            .WithMessage(localizer["PasswordMinLength"].Value)
             .WithName(localizer["Password"].Value);
+        RuleFor(x => x.GoogleIdToken)
+            .MaximumLength(4096).WithMessage(localizer["MaxLength"].Value);
 
         // Vendor
         RuleFor(x => x.BusinessNameAr)

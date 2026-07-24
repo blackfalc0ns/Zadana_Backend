@@ -51,6 +51,7 @@ public class VendorsController : ApiControllerBase
             request.Email,
             request.Phone,
             request.Password,
+            request.GoogleIdToken,
             request.BusinessNameAr,
             request.BusinessNameEn,
             request.BusinessType,

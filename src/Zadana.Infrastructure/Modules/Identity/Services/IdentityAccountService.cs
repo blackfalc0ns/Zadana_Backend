@@ -76,6 +76,27 @@ public class IdentityAccountService : IIdentityAccountService
         return new IdentityCreateResult(IdentityCreateStatus.Succeeded, Map(user));
     }
 
+    public async Task<IdentityOperationResult> ConfirmEmailAsync(Guid userId, CancellationToken cancellationToken = default)
+    {
+        var user = await _userManager.FindByIdAsync(userId.ToString());
+        if (user == null)
+        {
+            return new IdentityOperationResult(false, ["USER_NOT_FOUND"]);
+        }
+
+        if (!user.EmailConfirmed)
+        {
+            user.VerifyEmail();
+            var updateResult = await PersistUserAsync(user);
+            if (!updateResult.Succeeded)
+            {
+                return new IdentityOperationResult(false, updateResult.Errors);
+            }
+        }
+
+        return new IdentityOperationResult(true, Account: Map(user));
+    }
+
     public async Task<IdentityOperationResult> DeleteAsync(Guid userId, CancellationToken cancellationToken = default)
     {
         var user = await _userManager.FindByIdAsync(userId.ToString());
