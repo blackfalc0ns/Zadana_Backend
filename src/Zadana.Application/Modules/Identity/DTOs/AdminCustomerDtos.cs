@@ -24,7 +24,8 @@ public record AdminCustomerListItemDto(
     DateTime? LastOrderAtUtc,
     decimal LastOrderValue,
     int RefundedOrdersCount,
-    int FavoritesCount);
+    int FavoritesCount,
+    string? PreferredLocale);
 
 public record AdminCustomerRecentOrderDto(
     Guid Id,
@@ -65,4 +66,5 @@ public record AdminCustomerDetailDto(
     decimal LastOrderValue,
     int RefundedOrdersCount,
     int FavoritesCount,
+    string? PreferredLocale,
     IReadOnlyList<AdminCustomerRecentOrderDto> RecentOrders);

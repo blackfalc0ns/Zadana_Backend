@@ -2194,6 +2194,9 @@
   <data name="DRIVER_UNBANNED_SUCCESS" xml:space="preserve">
     <value>Driver unbanned successfully.</value>
   </data>
+  <data name="DRIVER_LOGIN_LOCKED_BY_ADMIN" xml:space="preserve">
+    <value>Locked by admin</value>
+  </data>
   <data name="DRIVER_LOGIN_LOCKED_SUCCESS" xml:space="preserve">
     <value>Driver login locked successfully.</value>
   </data>

@@ -705,7 +705,7 @@ public class AdminDriversController : ApiControllerBase
             ?? throw new NotFoundException("Driver", id);
 
         var reason = string.IsNullOrWhiteSpace(request?.Reason)
-            ? "Locked by admin"
+            ? ApiLocalizedMessages.Resolve(HttpContext, "DRIVER_LOGIN_LOCKED_BY_ADMIN")
             : request.Reason.Trim();
 
         var result = await _identityAccountService.LockLoginAsync(driver.UserId, reason, cancellationToken);

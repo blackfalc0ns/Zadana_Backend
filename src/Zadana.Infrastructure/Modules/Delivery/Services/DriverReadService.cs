@@ -1,7 +1,9 @@
 using System.Globalization;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using Zadana.Application.Common.Interfaces;
+using Zadana.Application.Common.Settings;
 using Zadana.Application.Modules.Delivery.DTOs;
 using Zadana.Application.Modules.Delivery.Interfaces;
 using Zadana.Application.Modules.Delivery.Support;
@@ -49,17 +51,20 @@ public class DriverReadService : IDriverReadService
     private readonly IDriverCommitmentPolicyService _driverCommitmentPolicyService;
     private readonly INotificationService _notificationService;
     private readonly IOneSignalPushService _oneSignalPushService;
+    private readonly FinancialSettingsOptions _financialSettings;
 
     public DriverReadService(
         IApplicationDbContext context,
         IDriverCommitmentPolicyService driverCommitmentPolicyService,
         INotificationService notificationService,
-        IOneSignalPushService oneSignalPushService)
+        IOneSignalPushService oneSignalPushService,
+        IOptions<FinancialSettingsOptions>? financialSettings = null)
     {
         _context = context;
         _driverCommitmentPolicyService = driverCommitmentPolicyService;
         _notificationService = notificationService;
         _oneSignalPushService = oneSignalPushService;
+        _financialSettings = financialSettings?.Value ?? new FinancialSettingsOptions();
     }
 
     public async Task<AdminDriversListDto> GetAdminDriversAsync(
@@ -148,10 +153,15 @@ public class DriverReadService : IDriverReadService
             .Select(g => new { DriverId = g.Key, LastSeen = g.Max(l => l.RecordedAtUtc) })
             .ToDictionaryAsync(g => g.DriverId, g => g.LastSeen, cancellationToken);
 
-        // Load wallet balances
-        var walletBalances = await _context.Wallets
+        // Load wallet balances + COD owed for collection status
+        var walletRows = await _context.Wallets
+            .AsNoTracking()
             .Where(w => w.OwnerType == WalletOwnerType.Driver && driverIds.Contains(w.OwnerId))
-            .ToDictionaryAsync(w => w.OwnerId, w => w.CurrentBalance, cancellationToken);
+            .Select(w => new { w.OwnerId, w.CurrentBalance, w.CodOwedBalance })
+            .ToListAsync(cancellationToken);
+        var walletBalances = walletRows.ToDictionary(w => w.OwnerId, w => w.CurrentBalance);
+        var codOwedBalances = walletRows.ToDictionary(w => w.OwnerId, w => w.CodOwedBalance);
+        var codBlockThreshold = _financialSettings.DriverCodBlockThresholdAmount;
 
         var commitmentSummaries = await _driverCommitmentPolicyService.GetDriverSummariesAsync(driverIds, cancellationToken);
 
@@ -161,6 +171,7 @@ public class DriverReadService : IDriverReadService
             completedTaskCounts.TryGetValue(d.Id, out var completedTasks);
             latestGps.TryGetValue(d.Id, out var lastSeen);
             walletBalances.TryGetValue(d.Id, out var walletBalance);
+            codOwedBalances.TryGetValue(d.Id, out var codOwedBalance);
             commitmentSummaries.TryGetValue(d.Id, out var commitmentSummary);
             commitmentSummary ??= new DriverCommitmentSummaryDto(0, 0, 0, 0, 0, 100m, "Healthy", true, null, null);
 
@@ -169,7 +180,7 @@ public class DriverReadService : IDriverReadService
 
             return new AdminDriverListItemDto(
                 Id: d.Id,
-                DriverDisplayId: $"DRV-#{44000 + Math.Abs(d.Id.GetHashCode() % 10000)}",
+                DriverDisplayId: FormatDriverDisplayId(d.Id),
                 FirstName: d.User.FullName.Split(' ').FirstOrDefault() ?? d.User.FullName,
                 LastName: string.Join(' ', d.User.FullName.Split(' ').Skip(1)),
                 PhoneNumber: d.User.PhoneNumber ?? "",
@@ -193,7 +204,7 @@ public class DriverReadService : IDriverReadService
                 IsLoginLocked: d.User.IsLoginLocked,
                 LocationUpdatesBlocked: d.IsLocationUpdatesBlocked,
                 Issues: DeriveIssues(d, walletBalance, commitmentSummary),
-                CollectionPaymentStatus: walletBalance < 0 ? "critical" : walletBalance < 200 ? "warning" : "good",
+                CollectionPaymentStatus: ResolveCollectionPaymentStatus(codOwedBalance, codBlockThreshold),
                 Alerts: null);
         });
 
@@ -283,6 +294,19 @@ public class DriverReadService : IDriverReadService
             .FirstOrDefaultAsync(w => w.OwnerType == WalletOwnerType.Driver && w.OwnerId == driverId, cancellationToken);
 
         var walletBalance = wallet?.CurrentBalance ?? 0;
+        var pendingBalance = wallet?.PendingBalance ?? 0;
+        var codOwedBalance = wallet?.CodOwedBalance ?? 0;
+        var codBlockThreshold = _financialSettings.DriverCodBlockThresholdAmount;
+
+        var activeHoldTotal = await _context.WalletHolds
+            .AsNoTracking()
+            .Where(hold =>
+                hold.OwnerType == WalletOwnerType.Driver &&
+                hold.OwnerId == driverId &&
+                hold.Status == WalletHoldStatus.Active)
+            .SumAsync(hold => (decimal?)hold.Amount, cancellationToken) ?? 0m;
+
+        var netWithdrawable = Math.Max(0m, walletBalance - codOwedBalance - pendingBalance - activeHoldTotal);
 
         // Finance summary
         var totalEarnings = wallet is not null
@@ -291,15 +315,63 @@ public class DriverReadService : IDriverReadService
                 .SumAsync(t => (decimal?)t.Amount, cancellationToken) ?? 0
             : 0;
 
-        var codCollected = await _context.DeliveryAssignments
+        // Lifetime COD collected across delivered assignments (audit trail).
+        var codCollectedLifetime = await _context.DeliveryAssignments
             .Where(a => a.DriverId == driverId && a.Status == AssignmentStatus.Delivered)
             .SumAsync(a => (decimal?)a.CodAmount, cancellationToken) ?? 0;
 
         var totalSettlements = await _context.Settlements
-            .CountAsync(s => s.DriverId == driverId, cancellationToken);
+            .CountAsync(s =>
+                (s.DriverId == driverId) ||
+                (s.OwnerType == SettlementOwnerType.Driver && s.OwnerId == driverId),
+                cancellationToken);
 
         var totalPayouts = await _context.Payouts
-            .CountAsync(p => p.Settlement.DriverId == driverId, cancellationToken);
+            .CountAsync(p =>
+                (p.Settlement.DriverId == driverId) ||
+                (p.Settlement.OwnerType == SettlementOwnerType.Driver && p.Settlement.OwnerId == driverId),
+                cancellationToken);
+
+        var recentSettlements = await _context.Settlements
+            .AsNoTracking()
+            .Where(s =>
+                (s.DriverId == driverId) ||
+                (s.OwnerType == SettlementOwnerType.Driver && s.OwnerId == driverId))
+            .OrderByDescending(s => s.CreatedAtUtc)
+            .Take(8)
+            .Select(s => new AdminDriverFinanceSettlementSummaryDto(
+                s.Id,
+                s.Status.ToString(),
+                s.GrossAmount,
+                s.NetAmount,
+                s.PeriodFrom,
+                s.PeriodTo,
+                s.CreatedAtUtc,
+                s.ProcessedAtUtc))
+            .ToArrayAsync(cancellationToken);
+
+        var recentWithdrawals = await _context.DriverWithdrawalRequests
+            .AsNoTracking()
+            .Where(w => w.DriverId == driverId)
+            .OrderByDescending(w => w.CreatedAtUtc)
+            .Take(8)
+            .Select(w => new AdminDriverFinanceWithdrawalSummaryDto(
+                w.Id,
+                w.Status.ToString(),
+                w.Amount,
+                w.RequestedPayoutDay.HasValue ? w.RequestedPayoutDay.Value.ToString() : null,
+                w.TransferReference,
+                w.CreatedAtUtc,
+                w.ProcessedAtUtc,
+                w.PayoutId))
+            .ToArrayAsync(cancellationToken);
+
+        var activeWithdrawals = recentWithdrawals
+            .Where(w =>
+                string.Equals(w.Status, DriverWithdrawalStatus.Pending.ToString(), StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(w.Status, DriverWithdrawalStatus.Processing.ToString(), StringComparison.OrdinalIgnoreCase))
+            .ToArray();
+        var activeWithdrawalsAmount = activeWithdrawals.Sum(w => w.Amount);
 
         // Notes
         var notes = await _context.DriverNotes
@@ -379,12 +451,20 @@ public class DriverReadService : IDriverReadService
             })
             .FirstOrDefaultAsync(cancellationToken);
 
-        var latestPendingPayoutAtUtc = await _context.Payouts
-            .Where(p => p.Settlement.DriverId == driverId &&
-                (p.Status == PayoutStatus.Pending || p.Status == PayoutStatus.Processing))
+        var pendingPayoutDay = await _context.Payouts
+            .AsNoTracking()
+            .Where(p =>
+                ((p.Settlement.DriverId == driverId) ||
+                 (p.Settlement.OwnerType == SettlementOwnerType.Driver && p.Settlement.OwnerId == driverId)) &&
+                (p.Status == PayoutStatus.Pending ||
+                 p.Status == PayoutStatus.Processing ||
+                 p.Status == PayoutStatus.Queued))
             .OrderBy(p => p.CreatedAtUtc)
-            .Select(p => (DateTime?)p.CreatedAtUtc)
+            .Select(p => p.ScheduledPayoutDay)
             .FirstOrDefaultAsync(cancellationToken);
+
+        var nextPayoutScheduleDay = pendingPayoutDay ?? driver.PayoutDay;
+        var nextPayoutDateUtc = PayoutScheduleDayPolicy.NextOnOrAfter(DateTime.UtcNow.Date, nextPayoutScheduleDay);
 
         var primaryPayoutMethod = await _context.DriverPayoutMethods
             .AsNoTracking()
@@ -392,6 +472,14 @@ public class DriverReadService : IDriverReadService
             .OrderByDescending(p => p.IsVerified)
             .ThenByDescending(p => p.CreatedAtUtc)
             .FirstOrDefaultAsync(cancellationToken);
+
+        var statementPeriodFrom = recentSettlements.Length > 0
+            ? recentSettlements.Min(s => s.PeriodFrom)
+            : new DateTime(DateTime.UtcNow.Year, DateTime.UtcNow.Month, 1, 0, 0, 0, DateTimeKind.Utc);
+        var statementPeriodTo = recentSettlements.Length > 0
+            ? recentSettlements.Max(s => s.PeriodTo)
+            : statementPeriodFrom.AddMonths(1).AddDays(-1);
+        var statementPeriod = $"{statementPeriodFrom:yyyy-MM-dd} → {statementPeriodTo:yyyy-MM-dd}";
 
         var walletTransactions = wallet is null
             ? []
@@ -482,7 +570,7 @@ public class DriverReadService : IDriverReadService
             effectiveProfile.LicenseNumber,
             Math.Round(completionRate, 0),
             commitmentSummary.CommitmentScore,
-            walletBalance < 0 ? "critical" : walletBalance < 200 ? "warning" : "good");
+            ResolveCollectionPaymentStatus(codOwedBalance, codBlockThreshold));
         var operations = new AdminDriverOperationsSectionDto(
             effectiveProfile.Region,
             effectiveProfile.City,
@@ -498,7 +586,7 @@ public class DriverReadService : IDriverReadService
             null,
             recentAssignmentRows.Select(a => new AdminDriverOperationTaskDto(
                 a.Id,
-                string.IsNullOrWhiteSpace(a.VendorName) ? $"Order {a.OrderNumber}" : a.VendorName,
+                string.IsNullOrWhiteSpace(a.VendorName) ? a.OrderNumber : a.VendorName,
                 driver.City ?? driver.User.FullName,
                 a.Status,
                 a.AcceptedAtUtc ?? a.CreatedAtUtc,
@@ -521,14 +609,26 @@ public class DriverReadService : IDriverReadService
             ResolveRiskLevel(driver, incidents, wallet?.PendingBalance ?? 0, missingRequirements),
             documentHealth);
         var financeDetails = new AdminDriverFinanceSectionDto(
-            walletBalance,
-            wallet?.PendingBalance ?? 0,
-            codCollected,
-            Math.Max(0, wallet?.PendingBalance ?? 0),
-            latestPendingPayoutAtUtc,
-            primaryPayoutMethod?.MethodType.ToString(),
-            $"live_{totalSettlements}_settlements_{totalPayouts}_payouts",
-            walletTransactions.Select(MapFinanceEntry).ToArray());
+            AvailableBalance: netWithdrawable,
+            DueAmount: codOwedBalance,
+            CodCollected: codCollectedLifetime,
+            PendingDeductions: Math.Max(0m, pendingBalance + activeHoldTotal),
+            NextPayoutDateUtc: nextPayoutDateUtc,
+            PayoutMethod: primaryPayoutMethod?.MethodType.ToString(),
+            StatementPeriod: statementPeriod,
+            Entries: walletTransactions.Select(MapFinanceEntry).ToArray(),
+            CurrentBalance: walletBalance,
+            PendingBalance: pendingBalance,
+            CodOwedBalance: codOwedBalance,
+            CodBlockThresholdAmount: codBlockThreshold,
+            NetWithdrawable: netWithdrawable,
+            PayoutDay: driver.PayoutDay.ToString(),
+            ActiveWithdrawalsCount: activeWithdrawals.Length,
+            ActiveWithdrawalsAmount: activeWithdrawalsAmount,
+            SettlementsCount: totalSettlements,
+            PayoutsCount: totalPayouts,
+            RecentSettlements: recentSettlements,
+            RecentWithdrawals: recentWithdrawals);
         var performanceDetails = BuildAdminPerformanceSection(
             Math.Round(completionRate, 0),
             Math.Round(acceptanceRate, 0),
@@ -551,16 +651,27 @@ public class DriverReadService : IDriverReadService
                 effectiveProfile.VehicleLicenseNumber,
                 effectiveProfile.Region,
                 effectiveProfile.City));
+        string? reviewerName = null;
+        if (driver.ReviewedByUserId is Guid reviewerId)
+        {
+            reviewerName = await _context.Users
+                .AsNoTracking()
+                .Where(u => u.Id == reviewerId)
+                .Select(u => u.FullName)
+                .FirstOrDefaultAsync(cancellationToken);
+        }
+
         var verification = BuildAdminVerificationSection(
             driver,
             profileReadiness.Checklist,
             profileReadiness.MissingRequirements,
             Math.Round(completionRate, 0),
-            Math.Round(acceptanceRate, 0));
+            Math.Round(acceptanceRate, 0),
+            reviewerName);
 
         return new AdminDriverDetailDto(
             Id: driver.Id,
-            DriverDisplayId: $"DRV-#{44000 + Math.Abs(driver.Id.GetHashCode() % 10000)}",
+            DriverDisplayId: FormatDriverDisplayId(driver.Id),
             FirstName: driver.User.FullName.Split(' ').FirstOrDefault() ?? driver.User.FullName,
             LastName: string.Join(' ', driver.User.FullName.Split(' ').Skip(1)),
             PhoneNumber: driver.User.PhoneNumber ?? "",
@@ -578,7 +689,7 @@ public class DriverReadService : IDriverReadService
             WalletBalance: walletBalance,
             Performance: DerivePerformance(acceptanceRate),
             Issues: DeriveIssues(driver, walletBalance, commitmentSummary),
-            CollectionPaymentStatus: walletBalance < 0 ? "critical" : walletBalance < 200 ? "warning" : "good",
+            CollectionPaymentStatus: ResolveCollectionPaymentStatus(codOwedBalance, codBlockThreshold),
             Alerts: null,
             CommitmentScore: commitmentSummary.CommitmentScore,
             DailyRejections: commitmentSummary.DailyRejections,
@@ -604,8 +715,8 @@ public class DriverReadService : IDriverReadService
             Notes: notes,
             Incidents: incidents,
             Finance: new AdminDriverFinanceSummaryDto(
-                walletBalance, wallet?.PendingBalance ?? 0,
-                totalEarnings, codCollected, totalSettlements, totalPayouts),
+                walletBalance, pendingBalance,
+                totalEarnings, codCollectedLifetime, totalSettlements, totalPayouts),
             RecentAssignments: recentAssignments,
             Overview: overview,
             Workflow: workflow,
@@ -666,9 +777,18 @@ public class DriverReadService : IDriverReadService
         {
             query = normalizedStatus switch
             {
-                "SETTLED" => query.Where(t => t.SettlementId != null),
+                "SETTLED" => query.Where(t =>
+                    t.SettlementId != null ||
+                    t.TxnType == WalletTxnType.Settlement ||
+                    t.TxnType == WalletTxnType.Payout),
+                "PENDING" => query.Where(t => t.TxnType == WalletTxnType.Hold),
+                "POSTED" => query.Where(t =>
+                    t.SettlementId == null &&
+                    t.TxnType != WalletTxnType.Hold &&
+                    t.TxnType != WalletTxnType.Settlement &&
+                    t.TxnType != WalletTxnType.Payout),
+                // Wallet ledger has no failed txn state; keep empty instead of inventing rows.
                 "FAILED" => query.Where(_ => false),
-                "PENDING" => query.Where(t => t.SettlementId == null),
                 _ => query
             };
         }
@@ -2135,11 +2255,13 @@ public class DriverReadService : IDriverReadService
 
     private static AdminDriverFinanceEntryDto MapFinanceEntry(WalletTransaction transaction)
     {
-        var reference = transaction.OrderId.HasValue
-            ? $"order_{transaction.OrderId.Value.ToString("N")[..8]}"
-            : transaction.ReferenceId.HasValue
-                ? $"ref_{transaction.ReferenceId.Value.ToString("N")[..8]}"
-                : $"txn_{transaction.Id.ToString("N")[..8]}";
+        var reference = !string.IsNullOrWhiteSpace(transaction.Description)
+            ? transaction.Description!
+            : transaction.OrderId.HasValue
+                ? $"order_{transaction.OrderId.Value.ToString("N")[..8]}"
+                : transaction.ReferenceId.HasValue
+                    ? $"ref_{transaction.ReferenceId.Value.ToString("N")[..8]}"
+                    : $"txn_{transaction.Id.ToString("N")[..8]}";
 
         var method = transaction.SettlementId.HasValue
             ? "settlement"
@@ -2147,15 +2269,41 @@ public class DriverReadService : IDriverReadService
                 ? "payment"
                 : "wallet";
 
+        var status = transaction.TxnType == WalletTxnType.Hold
+            ? "pending"
+            : transaction.SettlementId.HasValue ||
+              transaction.TxnType is WalletTxnType.Settlement or WalletTxnType.Payout
+                ? "settled"
+                : "posted";
+
         return new AdminDriverFinanceEntryDto(
             transaction.Id,
             reference,
             transaction.TxnType.ToString(),
-            transaction.SettlementId.HasValue ? "settled" : "posted",
+            status,
             transaction.Direction == "OUT" ? -transaction.Amount : transaction.Amount,
+            // WalletTransaction has no fee field; callers must treat 0 as "not tracked".
             0,
             method,
             transaction.CreatedAtUtc);
+    }
+
+    private static string FormatDriverDisplayId(Guid driverId) =>
+        $"DRV-{driverId.ToString("N")[..8].ToUpperInvariant()}";
+
+    private static string ResolveCollectionPaymentStatus(decimal codOwedBalance, decimal codBlockThreshold)
+    {
+        if (codOwedBalance >= codBlockThreshold && codBlockThreshold > 0)
+        {
+            return "critical";
+        }
+
+        if (codOwedBalance > 0)
+        {
+            return "warning";
+        }
+
+        return "good";
     }
 
     private static AdminDriverPerformanceSectionDto BuildAdminPerformanceSection(
@@ -2257,10 +2405,14 @@ public class DriverReadService : IDriverReadService
         AdminDriverVerificationChecklistItemDto[] checklist,
         IReadOnlyCollection<string> missingRequirements,
         decimal completionRate,
-        decimal acceptanceRate)
+        decimal acceptanceRate,
+        string? reviewerName)
     {
         var progress = DriverProfileReadinessFactory.GetCompletionPercent(missingRequirements.Count);
-        var trustScore = Math.Max(25m, Math.Min(98m, Math.Round((completionRate * 0.4m) + (acceptanceRate * 0.2m) + (progress * 0.4m), 0)));
+        var trustScore = Math.Clamp(
+            Math.Round((completionRate * 0.4m) + (acceptanceRate * 0.2m) + (progress * 0.4m), 0),
+            0m,
+            100m);
         var recommendation = driver.VerificationStatus switch
         {
             DriverVerificationStatus.Approved => "accept",
@@ -2270,9 +2422,9 @@ public class DriverReadService : IDriverReadService
         };
 
         return new AdminDriverVerificationSectionDto(
-            $"APP-{Math.Abs(driver.Id.GetHashCode() % 100000):D5}",
+            $"APP-{driver.Id.ToString("N")[..8].ToUpperInvariant()}",
             driver.CreatedAtUtc,
-            driver.ReviewedByUserId.HasValue ? "operations_desk" : null,
+            string.IsNullOrWhiteSpace(reviewerName) ? null : reviewerName.Trim(),
             trustScore,
             progress,
             recommendation,

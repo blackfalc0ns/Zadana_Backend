@@ -2195,6 +2195,9 @@
   <data name="DRIVER_UNBANNED_SUCCESS" xml:space="preserve">
     <value>فكّينا حظر المندوب بنجاح.</value>
   </data>
+  <data name="DRIVER_LOGIN_LOCKED_BY_ADMIN" xml:space="preserve">
+    <value>مقفل بواسطة الإدارة</value>
+  </data>
   <data name="DRIVER_LOGIN_LOCKED_SUCCESS" xml:space="preserve">
     <value>قفلنا دخول المندوب بنجاح.</value>
   </data>

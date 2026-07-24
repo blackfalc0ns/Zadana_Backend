@@ -500,6 +500,26 @@ public record AdminDriverFinanceEntryDto(
     string Method,
     DateTime CreatedAtUtc);
 
+public record AdminDriverFinanceSettlementSummaryDto(
+    Guid Id,
+    string Status,
+    decimal GrossAmount,
+    decimal NetAmount,
+    DateTime PeriodFrom,
+    DateTime PeriodTo,
+    DateTime CreatedAtUtc,
+    DateTime? ProcessedAtUtc);
+
+public record AdminDriverFinanceWithdrawalSummaryDto(
+    Guid Id,
+    string Status,
+    decimal Amount,
+    string? PayoutDay,
+    string? TransferReference,
+    DateTime CreatedAtUtc,
+    DateTime? ProcessedAtUtc,
+    Guid? PayoutId);
+
 public record AdminDriverFinanceSectionDto(
     decimal AvailableBalance,
     decimal DueAmount,
@@ -508,7 +528,19 @@ public record AdminDriverFinanceSectionDto(
     DateTime? NextPayoutDateUtc,
     string? PayoutMethod,
     string StatementPeriod,
-    AdminDriverFinanceEntryDto[] Entries);
+    AdminDriverFinanceEntryDto[] Entries,
+    decimal CurrentBalance = 0m,
+    decimal PendingBalance = 0m,
+    decimal CodOwedBalance = 0m,
+    decimal CodBlockThresholdAmount = 500m,
+    decimal NetWithdrawable = 0m,
+    string? PayoutDay = null,
+    int ActiveWithdrawalsCount = 0,
+    decimal ActiveWithdrawalsAmount = 0m,
+    int SettlementsCount = 0,
+    int PayoutsCount = 0,
+    AdminDriverFinanceSettlementSummaryDto[]? RecentSettlements = null,
+    AdminDriverFinanceWithdrawalSummaryDto[]? RecentWithdrawals = null);
 
 public record AdminDriverFinanceEntriesListDto(
     AdminDriverFinanceEntryDto[] Items,

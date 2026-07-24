@@ -46,7 +46,8 @@ public class GetAdminCustomerDetailQueryHandler : IRequestHandler<GetAdminCustom
                 PhoneConfirmed = user.PhoneNumberConfirmed,
                 user.CreatedAtUtc,
                 user.LastLoginAtUtc,
-                user.LastSeenAtUtc
+                user.LastSeenAtUtc,
+                user.PreferredLocale
             })
             .FirstOrDefaultAsync(cancellationToken);
 
@@ -133,6 +134,7 @@ public class GetAdminCustomerDetailQueryHandler : IRequestHandler<GetAdminCustom
             orderSummary?.LastOrderValue ?? 0m,
             orderSummary?.RefundedOrdersCount ?? 0,
             favoritesCount,
+            customer.PreferredLocale,
             recentOrders);
     }
 }
