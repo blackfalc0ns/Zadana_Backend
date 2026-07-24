@@ -7,6 +7,7 @@ using Zadana.Domain.Modules.Vendors.Entities;
 using Zadana.Domain.Modules.Wallets.Entities;
 using Zadana.Domain.Modules.Wallets.Enums;
 using Zadana.Infrastructure.Persistence;
+using Zadana.Infrastructure.Persistence.Encryption;
 using Zadana.SharedKernel.Exceptions;
 using Zadana.UnitTests.Common;
 
@@ -87,8 +88,66 @@ public sealed class PayoutProofAttachmentServiceTests
     }
 
     private static PayoutProofAttachmentService CreateService(
-        ApplicationDbContext context) =>
-        new(context, new EphemeralDataProtectionProvider());
+        ApplicationDbContext context)
+    {
+        var masterKey = System.Security.Cryptography.SHA256.HashData(
+            System.Text.Encoding.UTF8.GetBytes("zadana-payout-proof-tests"));
+        var protector = new PayoutProofContentProtector(
+            masterKey,
+            new EphemeralDataProtectionProvider());
+        return new PayoutProofAttachmentService(context, protector);
+    }
+
+    [Fact]
+    public async Task Download_round_trips_stable_aes_proof_payload()
+    {
+        await using var context = TestDbContextFactory.Create();
+        var payout = await CreateSubmittedManualPayoutAsync(context);
+        var service = CreateService(context);
+
+        var attachment = await service.UploadAsync(
+            payout.Id,
+            PayoutProofKind.ManualTransfer,
+            CreatePdf("stable-proof"),
+            Guid.NewGuid());
+
+        var downloaded = await service.GetForDownloadAsync(payout.Id, attachment.Id);
+        downloaded.FileName.Should().Be(attachment.FileName);
+        System.Text.Encoding.UTF8.GetString(downloaded.Content).Should().Contain("%PDF");
+    }
+
+    [Fact]
+    public async Task Download_reads_legacy_data_protection_payloads()
+    {
+        await using var context = TestDbContextFactory.Create();
+        var payout = await CreateSubmittedManualPayoutAsync(context);
+        var masterKey = System.Security.Cryptography.SHA256.HashData(
+            System.Text.Encoding.UTF8.GetBytes("zadana-payout-proof-tests"));
+        var dataProtection = new EphemeralDataProtectionProvider();
+        var protector = new PayoutProofContentProtector(masterKey, dataProtection);
+        var service = new PayoutProofAttachmentService(context, protector);
+
+        var content = System.Text.Encoding.UTF8.GetBytes("%PDF-1.4\nlegacy-proof\n%%EOF");
+        var hash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(content));
+        var legacyProtected = dataProtection
+            .CreateProtector("Zadana.PayoutProofAttachment.v1")
+            .Protect(content);
+
+        var attachment = new PayoutProofAttachment(
+            payout.Id,
+            PayoutProofKind.ManualTransfer,
+            "legacy.pdf",
+            "application/pdf",
+            content.LongLength,
+            hash,
+            legacyProtected,
+            Guid.NewGuid());
+        context.PayoutProofAttachments.Add(attachment);
+        await context.SaveChangesAsync();
+
+        var downloaded = await service.GetForDownloadAsync(payout.Id, attachment.Id);
+        System.Text.Encoding.UTF8.GetString(downloaded.Content).Should().Contain("legacy-proof");
+    }
 
     private static async Task<Payout> CreateSubmittedManualPayoutAsync(
         ApplicationDbContext context)

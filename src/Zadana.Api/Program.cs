@@ -998,6 +998,9 @@ else
 
 ApplicationDbContext.PiiEncryptionMasterKey = searchableHashKey;
 Zadana.Domain.Modules.Identity.Services.SearchableHashProvider.Configure(searchableHashKey);
+builder.Services.AddSingleton(sp => new Zadana.Infrastructure.Persistence.Encryption.PayoutProofContentProtector(
+    searchableHashKey,
+    sp.GetRequiredService<Microsoft.AspNetCore.DataProtection.IDataProtectionProvider>()));
 
 var app = builder.Build();
 

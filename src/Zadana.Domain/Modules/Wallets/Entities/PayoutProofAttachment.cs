@@ -6,7 +6,8 @@ namespace Zadana.Domain.Modules.Wallets.Entities;
 
 /// <summary>
 /// Encrypted, immutable evidence uploaded for a payout. The database contains
-/// only Data Protection-protected bytes; it never stores a public storage URL.
+/// only protected bytes (stable AES-GCM or legacy Data Protection); it never
+/// stores a public storage URL.
 /// </summary>
 public sealed class PayoutProofAttachment : BaseEntity
 {

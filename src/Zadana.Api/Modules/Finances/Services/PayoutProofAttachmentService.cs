@@ -1,25 +1,24 @@
 using System.Security.Cryptography;
-using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Domain.Modules.Wallets.Entities;
 using Zadana.Domain.Modules.Wallets.Enums;
+using Zadana.Infrastructure.Persistence.Encryption;
 using Zadana.SharedKernel.Exceptions;
 
 namespace Zadana.Api.Modules.Finances.Services;
 
 /// <summary>
 /// Stores payout evidence inside the finance database after protecting the raw
-/// bytes with the application's persistent Data Protection key ring. This is
-/// intentionally separate from generic media storage: finance proofs must not
-/// receive a public URL or be mutable after upload.
+/// bytes with a stable AES-GCM key (plus legacy Data Protection fallback on
+/// read). This is intentionally separate from generic media storage: finance
+/// proofs must not receive a public URL or be mutable after upload.
 /// </summary>
 public sealed class PayoutProofAttachmentService
 {
     private const long MaxImageBytes = 5 * 1024 * 1024;
     private const long MaxPdfBytes = 10 * 1024 * 1024;
-    private const string ProtectorPurpose = "Zadana.PayoutProofAttachment.v1";
 
     private static readonly IReadOnlyDictionary<string, ProofFileRule> AllowedFileTypes =
         new Dictionary<string, ProofFileRule>(StringComparer.OrdinalIgnoreCase)
@@ -32,14 +31,14 @@ public sealed class PayoutProofAttachmentService
         };
 
     private readonly IApplicationDbContext _context;
-    private readonly IDataProtector _protector;
+    private readonly PayoutProofContentProtector _protector;
 
     public PayoutProofAttachmentService(
         IApplicationDbContext context,
-        IDataProtectionProvider dataProtectionProvider)
+        PayoutProofContentProtector protector)
     {
         _context = context;
-        _protector = dataProtectionProvider.CreateProtector(ProtectorPurpose);
+        _protector = protector;
     }
 
     public async Task<PayoutProofAttachment> UploadAsync(
