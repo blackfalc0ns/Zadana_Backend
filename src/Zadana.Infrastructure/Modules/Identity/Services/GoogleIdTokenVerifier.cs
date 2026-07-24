@@ -1,6 +1,9 @@
+using System.IdentityModel.Tokens.Jwt;
+using System.Text.Json;
 using Google.Apis.Auth;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Localization;
+using Microsoft.Extensions.Logging;
 using Zadana.Application.Common.Localization;
 using Zadana.Application.Modules.Identity.Interfaces;
 using Zadana.SharedKernel.Exceptions;
@@ -11,13 +14,16 @@ public sealed class GoogleIdTokenVerifier : IGoogleIdTokenVerifier
 {
     private readonly IConfiguration _configuration;
     private readonly IStringLocalizer<SharedResource> _localizer;
+    private readonly ILogger<GoogleIdTokenVerifier> _logger;
 
     public GoogleIdTokenVerifier(
         IConfiguration configuration,
-        IStringLocalizer<SharedResource> localizer)
+        IStringLocalizer<SharedResource> localizer,
+        ILogger<GoogleIdTokenVerifier> logger)
     {
         _configuration = configuration;
         _localizer = localizer;
+        _logger = logger;
     }
 
     public async Task<GoogleIdTokenProfile> VerifyAsync(string idToken, CancellationToken cancellationToken = default)
@@ -44,8 +50,15 @@ public sealed class GoogleIdTokenVerifier : IGoogleIdTokenVerifier
                     Audience = [clientId]
                 });
         }
-        catch (InvalidJwtException)
+        catch (InvalidJwtException ex)
         {
+            var tokenAudience = TryReadUnverifiedAudience(idToken);
+            _logger.LogWarning(
+                ex,
+                "Google ID token validation failed. ConfiguredAudience={ConfiguredAudience} TokenAudience={TokenAudience}",
+                clientId,
+                tokenAudience ?? "(unreadable)");
+
             throw new UnauthorizedException(_localizer["InvalidCredentials"], "GOOGLE_TOKEN_INVALID");
         }
 
@@ -78,5 +91,35 @@ public sealed class GoogleIdTokenVerifier : IGoogleIdTokenVerifier
             string.IsNullOrWhiteSpace(givenName) ? null : givenName,
             string.IsNullOrWhiteSpace(familyName) ? null : familyName,
             string.IsNullOrWhiteSpace(payload.Picture) ? null : payload.Picture);
+    }
+
+    private static string? TryReadUnverifiedAudience(string idToken)
+    {
+        try
+        {
+            var jwt = new JwtSecurityTokenHandler().ReadJwtToken(idToken);
+            if (jwt.Audiences?.Any() == true)
+            {
+                return string.Join(',', jwt.Audiences);
+            }
+
+            if (jwt.Payload.TryGetValue("aud", out var aud))
+            {
+                return aud switch
+                {
+                    string s => s,
+                    JsonElement { ValueKind: JsonValueKind.String } el => el.GetString(),
+                    JsonElement { ValueKind: JsonValueKind.Array } arr => string.Join(',',
+                        arr.EnumerateArray().Select(x => x.GetString()).Where(x => !string.IsNullOrWhiteSpace(x))),
+                    _ => aud?.ToString()
+                };
+            }
+        }
+        catch
+        {
+            // Best-effort diagnostics only.
+        }
+
+        return null;
     }
 }

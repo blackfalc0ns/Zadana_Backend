@@ -216,6 +216,17 @@ public sealed class AccessAuthorizationConvention : IApplicationModelConvention
                 edit: [PermissionKeys.Vendor.AccountEdit],
                 overrides: new Dictionary<string, string[]>(StringComparer.Ordinal)
                 {
+                    // Public auth endpoints (also marked [AllowAnonymous] on the controller).
+                    ["IssueCsrfToken"] = [],
+                    ["Login"] = [],
+                    ["GoogleAuth"] = [],
+                    ["ForgotPassword"] = [],
+                    ["VerifyOtp"] = [],
+                    ["ResendOtp"] = [],
+                    ["ResendPasswordResetOtp"] = [],
+                    ["VerifyResetOtp"] = [],
+                    ["ResetPassword"] = [],
+                    ["RefreshToken"] = [],
                     ["Logout"] = [],
                     ["GetCurrentUser"] = [],
                     ["UpdateCurrentUser"] = [PermissionKeys.Vendor.AccountEdit]

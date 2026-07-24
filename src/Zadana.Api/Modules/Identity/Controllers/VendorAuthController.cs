@@ -38,6 +38,7 @@ public class VendorAuthController : IdentityAuthControllerBase
         return Ok(new { csrfToken = ApiCsrfToken.Issue(Response, _environment) });
     }
 
+    [AllowAnonymous]
     [EnableRateLimiting(RateLimitPolicyNames.Auth)]
     [HttpPost("login")]
     [ValidateCsrfToken]
@@ -48,6 +49,7 @@ public class VendorAuthController : IdentityAuthControllerBase
         return Ok(StripRefreshToken(result));
     }
 
+    [AllowAnonymous]
     [EnableRateLimiting(RateLimitPolicyNames.Auth)]
     [HttpPost("google")]
     [ValidateCsrfToken]
