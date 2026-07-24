@@ -58,7 +58,9 @@ public sealed class VendorGoogleAuthCommandHandler : IRequestHandler<VendorGoogl
 
         if (!AllowedRoles.Contains(existing.Role))
         {
-            throw new UnauthorizedException(_localizer["UnauthorizedAppAccess"]);
+            throw new BusinessRuleException(
+                "GOOGLE_ACCOUNT_WRONG_APP",
+                "This Google account is already registered for another Zadana app. Use a different Google account or sign in from the correct app.");
         }
 
         if (existing.ArchivedAtUtc.HasValue)
@@ -68,7 +70,9 @@ public sealed class VendorGoogleAuthCommandHandler : IRequestHandler<VendorGoogl
 
         if (existing.IsLoginLocked || existing.AccountStatus != AccountStatus.Active)
         {
-            throw new UnauthorizedException(_localizer["AccountLoginDenied", existing.AccountStatus]);
+            throw new UnauthorizedException(
+                _localizer["AccountLoginDenied", existing.AccountStatus],
+                "ACCOUNT_LOGIN_DENIED");
         }
 
         if (!existing.EmailConfirmed)

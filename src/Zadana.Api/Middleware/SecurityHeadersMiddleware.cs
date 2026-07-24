@@ -51,9 +51,10 @@ public sealed class SecurityHeadersMiddleware
                 headers["Permissions-Policy"] = "geolocation=(), microphone=(), camera=(), payment=()";
             }
 
+            // Allow OAuth / Google Identity popup flows to communicate with the opener.
             if (!headers.ContainsKey("Cross-Origin-Opener-Policy"))
             {
-                headers["Cross-Origin-Opener-Policy"] = "same-origin";
+                headers["Cross-Origin-Opener-Policy"] = "same-origin-allow-popups";
             }
 
             // CSP relaxed enough for Swagger UI but still useful as a baseline.

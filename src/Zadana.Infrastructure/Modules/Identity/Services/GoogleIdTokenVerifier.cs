@@ -50,12 +50,24 @@ public sealed class GoogleIdTokenVerifier : IGoogleIdTokenVerifier
                     Audience = [clientId]
                 });
         }
-        catch (InvalidJwtException ex)
+        catch (Exception ex) when (ex is InvalidJwtException || ex.GetType().Name.Contains("Jwt", StringComparison.OrdinalIgnoreCase))
         {
             var tokenAudience = TryReadUnverifiedAudience(idToken);
             _logger.LogWarning(
                 ex,
-                "Google ID token validation failed. ConfiguredAudience={ConfiguredAudience} TokenAudience={TokenAudience}",
+                "Google ID token validation failed. ConfiguredAudience={ConfiguredAudience} TokenAudience={TokenAudience} ErrorType={ErrorType}",
+                clientId,
+                tokenAudience ?? "(unreadable)",
+                ex.GetType().Name);
+
+            throw new UnauthorizedException(_localizer["InvalidCredentials"], "GOOGLE_TOKEN_INVALID");
+        }
+        catch (Exception ex)
+        {
+            var tokenAudience = TryReadUnverifiedAudience(idToken);
+            _logger.LogError(
+                ex,
+                "Unexpected Google ID token validation error. ConfiguredAudience={ConfiguredAudience} TokenAudience={TokenAudience}",
                 clientId,
                 tokenAudience ?? "(unreadable)");
 
