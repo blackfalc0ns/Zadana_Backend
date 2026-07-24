@@ -466,10 +466,12 @@ public class DriverReadService : IDriverReadService
         var nextPayoutScheduleDay = pendingPayoutDay ?? driver.PayoutDay;
         var nextPayoutDateUtc = PayoutScheduleDayPolicy.NextOnOrAfter(DateTime.UtcNow.Date, nextPayoutScheduleDay);
 
+        // Prefer primary, then any saved payout method (drivers may have methods without IsPrimary).
         var primaryPayoutMethod = await _context.DriverPayoutMethods
             .AsNoTracking()
-            .Where(p => p.DriverId == driverId && p.IsPrimary)
-            .OrderByDescending(p => p.IsVerified)
+            .Where(p => p.DriverId == driverId)
+            .OrderByDescending(p => p.IsPrimary)
+            .ThenByDescending(p => p.IsVerified)
             .ThenByDescending(p => p.CreatedAtUtc)
             .FirstOrDefaultAsync(cancellationToken);
 
@@ -628,7 +630,8 @@ public class DriverReadService : IDriverReadService
             SettlementsCount: totalSettlements,
             PayoutsCount: totalPayouts,
             RecentSettlements: recentSettlements,
-            RecentWithdrawals: recentWithdrawals);
+            RecentWithdrawals: recentWithdrawals,
+            PayoutMethodLabel: primaryPayoutMethod?.MaskedLabel);
         var performanceDetails = BuildAdminPerformanceSection(
             Math.Round(completionRate, 0),
             Math.Round(acceptanceRate, 0),

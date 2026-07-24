@@ -540,7 +540,8 @@ public record AdminDriverFinanceSectionDto(
     int SettlementsCount = 0,
     int PayoutsCount = 0,
     AdminDriverFinanceSettlementSummaryDto[]? RecentSettlements = null,
-    AdminDriverFinanceWithdrawalSummaryDto[]? RecentWithdrawals = null);
+    AdminDriverFinanceWithdrawalSummaryDto[]? RecentWithdrawals = null,
+    string? PayoutMethodLabel = null);
 
 public record AdminDriverFinanceEntriesListDto(
     AdminDriverFinanceEntryDto[] Items,
