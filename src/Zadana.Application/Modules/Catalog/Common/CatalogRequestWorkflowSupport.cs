@@ -70,8 +70,98 @@ internal static partial class CatalogRequestWorkflowSupport
     }
 
     public static bool BrandMatchesCategory(Brand brand, Guid categoryId) =>
-        brand.CategoryId == categoryId ||
-        brand.BrandCategories.Any(link => link.CategoryId == categoryId);
+        BrandMatchesCategory(brand, categoryId, parentById: null);
+
+    public static bool BrandMatchesCategory(
+        Brand brand,
+        Guid categoryId,
+        IReadOnlyDictionary<Guid, Guid?>? parentById)
+    {
+        var linkedCategoryIds = new HashSet<Guid>();
+        if (brand.CategoryId.HasValue)
+        {
+            linkedCategoryIds.Add(brand.CategoryId.Value);
+        }
+
+        foreach (var link in brand.BrandCategories)
+        {
+            linkedCategoryIds.Add(link.CategoryId);
+        }
+
+        if (linkedCategoryIds.Count == 0)
+        {
+            return true;
+        }
+
+        if (linkedCategoryIds.Contains(categoryId))
+        {
+            return true;
+        }
+
+        if (parentById is null || parentById.Count == 0)
+        {
+            return false;
+        }
+
+        var currentId = categoryId;
+        var guard = 0;
+        while (guard++ < 16)
+        {
+            if (!parentById.TryGetValue(currentId, out var parentId) || !parentId.HasValue)
+            {
+                break;
+            }
+
+            currentId = parentId.Value;
+            if (linkedCategoryIds.Contains(currentId))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    public static async Task<bool> BrandMatchesCategoryAsync(
+        IApplicationDbContext context,
+        Brand brand,
+        Guid categoryId,
+        CancellationToken cancellationToken)
+    {
+        var linkedCategoryIds = new HashSet<Guid>();
+        if (brand.CategoryId.HasValue)
+        {
+            linkedCategoryIds.Add(brand.CategoryId.Value);
+        }
+
+        foreach (var link in brand.BrandCategories)
+        {
+            linkedCategoryIds.Add(link.CategoryId);
+        }
+
+        if (linkedCategoryIds.Count == 0 || linkedCategoryIds.Contains(categoryId))
+        {
+            return linkedCategoryIds.Count == 0 || linkedCategoryIds.Contains(categoryId);
+        }
+
+        var currentId = (Guid?)categoryId;
+        var guard = 0;
+        while (currentId.HasValue && guard++ < 16)
+        {
+            if (linkedCategoryIds.Contains(currentId.Value))
+            {
+                return true;
+            }
+
+            currentId = await context.Categories
+                .AsNoTracking()
+                .Where(item => item.Id == currentId.Value)
+                .Select(item => item.ParentCategoryId)
+                .FirstOrDefaultAsync(cancellationToken);
+        }
+
+        return false;
+    }
 
     public static async Task EnsureBrandRequestCanBeSubmittedAsync(
         IApplicationDbContext context,

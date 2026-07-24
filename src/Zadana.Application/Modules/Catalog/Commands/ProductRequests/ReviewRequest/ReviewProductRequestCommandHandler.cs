@@ -209,7 +209,11 @@ public class ReviewProductRequestCommandHandler : IRequestHandler<ReviewProductR
                     .FirstOrDefaultAsync(item => item.Id == resolvedBrandId.Value, cancellationToken)
                     ?? throw new NotFoundException(nameof(Brand), resolvedBrandId.Value);
 
-                if (!CatalogRequestWorkflowSupport.BrandMatchesCategory(brand, resolvedCategoryId.Value))
+                if (!await CatalogRequestWorkflowSupport.BrandMatchesCategoryAsync(
+                        _context,
+                        brand,
+                        resolvedCategoryId.Value,
+                        cancellationToken))
                 {
                     throw new BusinessRuleException("BRAND_CATEGORY_MISMATCH", _localizer["BRAND_CATEGORY_MISMATCH"]);
                 }

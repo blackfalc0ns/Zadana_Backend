@@ -61,20 +61,19 @@ public class SubmitProductRequestCommandHandler : IRequestHandler<SubmitProductR
 
         if (request.SuggestedCategoryId.HasValue && request.SuggestedBrandId.HasValue)
         {
-            var selectedBrandMatchesCategory = await _context.Brands
+            var selectedBrand = await _context.Brands
                 .AsNoTracking()
-                .Where(brand => brand.Id == request.SuggestedBrandId.Value)
-                .AnyAsync(brand =>
-                    brand.CategoryId == request.SuggestedCategoryId.Value ||
-                    brand.BrandCategories.Any(link => link.CategoryId == request.SuggestedCategoryId.Value),
-                    cancellationToken);
+                .Include(brand => brand.BrandCategories)
+                .FirstOrDefaultAsync(brand => brand.Id == request.SuggestedBrandId.Value, cancellationToken)
+                ?? throw new NotFoundException(nameof(Brand), request.SuggestedBrandId.Value);
 
-            var selectedBrandHasCategories = await _context.Brands
-                .AsNoTracking()
-                .Where(brand => brand.Id == request.SuggestedBrandId.Value)
-                .AnyAsync(brand => brand.CategoryId.HasValue || brand.BrandCategories.Any(), cancellationToken);
-
-            if (selectedBrandHasCategories && !selectedBrandMatchesCategory)
+            var selectedBrandHasCategories = selectedBrand.CategoryId.HasValue || selectedBrand.BrandCategories.Count > 0;
+            if (selectedBrandHasCategories
+                && !await CatalogRequestWorkflowSupport.BrandMatchesCategoryAsync(
+                    _context,
+                    selectedBrand,
+                    request.SuggestedCategoryId.Value,
+                    cancellationToken))
             {
                 throw new BusinessRuleException("BRAND_CATEGORY_MISMATCH", "The selected brand does not belong to the selected category.");
             }
