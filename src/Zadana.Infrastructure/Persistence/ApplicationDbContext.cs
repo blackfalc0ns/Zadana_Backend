@@ -191,6 +191,8 @@ public class ApplicationDbContext : IdentityDbContext<User, IdentityRole<Guid>, 
     public DbSet<HomeSection> HomeSections => Set<HomeSection>();
     public DbSet<FeaturedProductPlacement> FeaturedProductPlacements => Set<FeaturedProductPlacement>();
     public DbSet<FeaturedProductSelectionSettings> FeaturedProductSelectionSettings => Set<FeaturedProductSelectionSettings>();
+    public DbSet<PlatformContactSettings> PlatformContactSettings => Set<PlatformContactSettings>();
+    public DbSet<PlatformLegalDocument> PlatformLegalDocuments => Set<PlatformLegalDocument>();
     public DbSet<Notification> Notifications => Set<Notification>();
     public DbSet<AdminAlertEvent> AdminAlertEvents => Set<AdminAlertEvent>();
     public DbSet<AdminAlertDispatch> AdminAlertDispatches => Set<AdminAlertDispatch>();

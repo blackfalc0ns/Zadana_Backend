@@ -7,6 +7,8 @@ using Zadana.Domain.Modules.Catalog.Enums;
 using Zadana.Domain.Modules.Identity.Constants;
 using Zadana.Domain.Modules.Identity.Entities;
 using Zadana.Domain.Modules.Identity.Enums;
+using Zadana.Domain.Modules.Marketing.Entities;
+using Zadana.Domain.Modules.Marketing.Enums;
 using Zadana.Domain.Modules.Vendors.Entities;
 using Zadana.Domain.Modules.Vendors.Enums;
 using Zadana.Domain.Modules.Wallets.Entities;
@@ -78,7 +80,62 @@ public class ApplicationDbContextInitialiser
         await SeedSuperAdminAccessScopeAsync();
         await SeedUnitsOfMeasureAsync();
         await SeedPlatformBankAccountAsync();
+        await SeedPlatformLegalDocumentsAsync();
         await RepairTestingBankAccountsAsync();
+    }
+
+    private async Task SeedPlatformLegalDocumentsAsync()
+    {
+        var existingTypes = await _context.PlatformLegalDocuments
+            .Select(item => item.DocumentType)
+            .ToListAsync();
+
+        var effectiveAt = new DateTime(2026, 7, 22, 0, 0, 0, DateTimeKind.Utc);
+        var added = false;
+
+        foreach (PlatformLegalDocumentType documentType in Enum.GetValues<PlatformLegalDocumentType>())
+        {
+            if (existingTypes.Contains(documentType))
+            {
+                continue;
+            }
+
+            var contentAr = ReadLegalSeedContent(documentType, "ar");
+            var contentEn = ReadLegalSeedContent(documentType, "en");
+            _context.PlatformLegalDocuments.Add(new PlatformLegalDocument(
+                documentType,
+                contentAr,
+                contentEn,
+                version: "1.0",
+                effectiveAtUtc: effectiveAt));
+            added = true;
+        }
+
+        if (added)
+        {
+            await _context.SaveChangesAsync();
+        }
+    }
+
+    private static string ReadLegalSeedContent(PlatformLegalDocumentType documentType, string locale)
+    {
+        var fileName = $"{documentType}.{locale}.md";
+        var candidates = new[]
+        {
+            Path.Combine(AppContext.BaseDirectory, "SeedData", "Legal", fileName),
+            Path.Combine(AppContext.BaseDirectory, "SeedData", "Legal", fileName.ToLowerInvariant()),
+            Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "SeedData", "Legal", fileName))
+        };
+
+        foreach (var path in candidates)
+        {
+            if (File.Exists(path))
+            {
+                return File.ReadAllText(path);
+            }
+        }
+
+        return string.Empty;
     }
 
     private async Task SeedPlatformBankAccountAsync()

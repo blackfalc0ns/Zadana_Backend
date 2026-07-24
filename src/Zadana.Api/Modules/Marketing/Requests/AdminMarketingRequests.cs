@@ -107,3 +107,42 @@ public record HomeSectionThemeOptionResponse(
     string Key,
     string LabelAr,
     string LabelEn);
+
+public record UpsertPlatformContactSettingsRequest(
+    string? SupportEmail,
+    string? SupportPhone,
+    string? WhatsAppUrl,
+    string? InstagramUrl,
+    string? TwitterUrl,
+    string? TikTokUrl,
+    string? SnapchatUrl,
+    string? FacebookUrl,
+    string? YouTubeUrl,
+    string? LinkedInUrl);
+
+public record PlatformContactSettingsDto(
+    string? SupportEmail,
+    string? SupportPhone,
+    string? WhatsAppUrl,
+    string? InstagramUrl,
+    string? TwitterUrl,
+    string? TikTokUrl,
+    string? SnapchatUrl,
+    string? FacebookUrl,
+    string? YouTubeUrl,
+    string? LinkedInUrl,
+    DateTime? UpdatedAtUtc);
+
+public record UpsertPlatformLegalDocumentRequest(
+    string? ContentAr,
+    string? ContentEn,
+    string? Version,
+    DateTime? EffectiveAtUtc);
+
+public record PlatformLegalDocumentDto(
+    string DocumentType,
+    string ContentAr,
+    string ContentEn,
+    string Version,
+    DateTime EffectiveAtUtc,
+    DateTime UpdatedAtUtc);

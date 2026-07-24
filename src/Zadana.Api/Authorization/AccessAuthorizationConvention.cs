@@ -152,6 +152,23 @@ public sealed class AccessAuthorizationConvention : IApplicationModelConvention
             ["AdminMarketingProductCardPriceVisibility"] = new(
                 [PermissionKeys.Admin.MarketingView],
                 edit: [PermissionKeys.Admin.MarketingEdit]),
+            ["AdminMarketingPlatformContact"] = new(
+                [PermissionKeys.Admin.MarketingView],
+                edit: [PermissionKeys.Admin.MarketingManageSettings],
+                overrides: new Dictionary<string, string[]>(StringComparer.Ordinal)
+                {
+                    ["Get"] = [PermissionKeys.Admin.MarketingView],
+                    ["Upsert"] = [PermissionKeys.Admin.MarketingManageSettings]
+                }),
+            ["AdminMarketingLegalDocuments"] = new(
+                [PermissionKeys.Admin.MarketingView],
+                edit: [PermissionKeys.Admin.MarketingManageSettings],
+                overrides: new Dictionary<string, string[]>(StringComparer.Ordinal)
+                {
+                    ["List"] = [PermissionKeys.Admin.MarketingView],
+                    ["Get"] = [PermissionKeys.Admin.MarketingView],
+                    ["Upsert"] = [PermissionKeys.Admin.MarketingManageSettings]
+                }),
             ["AdminOrderCases"] = new(
                 [PermissionKeys.Admin.DisputesView],
                 create: [PermissionKeys.Admin.DisputesEdit],

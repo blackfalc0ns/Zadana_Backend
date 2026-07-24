@@ -136,6 +136,8 @@ public interface IApplicationDbContext
     DbSet<HomeSection> HomeSections { get; }
     DbSet<FeaturedProductPlacement> FeaturedProductPlacements { get; }
     DbSet<FeaturedProductSelectionSettings> FeaturedProductSelectionSettings { get; }
+    DbSet<PlatformContactSettings> PlatformContactSettings { get; }
+    DbSet<PlatformLegalDocument> PlatformLegalDocuments { get; }
     DbSet<Notification> Notifications { get; }
     DbSet<AdminAlertEvent> AdminAlertEvents { get; }
     DbSet<AdminAlertDispatch> AdminAlertDispatches { get; }
