@@ -215,6 +215,22 @@ public class VendorsController : ApiControllerBase
         return Ok(new { Data = result, Message = _localizer["VendorProfileUpdated"].Value });
     }
 
+    [AllowAnonymous]
+    [EnableRateLimiting(RateLimitPolicyNames.Auth)]
+    [HttpGet("payout-days")]
+    public async Task<IActionResult> GetAvailablePayoutDays(
+        [FromServices] ISettlementProcessingSettingsService settlementProcessingSettingsService,
+        CancellationToken cancellationToken)
+    {
+        var availablePayoutDays = await settlementProcessingSettingsService
+            .GetEnabledPayoutDaysAsync(cancellationToken);
+
+        return Ok(new
+        {
+            AvailablePayoutDays = availablePayoutDays.Select(day => day.ToString()).ToArray()
+        });
+    }
+
     [HttpGet("profile/payout-preference")]
     [Authorize(Policy = "VendorOnly")]
     public async Task<IActionResult> GetPayoutPreference(

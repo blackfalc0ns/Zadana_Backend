@@ -285,7 +285,12 @@ public sealed class AccessAuthorizationConvention : IApplicationModelConvention
             ["Vendors"] = new(
                 [PermissionKeys.Vendor.ProfileView],
                 create: [PermissionKeys.Vendor.ProfileEdit],
-                edit: [PermissionKeys.Vendor.ProfileEdit]),
+                edit: [PermissionKeys.Vendor.ProfileEdit],
+                overrides: new Dictionary<string, string[]>(StringComparer.Ordinal)
+                {
+                    ["GetAvailablePayoutDays"] = [],
+                    ["RegisterVendor"] = []
+                }),
             ["VendorNotifications"] = new(
                 [PermissionKeys.Vendor.NotificationsView],
                 edit: [PermissionKeys.Vendor.NotificationsView]),
