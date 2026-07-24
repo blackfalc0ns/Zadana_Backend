@@ -113,6 +113,12 @@
   <data name="CommercialRegistrationNumber" xml:space="preserve">
     <value>رقم السجل التجاري</value>
   </data>
+  <data name="CommercialRegistrationExpiryDate" xml:space="preserve">
+    <value>تاريخ انتهاء السجل التجاري</value>
+  </data>
+  <data name="CommercialRegistrationExpiryMinOneMonth" xml:space="preserve">
+    <value>تاريخ انتهاء السجل لازم يكون بعد شهر على الأقل من اليوم.</value>
+  </data>
   <data name="ContactEmail" xml:space="preserve">
     <value>البريد الإلكتروني للتواصل</value>
   </data>

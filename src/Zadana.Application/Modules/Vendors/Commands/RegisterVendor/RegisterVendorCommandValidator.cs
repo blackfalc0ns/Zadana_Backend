@@ -49,6 +49,11 @@ public class RegisterVendorCommandValidator : AbstractValidator<RegisterVendorCo
             .NotEmpty().WithMessage(localizer["RequiredField"].Value)
             .MaximumLength(50).WithMessage(localizer["MaxLength"].Value)
             .WithName(localizer["CommercialRegistrationNumber"].Value);
+        RuleFor(x => x.CommercialRegistrationExpiryDate)
+            .NotNull().WithMessage(localizer["RequiredField"].Value)
+            .Must(date => date.HasValue && date.Value.Date >= Zadana.SharedKernel.Serialization.SaudiTime.Today.AddMonths(1))
+            .WithMessage(localizer["CommercialRegistrationExpiryMinOneMonth"].Value)
+            .WithName(localizer["CommercialRegistrationExpiryDate"].Value);
         RuleFor(x => x.ContactEmail)
             .NotEmpty().WithMessage(localizer["RequiredField"].Value)
             .EmailAddress().WithMessage(localizer["InvalidEmail"].Value)

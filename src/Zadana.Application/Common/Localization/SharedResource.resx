@@ -113,6 +113,12 @@
   <data name="CommercialRegistrationNumber" xml:space="preserve">
     <value>Commercial Registration Number</value>
   </data>
+  <data name="CommercialRegistrationExpiryDate" xml:space="preserve">
+    <value>Commercial Registration Expiry Date</value>
+  </data>
+  <data name="CommercialRegistrationExpiryMinOneMonth" xml:space="preserve">
+    <value>Commercial registration expiry must be at least one month from today.</value>
+  </data>
   <data name="ContactEmail" xml:space="preserve">
     <value>Contact Email</value>
   </data>
