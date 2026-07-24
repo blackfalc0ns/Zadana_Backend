@@ -420,7 +420,11 @@ public class AdminVendorsController : ApiControllerBase
             null,
             request.GrossAmount,
             request.CommissionAmount,
-            request.NetAmount));
+            request.NetAmount,
+            request.RefundAmount,
+            request.AdjustmentAmount,
+            request.PeriodFrom,
+            request.PeriodTo));
 
         return Ok(new { SettlementId = settlementId });
     }

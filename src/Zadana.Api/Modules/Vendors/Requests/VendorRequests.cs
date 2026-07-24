@@ -189,7 +189,11 @@ public record AdminUpdateVendorNotificationSettingsRequest(
 public record AdminCreateVendorSettlementRequest(
     decimal GrossAmount,
     decimal CommissionAmount,
-    decimal NetAmount);
+    decimal NetAmount,
+    decimal RefundAmount = 0m,
+    decimal AdjustmentAmount = 0m,
+    DateTime? PeriodFrom = null,
+    DateTime? PeriodTo = null);
 
 public record AdminCompleteVendorPayoutRequest(string? TransferReference, Guid? ProofAttachmentId);
 
