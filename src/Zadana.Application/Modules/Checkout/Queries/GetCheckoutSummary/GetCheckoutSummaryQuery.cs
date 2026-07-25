@@ -62,7 +62,13 @@ public class GetCheckoutSummaryQueryHandler : IRequestHandler<GetCheckoutSummary
         var address = request.Fulfillment == FulfillmentType.Pickup
             ? null
             : await CheckoutSupport.ResolveSelectedAddressAsync(_context, request.UserId, request.AddressId, cancellationToken);
-        var pricing = await CheckoutSupport.BuildPricingSnapshotAsync(_context, cart, request.VendorId, address, cancellationToken);
+        var pricing = await CheckoutSupport.BuildPricingSnapshotAsync(
+            _context,
+            cart,
+            request.VendorId,
+            address,
+            cancellationToken,
+            request.Fulfillment == FulfillmentType.Pickup ? request.VendorBranchId : null);
         var coupon = await CheckoutSupport.ResolveAppliedCouponAsync(_context, request.UserId, cart, cancellationToken);
         var discount = coupon == null ? 0m : CheckoutSupport.CalculateDiscountAmount(coupon, pricing.Subtotal);
 

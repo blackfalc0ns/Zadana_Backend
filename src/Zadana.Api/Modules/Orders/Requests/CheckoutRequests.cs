@@ -30,6 +30,22 @@ public record CheckoutPickupBranchResponse(
     [property: JsonPropertyName("address")] string Address,
     [property: JsonPropertyName("hours_today")] string? HoursToday = null);
 
+public record CheckoutPickupBranchesResponse(
+    [property: JsonPropertyName("vendor_id")] Guid VendorId,
+    [property: JsonPropertyName("city")] string City,
+    [property: JsonPropertyName("branches")] IReadOnlyList<CheckoutPickupBranchOptionResponse> Branches);
+
+public record CheckoutPickupBranchOptionResponse(
+    [property: JsonPropertyName("id")] Guid Id,
+    [property: JsonPropertyName("name")] string Name,
+    [property: JsonPropertyName("address_line")] string AddressLine,
+    [property: JsonPropertyName("city")] string City,
+    [property: JsonPropertyName("address")] string Address,
+    [property: JsonPropertyName("hours_today")] string? HoursToday,
+    [property: JsonPropertyName("is_primary")] bool IsPrimary,
+    [property: JsonPropertyName("can_fulfill_cart")] bool CanFulfillCart,
+    [property: JsonPropertyName("missing_items_count")] int MissingItemsCount);
+
 public record CheckoutConfigResponse(
     [property: JsonPropertyName("delivery_enabled")] bool DeliveryEnabled,
     [property: JsonPropertyName("pickup_enabled")] bool PickupEnabled,

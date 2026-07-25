@@ -81,8 +81,11 @@ Accepted request/query aliases:
 - `fulfillmentType`
 - `vendorBranchId`
 
-Pickup summary query example:
+Pickup branches (by city) then summary:
 
+- `GET /api/checkout/pickup-branches?vendor_id={vendorId}&city={city}`
+  - returns active branches in that city with `can_fulfill_cart` based on current cart stock
+  - optional: `address_id` instead of `city`
 - `GET /api/checkout/summary?vendor_id={vendorId}&fulfillment_type=pickup&vendor_branch_id={branchId}&payment_method=card`
 
 Place-order pickup body fields:

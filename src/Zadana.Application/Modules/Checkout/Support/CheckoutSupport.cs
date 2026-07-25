@@ -4,6 +4,7 @@ using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Modules.Catalog.DTOs;
 using Zadana.Application.Modules.Checkout.DTOs;
 using Zadana.Application.Modules.Delivery.Interfaces;
+using Zadana.Application.Modules.Delivery.Support;
 using Zadana.Application.Modules.Orders.Support;
 using Zadana.Application.Modules.Vendors.Support;
 using Zadana.Domain.Modules.Catalog.Enums;
@@ -45,74 +46,37 @@ internal static class CheckoutSupport
         Cart cart,
         Guid? selectedVendorId,
         CustomerAddress? address,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        Guid? pickupBranchId = null)
     {
         var masterProductIds = cart.Items.Select(x => x.MasterProductId).Distinct().ToList();
         var requiredQuantityByProductId = cart.Items
             .GroupBy(item => item.MasterProductId)
             .ToDictionary(group => group.Key, group => group.Sum(item => item.Quantity));
-        var candidateOffers = await context.VendorProducts
-            .AsNoTracking()
-            .Where(product =>
-                masterProductIds.Contains(product.MasterProductId) &&
-                (!selectedVendorId.HasValue || product.VendorId == selectedVendorId.Value) &&
-                product.Status == VendorProductStatus.Active &&
-                product.IsAvailable &&
-                product.StockQuantity > 0 &&
-                product.MasterProduct.Status == ProductStatus.Active &&
-                product.Vendor.Status == VendorStatus.Active)
-            .Select(product => new VendorOfferSnapshot(
-                product.Id,
-                product.VendorId,
-                product.VendorBranchId,
-                product.VendorBranch != null && product.VendorBranch.IsPrimary,
-                product.MasterProductId,
-                product.StockQuantity,
-                product.SellingPrice,
-                product.CreatedAtUtc,
-                product.CustomNameAr,
-                product.CustomNameEn,
-                product.MasterProduct.NameAr,
-                product.MasterProduct.NameEn,
-                product.MasterProduct.Images
-                    .OrderByDescending(image => image.IsPrimary)
-                    .ThenBy(image => image.DisplayOrder)
-                    .Select(image => image.Url)
-                    .ToList(),
-                MasterProductDisplayDto.BuildDisplaySize(
-                    product.MasterProduct.PackageType != null ? product.MasterProduct.PackageType.NameAr : null,
-                    product.MasterProduct.MeasurementValue,
-                    product.MasterProduct.MeasurementUnit != null ? product.MasterProduct.MeasurementUnit.NameAr : product.MasterProduct.UnitOfMeasure != null ? product.MasterProduct.UnitOfMeasure.NameAr : null,
-                    product.MasterProduct.MeasurementUnit != null ? product.MasterProduct.MeasurementUnit.Symbol : product.MasterProduct.UnitOfMeasure != null ? product.MasterProduct.UnitOfMeasure.Symbol : null,
-                    true),
-                MasterProductDisplayDto.BuildDisplaySize(
-                    product.MasterProduct.PackageType != null ? product.MasterProduct.PackageType.NameEn : null,
-                    product.MasterProduct.MeasurementValue,
-                    product.MasterProduct.MeasurementUnit != null ? product.MasterProduct.MeasurementUnit.NameEn : product.MasterProduct.UnitOfMeasure != null ? product.MasterProduct.UnitOfMeasure.NameEn : null,
-                    product.MasterProduct.MeasurementUnit != null ? product.MasterProduct.MeasurementUnit.Symbol : product.MasterProduct.UnitOfMeasure != null ? product.MasterProduct.UnitOfMeasure.Symbol : null,
-                    false),
-                product.MasterProduct.PackageType != null ? product.MasterProduct.PackageType.NameAr : null,
-                product.MasterProduct.PackageType != null ? product.MasterProduct.PackageType.NameEn : null,
-                product.MasterProduct.MeasurementValue,
-                product.MasterProduct.MeasurementUnit != null ? product.MasterProduct.MeasurementUnit.NameAr : product.MasterProduct.UnitOfMeasure != null ? product.MasterProduct.UnitOfMeasure.NameAr : null,
-                product.MasterProduct.MeasurementUnit != null ? product.MasterProduct.MeasurementUnit.NameEn : product.MasterProduct.UnitOfMeasure != null ? product.MasterProduct.UnitOfMeasure.NameEn : null,
-                MasterProductDisplayDto.BuildLegacyUnit(
-                    product.MasterProduct.PackageType != null ? product.MasterProduct.PackageType.NameAr : null,
-                    product.MasterProduct.MeasurementUnit != null ? product.MasterProduct.MeasurementUnit.NameAr : product.MasterProduct.UnitOfMeasure != null ? product.MasterProduct.UnitOfMeasure.NameAr : null,
-                    true),
-                MasterProductDisplayDto.BuildLegacyUnit(
-                    product.MasterProduct.PackageType != null ? product.MasterProduct.PackageType.NameEn : null,
-                product.MasterProduct.MeasurementUnit != null ? product.MasterProduct.MeasurementUnit.NameEn : product.MasterProduct.UnitOfMeasure != null ? product.MasterProduct.UnitOfMeasure.NameEn : null,
-                false)))
-            .ToListAsync(cancellationToken);
+        var candidateOffers = await LoadCandidateOffersAsync(
+            context,
+            masterProductIds,
+            selectedVendorId,
+            cancellationToken);
 
         candidateOffers = ApplyUnifiedPricing(candidateOffers);
 
-        var selectedBranchIdByVendor = await ResolveAddressBranchIdsByVendorAsync(
-            context,
-            candidateOffers.Select(offer => offer.VendorId),
-            address,
-            cancellationToken);
+        IReadOnlyDictionary<Guid, Guid?> selectedBranchIdByVendor;
+        if (pickupBranchId.HasValue && selectedVendorId.HasValue)
+        {
+            selectedBranchIdByVendor = new Dictionary<Guid, Guid?>
+            {
+                [selectedVendorId.Value] = pickupBranchId.Value
+            };
+        }
+        else
+        {
+            selectedBranchIdByVendor = await ResolveAddressBranchIdsByVendorAsync(
+                context,
+                candidateOffers.Select(offer => offer.VendorId),
+                address,
+                cancellationToken);
+        }
 
         candidateOffers = FilterOffersForAddressBranch(candidateOffers, selectedBranchIdByVendor);
 
@@ -1530,6 +1494,176 @@ internal static class CheckoutSupport
         }
 
         return branch;
+    }
+
+    public static async Task<CheckoutPickupBranchesDto> GetPickupBranchesForCityAsync(
+        IApplicationDbContext context,
+        Guid userId,
+        Guid vendorId,
+        string city,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(city))
+        {
+            throw new BusinessRuleException("PICKUP_CITY_REQUIRED", "City is required to list pickup branches.");
+        }
+
+        var vendorExists = await context.Vendors
+            .AsNoTracking()
+            .AnyAsync(item => item.Id == vendorId && item.Status == VendorStatus.Active, cancellationToken);
+        if (!vendorExists)
+        {
+            throw new NotFoundException("Vendor", vendorId);
+        }
+
+        var cart = await GetRequiredCartAsync(context, userId, cancellationToken);
+        var masterProductIds = cart.Items.Select(item => item.MasterProductId).Distinct().ToList();
+        var requiredQuantityByProductId = cart.Items
+            .GroupBy(item => item.MasterProductId)
+            .ToDictionary(group => group.Key, group => group.Sum(item => item.Quantity));
+
+        var offers = ApplyUnifiedPricing(
+            await LoadCandidateOffersAsync(context, masterProductIds, vendorId, cancellationToken));
+
+        var branches = await context.VendorBranches
+            .AsNoTracking()
+            .Include(item => item.OperatingHours)
+            .Where(item => item.VendorId == vendorId && item.IsActive)
+            .OrderByDescending(item => item.IsPrimary)
+            .ThenBy(item => item.CreatedAtUtc)
+            .ToListAsync(cancellationToken);
+
+        var cityBranches = branches
+            .Where(item => DeliveryCityMatcher.Matches(item.City, city))
+            .ToList();
+
+        var options = cityBranches
+            .Select(branch =>
+            {
+                var availability = EvaluateBranchCartAvailability(
+                    offers,
+                    vendorId,
+                    branch.Id,
+                    requiredQuantityByProductId);
+                var dto = BuildPickupBranchDto(branch)!;
+                return new CheckoutPickupBranchOptionDto(
+                    dto.Id,
+                    dto.Name,
+                    dto.AddressLine,
+                    dto.City,
+                    dto.Address,
+                    dto.HoursToday,
+                    branch.IsPrimary,
+                    availability.CanFulfillCart,
+                    availability.MissingItemsCount);
+            })
+            .OrderByDescending(item => item.CanFulfillCart)
+            .ThenByDescending(item => item.IsPrimary)
+            .ThenBy(item => item.Name, StringComparer.CurrentCultureIgnoreCase)
+            .ToList();
+
+        return new CheckoutPickupBranchesDto(vendorId, city.Trim(), options);
+    }
+
+    private static async Task<List<VendorOfferSnapshot>> LoadCandidateOffersAsync(
+        IApplicationDbContext context,
+        IReadOnlyCollection<Guid> masterProductIds,
+        Guid? selectedVendorId,
+        CancellationToken cancellationToken)
+    {
+        return await context.VendorProducts
+            .AsNoTracking()
+            .Where(product =>
+                masterProductIds.Contains(product.MasterProductId) &&
+                (!selectedVendorId.HasValue || product.VendorId == selectedVendorId.Value) &&
+                product.Status == VendorProductStatus.Active &&
+                product.IsAvailable &&
+                product.StockQuantity > 0 &&
+                product.MasterProduct.Status == ProductStatus.Active &&
+                product.Vendor.Status == VendorStatus.Active)
+            .Select(product => new VendorOfferSnapshot(
+                product.Id,
+                product.VendorId,
+                product.VendorBranchId,
+                product.VendorBranch != null && product.VendorBranch.IsPrimary,
+                product.MasterProductId,
+                product.StockQuantity,
+                product.SellingPrice,
+                product.CreatedAtUtc,
+                product.CustomNameAr,
+                product.CustomNameEn,
+                product.MasterProduct.NameAr,
+                product.MasterProduct.NameEn,
+                product.MasterProduct.Images
+                    .OrderByDescending(image => image.IsPrimary)
+                    .ThenBy(image => image.DisplayOrder)
+                    .Select(image => image.Url)
+                    .ToList(),
+                MasterProductDisplayDto.BuildDisplaySize(
+                    product.MasterProduct.PackageType != null ? product.MasterProduct.PackageType.NameAr : null,
+                    product.MasterProduct.MeasurementValue,
+                    product.MasterProduct.MeasurementUnit != null ? product.MasterProduct.MeasurementUnit.NameAr : product.MasterProduct.UnitOfMeasure != null ? product.MasterProduct.UnitOfMeasure.NameAr : null,
+                    product.MasterProduct.MeasurementUnit != null ? product.MasterProduct.MeasurementUnit.Symbol : product.MasterProduct.UnitOfMeasure != null ? product.MasterProduct.UnitOfMeasure.Symbol : null,
+                    true),
+                MasterProductDisplayDto.BuildDisplaySize(
+                    product.MasterProduct.PackageType != null ? product.MasterProduct.PackageType.NameEn : null,
+                    product.MasterProduct.MeasurementValue,
+                    product.MasterProduct.MeasurementUnit != null ? product.MasterProduct.MeasurementUnit.NameEn : product.MasterProduct.UnitOfMeasure != null ? product.MasterProduct.UnitOfMeasure.NameEn : null,
+                    product.MasterProduct.MeasurementUnit != null ? product.MasterProduct.MeasurementUnit.Symbol : product.MasterProduct.UnitOfMeasure != null ? product.MasterProduct.UnitOfMeasure.Symbol : null,
+                    false),
+                product.MasterProduct.PackageType != null ? product.MasterProduct.PackageType.NameAr : null,
+                product.MasterProduct.PackageType != null ? product.MasterProduct.PackageType.NameEn : null,
+                product.MasterProduct.MeasurementValue,
+                product.MasterProduct.MeasurementUnit != null ? product.MasterProduct.MeasurementUnit.NameAr : product.MasterProduct.UnitOfMeasure != null ? product.MasterProduct.UnitOfMeasure.NameAr : null,
+                product.MasterProduct.MeasurementUnit != null ? product.MasterProduct.MeasurementUnit.NameEn : product.MasterProduct.UnitOfMeasure != null ? product.MasterProduct.UnitOfMeasure.NameEn : null,
+                MasterProductDisplayDto.BuildLegacyUnit(
+                    product.MasterProduct.PackageType != null ? product.MasterProduct.PackageType.NameAr : null,
+                    product.MasterProduct.MeasurementUnit != null ? product.MasterProduct.MeasurementUnit.NameAr : product.MasterProduct.UnitOfMeasure != null ? product.MasterProduct.UnitOfMeasure.NameAr : null,
+                    true),
+                MasterProductDisplayDto.BuildLegacyUnit(
+                    product.MasterProduct.PackageType != null ? product.MasterProduct.PackageType.NameEn : null,
+                    product.MasterProduct.MeasurementUnit != null ? product.MasterProduct.MeasurementUnit.NameEn : product.MasterProduct.UnitOfMeasure != null ? product.MasterProduct.UnitOfMeasure.NameEn : null,
+                    false)))
+            .ToListAsync(cancellationToken);
+    }
+
+    private static (bool CanFulfillCart, int MissingItemsCount) EvaluateBranchCartAvailability(
+        IReadOnlyList<VendorOfferSnapshot> offers,
+        Guid vendorId,
+        Guid branchId,
+        IReadOnlyDictionary<Guid, int> requiredQuantityByProductId)
+    {
+        var missing = 0;
+        foreach (var (productId, requiredQuantity) in requiredQuantityByProductId)
+        {
+            var productOffers = offers
+                .Where(offer => offer.VendorId == vendorId && offer.MasterProductId == productId)
+                .ToList();
+
+            var branchOffers = productOffers
+                .Where(offer => offer.VendorBranchId == branchId && offer.StockQuantity >= requiredQuantity)
+                .ToList();
+            if (branchOffers.Count > 0)
+            {
+                continue;
+            }
+
+            var hasBranchScopedInventory = productOffers.Any(offer => offer.VendorBranchId.HasValue);
+            if (hasBranchScopedInventory)
+            {
+                missing++;
+                continue;
+            }
+
+            var vendorWideOffer = productOffers.FirstOrDefault(offer =>
+                !offer.VendorBranchId.HasValue && offer.StockQuantity >= requiredQuantity);
+            if (vendorWideOffer is null)
+            {
+                missing++;
+            }
+        }
+
+        return (missing == 0, missing);
     }
 
     public static CheckoutDeliveryCheckDto BuildPickupDeliveryCheck(bool canProceed, string? messageEn = null) =>

@@ -8,6 +8,7 @@ using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Modules.Checkout.Commands.ApplyCheckoutPromoCode;
 using Zadana.Application.Modules.Checkout.Commands.RemoveCheckoutPromoCode;
 using Zadana.Application.Modules.Checkout.DTOs;
+using Zadana.Application.Modules.Checkout.Queries.GetCheckoutPickupBranches;
 using Zadana.Application.Modules.Checkout.Queries.GetCheckoutSummary;
 using Zadana.Domain.Modules.Orders.Entities;
 using Zadana.Domain.Modules.Orders.Enums;
@@ -25,6 +26,38 @@ public class CheckoutController : ApiControllerBase
     public CheckoutController(ICurrentUserService currentUserService)
     {
         _currentUserService = currentUserService;
+    }
+
+    [HttpGet("pickup-branches")]
+    public async Task<ActionResult<CheckoutPickupBranchesResponse>> GetPickupBranches(
+        [FromQuery(Name = "vendor_id")] Guid? vendorId = null,
+        [FromQuery(Name = "city")] string? city = null,
+        [FromQuery(Name = "address_id")] Guid? addressId = null,
+        CancellationToken cancellationToken = default)
+    {
+        var userId = _currentUserService.UserId ?? throw new UnauthorizedException("USER_NOT_AUTHENTICATED");
+        var resolvedVendorId = ResolveGuidQueryAlias(vendorId, "vendorId", "INVALID_VENDOR_ID")
+            ?? throw new BadRequestException("INVALID_VENDOR_ID", "vendor_id is required.");
+        var resolvedAddressId = ResolveGuidQueryAlias(addressId, "addressId", "INVALID_ADDRESS_ID");
+        var resolvedCity = ResolveStringQueryAlias(city, "City");
+
+        var result = await Sender.Send(
+            new GetCheckoutPickupBranchesQuery(userId, resolvedVendorId, resolvedCity, resolvedAddressId),
+            cancellationToken);
+
+        return Ok(new CheckoutPickupBranchesResponse(
+            result.VendorId,
+            result.City,
+            result.Branches.Select(branch => new CheckoutPickupBranchOptionResponse(
+                branch.Id,
+                branch.Name,
+                branch.AddressLine,
+                branch.City,
+                branch.Address,
+                branch.HoursToday,
+                branch.IsPrimary,
+                branch.CanFulfillCart,
+                branch.MissingItemsCount)).ToList()));
     }
 
     [HttpGet("summary")]

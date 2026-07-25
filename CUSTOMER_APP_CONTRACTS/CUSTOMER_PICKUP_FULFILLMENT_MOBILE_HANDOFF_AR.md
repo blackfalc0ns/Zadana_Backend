@@ -102,7 +102,61 @@ GET /api/checkout/config
 
 ---
 
-## 3) Checkout Summary للـ Pickup
+## 3) فروع الاستلام حسب المدينة
+
+قبل الـ summary، اجلب فروع التاجر في مدينة العميل. لو أكتر من فرع، اعرض اللي يقدر يوفّر منتجات السلة (`can_fulfill_cart = true`) واختر منه.
+
+### Endpoint
+
+```http
+GET /api/checkout/pickup-branches?vendor_id={vendorId}&city={city}
+```
+
+بديل: `address_id` بدل `city` (المدينة تُقرأ من العنوان).
+
+### Response مثال
+
+```json
+{
+  "vendor_id": "0f42e51e-5252-4aa5-ae79-704478ae9b24",
+  "city": "الرياض",
+  "branches": [
+    {
+      "id": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+      "name": "فرع العليا",
+      "address_line": "طريق الملك فهد",
+      "city": "الرياض",
+      "address": "طريق الملك فهد, الرياض",
+      "hours_today": "10:00 - 22:00",
+      "is_primary": true,
+      "can_fulfill_cart": true,
+      "missing_items_count": 0
+    },
+    {
+      "id": "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
+      "name": "فرع النسيم",
+      "address_line": "شارع النسيم",
+      "city": "الرياض",
+      "address": "شارع النسيم, الرياض",
+      "hours_today": "09:00 - 23:00",
+      "is_primary": false,
+      "can_fulfill_cart": false,
+      "missing_items_count": 1
+    }
+  ]
+}
+```
+
+### قواعد واجهة اختيار الفرع
+
+1. ابعت `city` من عنوان العميل (أو `address_id`).
+2. رتّب/فلتر حسب `can_fulfill_cart` — امنع اختيار فرع `false` أو وضّح أنه ناقص منتجات.
+3. لو فرع واحد متاح فقط → اختَره تلقائيًا.
+4. بعد الاختيار ابعت `vendor_branch_id` في summary و place order.
+
+---
+
+## 3.1) Checkout Summary للـ Pickup
 
 ### Endpoint
 
@@ -867,7 +921,7 @@ Cart
   → GET /api/checkout/config
   → اختيار Delivery أو Pickup
       ├─ Delivery: عنوان + slot + summary عادي
-      └─ Pickup: اختيار فرع + GET summary(...fulfillment_type=pickup...)
+      └─ Pickup: GET pickup-branches?city=... → اختيار فرع متاح → GET summary(...vendor_branch_id=...)
   → POST /api/orders
       ├─ card/apple_pay → Moyasar → confirm
       └─ cash → مباشرة لتفاصيل الطلب
@@ -886,7 +940,8 @@ Cart
 
 ### Checkout
 - [ ] جلب config وإخفاء/إظهار delivery و pickup
-- [ ] اختيار فرع + إرسال `fulfillment_type=pickup` و `vendor_branch_id`
+- [ ] جلب فروع المدينة عبر `/api/checkout/pickup-branches` واختيار فرع `can_fulfill_cart=true`
+- [ ] إرسال `fulfillment_type=pickup` و `vendor_branch_id` في summary و place
 - [ ] إخفاء العنوان والـ slot في وضع pickup
 - [ ] عرض `shipping_cost = 0`
 - [ ] طرق الدفع من `allowed_payments_for_pickup` فقط
@@ -957,6 +1012,7 @@ Cart
 | Method | Path | الاستخدام |
 |---|---|---|
 | GET | `/api/checkout/config` | تفعيل التوصيل/الاستلام/الكاش |
+| GET | `/api/checkout/pickup-branches?...` | فروع المدينة + توفر السلة |
 | GET | `/api/checkout/summary?...` | ملخص pickup |
 | POST | `/api/orders` | إنشاء الطلب |
 | POST | `/api/payments/moyasar/confirm` | تأكيد دفع البطاقة/فرق التوصيل |

@@ -141,7 +141,18 @@ public class PlaceCheckoutOrderCommandHandler : IRequestHandler<PlaceCheckoutOrd
             }
         }
 
-        var pricing = await CheckoutSupport.BuildPricingSnapshotAsync(_context, cart, request.VendorId, address, cancellationToken);
+        if (request.Fulfillment == FulfillmentType.Pickup && !request.VendorBranchId.HasValue)
+        {
+            throw new BusinessRuleException("PICKUP_BRANCH_REQUIRED", "Pickup orders require a vendor branch.");
+        }
+
+        var pricing = await CheckoutSupport.BuildPricingSnapshotAsync(
+            _context,
+            cart,
+            request.VendorId,
+            address,
+            cancellationToken,
+            request.Fulfillment == FulfillmentType.Pickup ? request.VendorBranchId : null);
         if (pricing.UnavailableItems.Count > 0)
         {
             if (!request.RemoveUnavailableItems)
@@ -165,15 +176,10 @@ public class PlaceCheckoutOrderCommandHandler : IRequestHandler<PlaceCheckoutOrd
 
         if (request.Fulfillment == FulfillmentType.Pickup)
         {
-            if (!request.VendorBranchId.HasValue)
-            {
-                throw new BusinessRuleException("PICKUP_BRANCH_REQUIRED", "Pickup orders require a vendor branch.");
-            }
-
             await CheckoutSupport.ValidatePickupBranchAsync(
                 _context,
                 pricing.VendorId,
-                request.VendorBranchId.Value,
+                request.VendorBranchId!.Value,
                 cancellationToken);
 
             orderBranchId = request.VendorBranchId.Value;

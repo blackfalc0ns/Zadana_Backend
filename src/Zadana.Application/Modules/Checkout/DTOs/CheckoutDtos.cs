@@ -28,6 +28,22 @@ public record CheckoutPickupBranchDto(
     string Address,
     string? HoursToday = null);
 
+public record CheckoutPickupBranchesDto(
+    Guid VendorId,
+    string City,
+    IReadOnlyList<CheckoutPickupBranchOptionDto> Branches);
+
+public record CheckoutPickupBranchOptionDto(
+    Guid Id,
+    string Name,
+    string AddressLine,
+    string City,
+    string Address,
+    string? HoursToday,
+    bool IsPrimary,
+    bool CanFulfillCart,
+    int MissingItemsCount);
+
 public record CheckoutCartDto(
     int ItemsCount,
     int TotalQuantity,
