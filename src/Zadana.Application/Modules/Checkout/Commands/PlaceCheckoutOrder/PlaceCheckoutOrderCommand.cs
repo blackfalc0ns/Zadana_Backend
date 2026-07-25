@@ -564,6 +564,17 @@ public class PlaceCheckoutOrderCommandHandler : IRequestHandler<PlaceCheckoutOrd
                 cancellationToken);
         }
 
+        CheckoutPickupBranchDto? pickupBranch = null;
+        if (fulfillment == FulfillmentType.Pickup && vendorBranchId.HasValue)
+        {
+            var branch = await CheckoutSupport.ValidatePickupBranchAsync(
+                _context,
+                pricing.VendorId,
+                vendorBranchId.Value,
+                cancellationToken);
+            pickupBranch = CheckoutSupport.BuildPickupBranchDto(branch);
+        }
+
         return new PlaceCheckoutOrderResultDto(
             LocalizedMessages.GetAr(LocalizedMessages.OrderPlacedSuccess),
             LocalizedMessages.GetEn(LocalizedMessages.OrderPlacedSuccess),
@@ -573,7 +584,9 @@ public class PlaceCheckoutOrderCommandHandler : IRequestHandler<PlaceCheckoutOrd
                 CheckoutSupport.MapOrderStatusToContractValue(order.Status.ToString()),
                 paymentMethodCode,
                 CheckoutSupport.MapPaymentStatusToContractValue(order.PaymentStatus.ToString()),
-                order.TotalAmount),
+                order.TotalAmount,
+                fulfillment == FulfillmentType.Pickup ? "pickup" : "delivery",
+                pickupBranch),
             paymentSession);
     }
 

@@ -26,7 +26,9 @@ public record CheckoutPickupBranchResponse(
     [property: JsonPropertyName("id")] Guid Id,
     [property: JsonPropertyName("name")] string Name,
     [property: JsonPropertyName("address_line")] string AddressLine,
-    [property: JsonPropertyName("city")] string City);
+    [property: JsonPropertyName("city")] string City,
+    [property: JsonPropertyName("address")] string Address,
+    [property: JsonPropertyName("hours_today")] string? HoursToday = null);
 
 public record CheckoutConfigResponse(
     [property: JsonPropertyName("delivery_enabled")] bool DeliveryEnabled,
@@ -168,7 +170,9 @@ public record ApplyCheckoutPromoCodeResponse(
     [property: JsonPropertyName("delivery_breakdown")] CheckoutDeliveryBreakdownResponse? DeliveryBreakdown,
     [property: JsonPropertyName("shipping_breakdown")] List<CheckoutShippingBreakdownLineResponse> ShippingBreakdown,
     [property: JsonPropertyName("pricing_mode")] string PricingMode,
-    [property: JsonPropertyName("summary")] CheckoutSummaryTotalsResponse Summary);
+    [property: JsonPropertyName("summary")] CheckoutSummaryTotalsResponse Summary,
+    [property: JsonPropertyName("fulfillment_type")] string FulfillmentType = "delivery",
+    [property: JsonPropertyName("pickup_branch")] CheckoutPickupBranchResponse? PickupBranch = null);
 
 public record RemoveCheckoutPromoCodeResponse(
     [property: JsonPropertyName("message")] string Message,
@@ -185,7 +189,9 @@ public record RemoveCheckoutPromoCodeResponse(
     [property: JsonPropertyName("delivery_breakdown")] CheckoutDeliveryBreakdownResponse? DeliveryBreakdown,
     [property: JsonPropertyName("shipping_breakdown")] List<CheckoutShippingBreakdownLineResponse> ShippingBreakdown,
     [property: JsonPropertyName("pricing_mode")] string PricingMode,
-    [property: JsonPropertyName("summary")] CheckoutSummaryTotalsResponse Summary);
+    [property: JsonPropertyName("summary")] CheckoutSummaryTotalsResponse Summary,
+    [property: JsonPropertyName("fulfillment_type")] string FulfillmentType = "delivery",
+    [property: JsonPropertyName("pickup_branch")] CheckoutPickupBranchResponse? PickupBranch = null);
 
 public record GetCartDeliveryCheckResponse(
     [property: JsonPropertyName("address_id")] Guid? AddressId,
@@ -347,7 +353,9 @@ public record PlacedOrderSummaryResponse(
     [property: JsonPropertyName("status")] string Status,
     [property: JsonPropertyName("payment_method")] string PaymentMethod,
     [property: JsonPropertyName("payment_status")] string PaymentStatus,
-    [property: JsonPropertyName("total_price")] decimal TotalPrice);
+    [property: JsonPropertyName("total_price")] decimal TotalPrice,
+    [property: JsonPropertyName("fulfillment_type")] string FulfillmentType = "delivery",
+    [property: JsonPropertyName("pickup_branch")] CheckoutPickupBranchResponse? PickupBranch = null);
 
 public record CheckoutOrderPaymentResponse(
     [property: JsonPropertyName("id")] Guid Id,

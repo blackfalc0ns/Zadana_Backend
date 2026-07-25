@@ -1511,6 +1511,7 @@ internal static class CheckoutSupport
     {
         var branch = await context.VendorBranches
             .AsNoTracking()
+            .Include(item => item.OperatingHours)
             .FirstOrDefaultAsync(item => item.Id == vendorBranchId, cancellationToken)
             ?? throw new NotFoundException("VendorBranch", vendorBranchId);
 
@@ -1564,10 +1565,26 @@ internal static class CheckoutSupport
         return methods;
     }
 
-    public static CheckoutPickupBranchDto? BuildPickupBranchDto(VendorBranch? branch) =>
-        branch is null
-            ? null
-            : new CheckoutPickupBranchDto(branch.Id, branch.Name, branch.AddressLine, branch.City);
+    public static CheckoutPickupBranchDto? BuildPickupBranchDto(VendorBranch? branch)
+    {
+        if (branch is null)
+        {
+            return null;
+        }
+
+        var address = string.Join(", ", new[] { branch.AddressLine, branch.City, branch.Region }
+            .Where(value => !string.IsNullOrWhiteSpace(value)));
+
+        return new CheckoutPickupBranchDto(
+            branch.Id,
+            branch.Name,
+            branch.AddressLine,
+            branch.City,
+            address,
+            BranchOperatingHoursSupport.BuildHoursTodayLabel(
+                branch.OperatingHours?.ToList() ?? [],
+                DateTime.UtcNow));
+    }
 
     public static decimal CalculatePickupCommissionAmount(decimal subtotal, decimal pickupCommissionPercent) =>
         Math.Round(subtotal * pickupCommissionPercent / 100m, 2, MidpointRounding.AwayFromZero);

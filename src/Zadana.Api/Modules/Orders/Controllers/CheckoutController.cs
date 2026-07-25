@@ -89,6 +89,8 @@ public class CheckoutController : ApiControllerBase
         [FromBody] ApplyCheckoutPromoCodeRequest? request,
         [FromQuery(Name = "vendor_id")] Guid? vendorId = null,
         [FromQuery(Name = "payment_method")] string? paymentMethod = null,
+        [FromQuery(Name = "fulfillment_type")] string? fulfillmentType = null,
+        [FromQuery(Name = "vendor_branch_id")] Guid? vendorBranchId = null,
         CancellationToken cancellationToken = default)
     {
         if (request is null)
@@ -99,9 +101,21 @@ public class CheckoutController : ApiControllerBase
         var userId = _currentUserService.UserId ?? throw new UnauthorizedException("USER_NOT_AUTHENTICATED");
         var resolvedVendorId = ResolveGuidQueryAlias(vendorId, "vendorId", "INVALID_VENDOR_ID");
         var resolvedPaymentMethod = ResolveStringQueryAlias(paymentMethod, "paymentMethod");
+        var resolvedFulfillmentType = ResolveStringQueryAlias(fulfillmentType, "fulfillmentType");
+        var resolvedVendorBranchId = ResolveGuidQueryAlias(vendorBranchId, "vendorBranchId", "INVALID_VENDOR_BRANCH_ID");
+        var fulfillment = string.Equals(resolvedFulfillmentType, "pickup", StringComparison.OrdinalIgnoreCase)
+            ? FulfillmentType.Pickup
+            : FulfillmentType.Delivery;
         var result = await Sender.Send(new ApplyCheckoutPromoCodeCommand(userId, resolvedVendorId, request.Code, resolvedPaymentMethod), cancellationToken);
         var checkout = await Sender.Send(
-            new GetCheckoutSummaryQuery(userId, resolvedVendorId, null, null, resolvedPaymentMethod),
+            new GetCheckoutSummaryQuery(
+                userId,
+                resolvedVendorId,
+                null,
+                null,
+                resolvedPaymentMethod,
+                fulfillment,
+                resolvedVendorBranchId),
             cancellationToken);
 
         return Ok(MapApplyPromoCodeResponse(result.Message, checkout));
@@ -111,14 +125,28 @@ public class CheckoutController : ApiControllerBase
     public async Task<ActionResult<RemoveCheckoutPromoCodeResponse>> RemovePromoCode(
         [FromQuery(Name = "vendor_id")] Guid? vendorId = null,
         [FromQuery(Name = "payment_method")] string? paymentMethod = null,
+        [FromQuery(Name = "fulfillment_type")] string? fulfillmentType = null,
+        [FromQuery(Name = "vendor_branch_id")] Guid? vendorBranchId = null,
         CancellationToken cancellationToken = default)
     {
         var userId = _currentUserService.UserId ?? throw new UnauthorizedException("USER_NOT_AUTHENTICATED");
         var resolvedVendorId = ResolveGuidQueryAlias(vendorId, "vendorId", "INVALID_VENDOR_ID");
         var resolvedPaymentMethod = ResolveStringQueryAlias(paymentMethod, "paymentMethod");
+        var resolvedFulfillmentType = ResolveStringQueryAlias(fulfillmentType, "fulfillmentType");
+        var resolvedVendorBranchId = ResolveGuidQueryAlias(vendorBranchId, "vendorBranchId", "INVALID_VENDOR_BRANCH_ID");
+        var fulfillment = string.Equals(resolvedFulfillmentType, "pickup", StringComparison.OrdinalIgnoreCase)
+            ? FulfillmentType.Pickup
+            : FulfillmentType.Delivery;
         var result = await Sender.Send(new RemoveCheckoutPromoCodeCommand(userId, resolvedVendorId, resolvedPaymentMethod), cancellationToken);
         var checkout = await Sender.Send(
-            new GetCheckoutSummaryQuery(userId, resolvedVendorId, null, null, resolvedPaymentMethod),
+            new GetCheckoutSummaryQuery(
+                userId,
+                resolvedVendorId,
+                null,
+                null,
+                resolvedPaymentMethod,
+                fulfillment,
+                resolvedVendorBranchId),
             cancellationToken);
 
         return Ok(MapRemovePromoCodeResponse(result.Message, checkout));
@@ -253,13 +281,7 @@ public class CheckoutController : ApiControllerBase
                 result.Summary.Total,
                 result.Summary.Currency),
             result.FulfillmentType,
-            result.PickupBranch == null
-                ? null
-                : new CheckoutPickupBranchResponse(
-                    result.PickupBranch.Id,
-                    result.PickupBranch.Name,
-                    result.PickupBranch.AddressLine,
-                    result.PickupBranch.City));
+            MapPickupBranch(result.PickupBranch));
     }
 
     private static ApplyCheckoutPromoCodeResponse MapApplyPromoCodeResponse(
@@ -283,7 +305,9 @@ public class CheckoutController : ApiControllerBase
             summary.DeliveryBreakdown,
             summary.ShippingBreakdown,
             summary.PricingMode,
-            summary.Summary);
+            summary.Summary,
+            summary.FulfillmentType,
+            summary.PickupBranch);
     }
 
     private static RemoveCheckoutPromoCodeResponse MapRemovePromoCodeResponse(
@@ -307,8 +331,21 @@ public class CheckoutController : ApiControllerBase
             summary.DeliveryBreakdown,
             summary.ShippingBreakdown,
             summary.PricingMode,
-            summary.Summary);
+            summary.Summary,
+            summary.FulfillmentType,
+            summary.PickupBranch);
     }
+
+    private static CheckoutPickupBranchResponse? MapPickupBranch(CheckoutPickupBranchDto? branch) =>
+        branch is null
+            ? null
+            : new CheckoutPickupBranchResponse(
+                branch.Id,
+                branch.Name,
+                branch.AddressLine,
+                branch.City,
+                branch.Address,
+                branch.HoursToday);
 
     internal static CheckoutDeliveryCheckResponse MapDeliveryCheck(CheckoutDeliveryCheckDto result)
     {
@@ -379,7 +416,9 @@ public class CheckoutController : ApiControllerBase
                 result.Order.Status,
                 result.Order.PaymentMethod,
                 result.Order.PaymentStatus,
-                result.Order.TotalPrice),
+                result.Order.TotalPrice,
+                result.Order.FulfillmentType,
+                MapPickupBranch(result.Order.PickupBranch)),
             result.Payment == null
                 ? null
                 : new CheckoutOrderPaymentResponse(

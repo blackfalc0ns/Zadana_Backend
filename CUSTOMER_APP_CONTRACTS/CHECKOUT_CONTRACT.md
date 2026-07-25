@@ -269,7 +269,9 @@ Pickup summary example:
     "id": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
     "name": "Mohandessin Branch",
     "address_line": "12 Lebanon Sq",
-    "city": "Giza"
+    "city": "Giza",
+    "address": "12 Lebanon Sq, Giza",
+    "hours_today": "Today: 10:00 AM - 10:00 PM"
   },
   "delivery_check": {
     "status": "pickup_ready",

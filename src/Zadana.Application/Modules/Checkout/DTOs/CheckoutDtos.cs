@@ -24,7 +24,9 @@ public record CheckoutPickupBranchDto(
     Guid Id,
     string Name,
     string AddressLine,
-    string City);
+    string City,
+    string Address,
+    string? HoursToday = null);
 
 public record CheckoutCartDto(
     int ItemsCount,
@@ -365,7 +367,9 @@ public record CheckoutPlacedOrderDto(
     string Status,
     string PaymentMethod,
     string PaymentStatus,
-    decimal TotalPrice);
+    decimal TotalPrice,
+    string FulfillmentType = "delivery",
+    CheckoutPickupBranchDto? PickupBranch = null);
 
 public record CheckoutPaymentSessionDto(
     Guid Id,

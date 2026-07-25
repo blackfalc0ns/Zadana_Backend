@@ -125,7 +125,9 @@ GET /api/checkout/summary?vendor_id={vendorId}&fulfillment_type=pickup&vendor_br
     "id": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
     "name": "Mohandessin Branch",
     "address_line": "12 Lebanon Sq",
-    "city": "Giza"
+    "city": "Giza",
+    "address": "12 Lebanon Sq, Giza",
+    "hours_today": "Today: 10:00 AM - 10:00 PM"
   },
   "delivery_check": {
     "status": "pickup_ready",
@@ -171,9 +173,10 @@ GET /api/checkout/summary?vendor_id={vendorId}&fulfillment_type=pickup&vendor_br
 ### قواعد واجهة Summary
 
 1. اخفِ اختيار العنوان ومواعيد التوصيل في وضع pickup.
-2. اعرض بطاقة الفرع من `pickup_branch` (اسم + عنوان + مدينة).
+2. اعرض بطاقة الفرع من `pickup_branch`: الاسم + `address` (عنوان المتجر الكامل) + `hours_today` إن وُجد. يمكن استخدام `address_line` + `city` كبديل.
 3. اعرض الشحن = `0` من `summary.shipping_cost` (لا تحسب على الجهاز).
 4. طرق الدفع المعروضة = من response الـ summary / config فقط.
+5. عند تطبيق/إزالة كوبون في وضع pickup مرّر نفس `fulfillment_type` و `vendor_branch_id` عشان `pickup_branch` يفضل راجع في الـ summary.
 
 ---
 
@@ -818,11 +821,12 @@ class CheckoutConfig {
 }
 
 class PickupBranch {
-  final String? id;          // موجود في checkout summary
+  final String? id;          // موجود في checkout summary / place order
   final String name;
-  final String address;      // details/tracking: address | summary: address_line
-  final String? city;        // checkout summary فقط
-  final String? hoursToday;  // details/tracking
+  final String address;      // عنوان المتجر الكامل (مفضّل للعرض)
+  final String? addressLine; // checkout summary
+  final String? city;        // checkout summary
+  final String? hoursToday;  // summary + details/tracking
 }
 
 class CustomerOrderDetail {
@@ -848,7 +852,7 @@ class CustomerOrderDetail {
 ### مappers مهمة
 
 - `fulfillment_type` / `fulfillmentType` → enum
-- في summary: `pickup_branch.address_line` (+ `city`)
+- في summary / place order: `pickup_branch.address` (+ `hours_today`)، مع `address_line`/`city` للتوافق
 - في details/tracking: `pickup_branch.address` (+ `hours_today`)
 - في realtime: `pickupBranch.hoursToday` (camelCase)
 
