@@ -2,6 +2,7 @@ using FluentValidation;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Localization;
+using Microsoft.Extensions.Logging;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Common.Localization;
 using Zadana.Application.Modules.Delivery.Interfaces;
@@ -51,6 +52,7 @@ public class VendorUpdateOrderStatusCommandHandler : IRequestHandler<VendorUpdat
     private readonly IOrderStatusNotificationDispatcher _orderStatusNotificationDispatcher;
     private readonly IDeliveryDispatchService _deliveryDispatchService;
     private readonly OrderInventoryWorkflowService _orderInventoryWorkflowService;
+    private readonly ILogger<VendorUpdateOrderStatusCommandHandler> _logger;
 
     public VendorUpdateOrderStatusCommandHandler(
         IApplicationDbContext context,
@@ -58,7 +60,8 @@ public class VendorUpdateOrderStatusCommandHandler : IRequestHandler<VendorUpdat
         IPublisher publisher,
         IOrderStatusNotificationDispatcher orderStatusNotificationDispatcher,
         IDeliveryDispatchService deliveryDispatchService,
-        OrderInventoryWorkflowService? orderInventoryWorkflowService = null)
+        OrderInventoryWorkflowService? orderInventoryWorkflowService = null,
+        ILogger<VendorUpdateOrderStatusCommandHandler>? logger = null)
     {
         _context = context;
         _unitOfWork = unitOfWork;
@@ -66,6 +69,7 @@ public class VendorUpdateOrderStatusCommandHandler : IRequestHandler<VendorUpdat
         _orderStatusNotificationDispatcher = orderStatusNotificationDispatcher;
         _deliveryDispatchService = deliveryDispatchService;
         _orderInventoryWorkflowService = orderInventoryWorkflowService ?? new OrderInventoryWorkflowService(context);
+        _logger = logger ?? Microsoft.Extensions.Logging.Abstractions.NullLogger<VendorUpdateOrderStatusCommandHandler>.Instance;
     }
 
     public async Task<VendorUpdateOrderStatusResultDto> Handle(VendorUpdateOrderStatusCommand request, CancellationToken cancellationToken)
@@ -134,7 +138,7 @@ public class VendorUpdateOrderStatusCommandHandler : IRequestHandler<VendorUpdat
             }
             else if (request.NewStatus == OrderStatus.ReadyForPickup && order.Fulfillment != FulfillmentType.Pickup)
             {
-                await _deliveryDispatchService.TryAutoDispatchAsync(order.Id, cancellationToken: cancellationToken);
+                await TryAutoDispatchSafelyAsync(order.Id, cancellationToken);
             }
 
             return new VendorUpdateOrderStatusResultDto(
@@ -164,42 +168,108 @@ public class VendorUpdateOrderStatusCommandHandler : IRequestHandler<VendorUpdat
 
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
-        await _orderStatusNotificationDispatcher.DispatchCustomerAsync(
-            new OrderStatusCustomerNotificationRequest(
-                order.UserId,
-                order.Id,
-                order.VendorId,
-                order.OrderNumber,
-                oldStatus,
-                request.NewStatus,
-                ActorRole: "vendor",
-                Fulfillment: order.Fulfillment),
-            cancellationToken);
-
-        // Publish notification event
-        await _publisher.Publish(
-            new OrderStatusChangedNotification(
-                order.Id,
-                order.UserId,
-                order.VendorId,
-                order.OrderNumber,
-                oldStatus,
-                request.NewStatus,
-                NotifyCustomer: true,
-                NotifyVendor: false,
-                ActorRole: "vendor",
-                CustomerNotificationAlreadySent: true),
+        await PublishStatusSideEffectsSafelyAsync(
+            order.Id,
+            order.UserId,
+            order.VendorId,
+            order.OrderNumber,
+            oldStatus,
+            request.NewStatus,
+            order.Fulfillment,
             cancellationToken);
 
         if (request.NewStatus == OrderStatus.ReadyForPickup && order.Fulfillment != FulfillmentType.Pickup)
         {
-            await _deliveryDispatchService.TryAutoDispatchAsync(order.Id, cancellationToken: cancellationToken);
+            await TryAutoDispatchSafelyAsync(order.Id, cancellationToken);
         }
+
+        // Re-read status: auto-dispatch may have advanced ReadyForPickup → DriverAssignmentInProgress.
+        var latestStatus = await _context.Orders
+            .AsNoTracking()
+            .Where(item => item.Id == order.Id)
+            .Select(item => item.Status)
+            .FirstOrDefaultAsync(cancellationToken);
 
         return new VendorUpdateOrderStatusResultDto(
             order.Id,
-            request.NewStatus.ToString(),
+            (latestStatus == default ? request.NewStatus : latestStatus).ToString(),
             "Order status updated successfully");
+    }
+
+    private async Task PublishStatusSideEffectsSafelyAsync(
+        Guid orderId,
+        Guid userId,
+        Guid vendorId,
+        string orderNumber,
+        OrderStatus oldStatus,
+        OrderStatus newStatus,
+        FulfillmentType fulfillment,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            await _orderStatusNotificationDispatcher.DispatchCustomerAsync(
+                new OrderStatusCustomerNotificationRequest(
+                    userId,
+                    orderId,
+                    vendorId,
+                    orderNumber,
+                    oldStatus,
+                    newStatus,
+                    ActorRole: "vendor",
+                    Fulfillment: fulfillment),
+                cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(
+                ex,
+                "Customer notification failed after vendor status update for order {OrderId} to {NewStatus}.",
+                orderId,
+                newStatus);
+        }
+
+        try
+        {
+            await _publisher.Publish(
+                new OrderStatusChangedNotification(
+                    orderId,
+                    userId,
+                    vendorId,
+                    orderNumber,
+                    oldStatus,
+                    newStatus,
+                    NotifyCustomer: true,
+                    NotifyVendor: false,
+                    ActorRole: "vendor",
+                    CustomerNotificationAlreadySent: true),
+                cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(
+                ex,
+                "OrderStatusChanged side effects failed after vendor status update for order {OrderId} to {NewStatus}.",
+                orderId,
+                newStatus);
+        }
+    }
+
+    private async Task TryAutoDispatchSafelyAsync(Guid orderId, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await _deliveryDispatchService.TryAutoDispatchAsync(orderId, cancellationToken: cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            // Vendor "ready for courier" must succeed even if offer matching fails.
+            // The dispatch worker / next retry will continue searching for a driver.
+            _logger.LogError(
+                ex,
+                "Auto-dispatch failed after vendor marked order {OrderId} ready. Order status was still saved.",
+                orderId);
+        }
     }
 
     private static void ValidateTransition(OrderStatus current, OrderStatus target)

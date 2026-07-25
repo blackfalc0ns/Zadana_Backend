@@ -66,7 +66,16 @@ public class DeliveryDispatchService : IDeliveryDispatchService
         bool resetCycle = false,
         CancellationToken cancellationToken = default)
     {
-        await ProcessExpiredOffersAsync(cancellationToken);
+        try
+        {
+            await ProcessExpiredOffersAsync(cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            // Expired-offer cleanup must never block marking a new order ready for courier.
+            _logger.LogError(ex, "Dispatch offer engine: expired-offer processing failed before dispatching order {OrderId}.", orderId);
+        }
+
         return await TryAutoDispatchPreparedAsync(orderId, resetCycle, cancellationToken);
     }
 
@@ -212,6 +221,10 @@ public class DeliveryDispatchService : IDeliveryDispatchService
             try
             {
                 await ProcessExpiredOffersForOrderAsync(orderId, cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Dispatch offer engine: failed processing expired offers for order {OrderId}.", orderId);
             }
             finally
             {
@@ -727,11 +740,15 @@ public class DeliveryDispatchService : IDeliveryDispatchService
         driverIds = eligibleDrivers.Select(driver => driver.Id).ToList();
         var now = DateTime.UtcNow;
 
-        var latestLocations = await _context.DriverLocations
-            .Where(location => driverIds.Contains(location.DriverId))
+        // Avoid EF GroupBy(...).OrderBy(...).First() translation failures on SQL Server.
+        var latestLocations = (await _context.DriverLocations
+                .AsNoTracking()
+                .Where(location => driverIds.Contains(location.DriverId))
+                .ToListAsync(cancellationToken))
             .GroupBy(location => location.DriverId)
-            .Select(group => group.OrderByDescending(location => location.RecordedAtUtc).First())
-            .ToDictionaryAsync(location => location.DriverId, cancellationToken);
+            .ToDictionary(
+                group => group.Key,
+                group => group.OrderByDescending(item => item.RecordedAtUtc).First());
 
         var activeTaskCounts = await _context.DeliveryAssignments
             .Where(item =>
