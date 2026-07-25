@@ -104,6 +104,46 @@ public class DeliveryDispatchService : IDeliveryDispatchService
             return null;
         }
 
+        // Customer-pickup orders never need a courier. If an older worker advanced them into
+        // dispatch states, heal them back to ReadyForPickup so the merchant/customer OTP flow continues.
+        if (order.Fulfillment == FulfillmentType.Pickup)
+        {
+            if (order.Status is OrderStatus.DriverAssignmentInProgress or OrderStatus.DriverAssigned
+                or OrderStatus.PickedUp or OrderStatus.OnTheWay)
+            {
+                var oldStatus = order.Status;
+                order.ChangeStatus(OrderStatus.ReadyForPickup, null, "Reverted courier dispatch on customer-pickup order");
+                _context.OrderStatusHistories.Add(order.StatusHistory.Last());
+                await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+                await _publisher.Publish(
+                    new OrderStatusChangedNotification(
+                        order.Id,
+                        order.UserId,
+                        order.VendorId,
+                        order.OrderNumber,
+                        oldStatus,
+                        order.Status,
+                        NotifyCustomer: true,
+                        NotifyVendor: false,
+                        ActorRole: "dispatch"),
+                    cancellationToken);
+
+                _logger.LogWarning(
+                    "Dispatch offer engine: healed pickup order {OrderId} from {OldStatus} back to ReadyForPickup.",
+                    orderId,
+                    oldStatus);
+            }
+            else
+            {
+                _logger.LogInformation(
+                    "Dispatch offer engine: skipping customer-pickup order {OrderId}.",
+                    orderId);
+            }
+
+            return null;
+        }
+
         if (order.Status is not (OrderStatus.ReadyForPickup or OrderStatus.DriverAssignmentInProgress))
         {
             _logger.LogInformation("Dispatch offer engine: order {OrderId} is in {Status}.", orderId, order.Status);

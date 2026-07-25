@@ -505,7 +505,8 @@ public class DriverCommitmentPolicyService : IDriverCommitmentPolicyService
             string? actorRole = null,
             string? action = null,
             string? targetUrl = null,
-            CancellationToken cancellationToken = default) =>
+            CancellationToken cancellationToken = default,
+            string? fulfillmentType = null) =>
             Task.CompletedTask;
 
         public Task SendDriverArrivalStateChangedToUserAsync(

@@ -23,6 +23,8 @@ GET /api/orders/{orderId}/tracking
 4. `driver` / `assigned_driver` = `null`.
 5. `fulfillment_type` بقى lowercase: `"pickup"`.
 6. حالة `ready_for_pickup` تظهر صراحة (مش بتتهرس إلى `preparing`).
+7. لو الطلب اتلغى: آخر خطوة في التايملاين تكون `cancelled` (مش `delivered`).
+8. حالات التوصيل بالغلط (`driver_assignment_in_progress` …) لو ظهرت مؤقتًا على طلب pickup تتعرض كـ `ready_for_pickup` لحين إصلاحها في الباك إند.
 
 ---
 

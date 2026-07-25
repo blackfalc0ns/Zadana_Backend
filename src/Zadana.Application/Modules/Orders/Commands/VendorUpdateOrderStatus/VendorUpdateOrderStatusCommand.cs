@@ -79,6 +79,44 @@ public class VendorUpdateOrderStatusCommandHandler : IRequestHandler<VendorUpdat
                 cancellationToken)
             ?? throw new NotFoundException("Order", request.OrderId);
 
+        // Pickup orders wrongly advanced by the courier dispatch worker must be healed back
+        // to ReadyForPickup when the merchant re-confirms readiness.
+        if (request.NewStatus == OrderStatus.ReadyForPickup &&
+            order.Fulfillment == FulfillmentType.Pickup &&
+            order.Status is OrderStatus.DriverAssignmentInProgress
+                or OrderStatus.DriverAssigned
+                or OrderStatus.PickedUp
+                or OrderStatus.OnTheWay)
+        {
+            EnsureVendorCanActOnPayment(order.PaymentMethod, order.PaymentStatus);
+            var healOldStatus = order.Status;
+            order.ChangeStatus(OrderStatus.ReadyForPickup, null, "Restored customer-pickup readiness");
+            _context.OrderStatusHistories.Add(order.StatusHistory.Last());
+            var pickupSettings = await PlatformPickupSettingsSupport.LoadAsync(_context, cancellationToken);
+            order.MarkReadyForCustomerPickup(
+                PlatformPickupSettingsSupport.ResolveOtpTtl(pickupSettings),
+                PlatformPickupSettingsSupport.ResolveNoShowTimeout(pickupSettings));
+            await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+            await _publisher.Publish(
+                new OrderStatusChangedNotification(
+                    order.Id,
+                    order.UserId,
+                    order.VendorId,
+                    order.OrderNumber,
+                    healOldStatus,
+                    OrderStatus.ReadyForPickup,
+                    NotifyCustomer: true,
+                    NotifyVendor: false,
+                    ActorRole: "vendor"),
+                cancellationToken);
+
+            return new VendorUpdateOrderStatusResultDto(
+                order.Id,
+                order.Status.ToString(),
+                "Order status updated successfully");
+        }
+
         // Idempotent: avoid duplicate status side effects, but still retry dispatch for ready orders.
         // Once an order is marked ready, auto-dispatch may immediately advance it to a later
         // dispatch state before the vendor UI refreshes.
@@ -86,7 +124,15 @@ public class VendorUpdateOrderStatusCommandHandler : IRequestHandler<VendorUpdat
         {
             EnsureVendorCanActOnPayment(order.PaymentMethod, order.PaymentStatus);
 
-            if (request.NewStatus == OrderStatus.ReadyForPickup && order.Fulfillment != FulfillmentType.Pickup)
+            if (request.NewStatus == OrderStatus.ReadyForPickup && order.Fulfillment == FulfillmentType.Pickup)
+            {
+                var pickupSettings = await PlatformPickupSettingsSupport.LoadAsync(_context, cancellationToken);
+                order.MarkReadyForCustomerPickup(
+                    PlatformPickupSettingsSupport.ResolveOtpTtl(pickupSettings),
+                    PlatformPickupSettingsSupport.ResolveNoShowTimeout(pickupSettings));
+                await _unitOfWork.SaveChangesAsync(cancellationToken);
+            }
+            else if (request.NewStatus == OrderStatus.ReadyForPickup && order.Fulfillment != FulfillmentType.Pickup)
             {
                 await _deliveryDispatchService.TryAutoDispatchAsync(order.Id, cancellationToken: cancellationToken);
             }

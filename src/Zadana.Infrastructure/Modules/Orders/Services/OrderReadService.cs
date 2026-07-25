@@ -1680,8 +1680,10 @@ public class OrderReadService : IOrderReadService
                 "ready_for_pickup",
                 L("جاهز للاستلام من الفرع", "Ready for pickup"),
                 GetStepTime(ResolveStepDate(history, OrderStatus.ReadyForPickup, OrderStatus.Delivered) ?? order.ReadyForPickupAtUtc),
-                IsPickupCurrentStage(order.Status, TrackingStage.ReadyForPickup),
-                IsPickupCompletedStage(order.Status, TrackingStage.ReadyForPickup))
+                !isCancelled && IsPickupCurrentStage(order.Status, TrackingStage.ReadyForPickup),
+                IsPickupCompletedStage(order.Status, TrackingStage.ReadyForPickup) ||
+                (isCancelled && (order.ReadyForPickupAtUtc.HasValue ||
+                                 ResolveStepDate(history, OrderStatus.ReadyForPickup).HasValue)))
         };
 
         if (isCancelled)
@@ -1691,7 +1693,7 @@ public class OrderReadService : IOrderReadService
                 L("تم إلغاء الطلب", "Order cancelled"),
                 GetStepTime(order.CancelledAtUtc ?? ResolveStepDate(history, OrderStatus.Cancelled, OrderStatus.VendorRejected, OrderStatus.DeliveryFailed, OrderStatus.Refunded)),
                 true,
-                false));
+                true));
         }
         else
         {
@@ -1862,9 +1864,13 @@ public class OrderReadService : IOrderReadService
                 OrderStatus.PendingPayment or OrderStatus.PendingBankConfirmation or OrderStatus.Placed or OrderStatus.PendingVendorAcceptance => "pending",
                 OrderStatus.Accepted => "accepted",
                 OrderStatus.Preparing => "preparing",
-                OrderStatus.ReadyForPickup => "ready_for_pickup",
+                OrderStatus.ReadyForPickup or
+                OrderStatus.DriverAssignmentInProgress or
+                OrderStatus.DriverAssigned or
+                OrderStatus.PickedUp or
+                OrderStatus.OnTheWay => "ready_for_pickup",
                 OrderStatus.Delivered => "delivered",
-                OrderStatus.Refunded => "cancelled",
+                OrderStatus.Cancelled or OrderStatus.VendorRejected or OrderStatus.DeliveryFailed or OrderStatus.Refunded => "cancelled",
                 _ => "cancelled"
             }
             : MapStatus(order.Status);
@@ -2123,13 +2129,20 @@ public class OrderReadService : IOrderReadService
             _ => false
         };
 
+    private static bool IsPickupReadyLike(OrderStatus status) =>
+        status is OrderStatus.ReadyForPickup
+            or OrderStatus.DriverAssignmentInProgress
+            or OrderStatus.DriverAssigned
+            or OrderStatus.PickedUp
+            or OrderStatus.OnTheWay;
+
     private static bool IsPickupCurrentStage(OrderStatus status, TrackingStage stage) =>
         stage switch
         {
             TrackingStage.OrderPlaced => status is OrderStatus.PendingPayment or OrderStatus.Placed,
             TrackingStage.VendorConfirmed => status is OrderStatus.PendingVendorAcceptance or OrderStatus.Accepted,
             TrackingStage.Preparing => status == OrderStatus.Preparing,
-            TrackingStage.ReadyForPickup => status == OrderStatus.ReadyForPickup,
+            TrackingStage.ReadyForPickup => IsPickupReadyLike(status),
             _ => false
         };
 
@@ -2137,8 +2150,15 @@ public class OrderReadService : IOrderReadService
         stage switch
         {
             TrackingStage.OrderPlaced => status is not (OrderStatus.PendingPayment or OrderStatus.Placed),
-            TrackingStage.VendorConfirmed => status is OrderStatus.Preparing or OrderStatus.ReadyForPickup or OrderStatus.Delivered or OrderStatus.Cancelled or OrderStatus.VendorRejected or OrderStatus.DeliveryFailed or OrderStatus.Refunded,
-            TrackingStage.Preparing => status is OrderStatus.ReadyForPickup or OrderStatus.Delivered or OrderStatus.Cancelled or OrderStatus.VendorRejected or OrderStatus.DeliveryFailed or OrderStatus.Refunded,
+            TrackingStage.VendorConfirmed =>
+                IsPickupReadyLike(status) ||
+                status is OrderStatus.Preparing or OrderStatus.Delivered
+                    or OrderStatus.Cancelled or OrderStatus.VendorRejected
+                    or OrderStatus.DeliveryFailed or OrderStatus.Refunded,
+            TrackingStage.Preparing =>
+                IsPickupReadyLike(status) ||
+                status is OrderStatus.Delivered or OrderStatus.Cancelled
+                    or OrderStatus.VendorRejected or OrderStatus.DeliveryFailed or OrderStatus.Refunded,
             TrackingStage.ReadyForPickup => status == OrderStatus.Delivered,
             _ => false
         };

@@ -141,12 +141,15 @@ public sealed class NotificationService : INotificationService
         string? actorRole = null,
         string? action = null,
         string? targetUrl = null,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        string? fulfillmentType = null)
     {
         try
         {
-            var normalizedOldStatus = OrderTrackingStatusMapper.NormalizeCustomerTrackingStatus(oldStatus);
-            var normalizedNewStatus = OrderTrackingStatusMapper.NormalizeCustomerTrackingStatus(newStatus);
+            var fulfillment = ResolveFulfillmentType(fulfillmentType);
+            var normalizedOldStatus = OrderTrackingStatusMapper.NormalizeCustomerTrackingStatus(oldStatus, fulfillment);
+            var normalizedNewStatus = OrderTrackingStatusMapper.NormalizeCustomerTrackingStatus(newStatus, fulfillment);
+            var normalizedFulfillment = fulfillment == FulfillmentType.Pickup ? "pickup" : "delivery";
             var payload = new OrderStatusChangedRealtimePayload(
                 orderId,
                 orderNumber,
@@ -158,10 +161,11 @@ public sealed class NotificationService : INotificationService
                 string.IsNullOrWhiteSpace(targetUrl) ? $"/orders/{orderId}" : targetUrl,
                 DateTime.UtcNow,
                 "popup",
-                ResolveOrderStatusPopupType(newStatus),
+                ResolveOrderStatusPopupType(newStatus, fulfillment),
                 true,
                 oldStatus,
-                newStatus);
+                newStatus,
+                normalizedFulfillment);
 
             await _hubContext.Clients
                 .Group(NotificationHub.GetUserGroup(userId))
@@ -177,11 +181,29 @@ public sealed class NotificationService : INotificationService
         }
     }
 
-    private static string ResolveOrderStatusPopupType(string newStatus) =>
-        string.Equals(newStatus, nameof(OrderStatus.Refunded), StringComparison.OrdinalIgnoreCase) ||
-        string.Equals(newStatus, "refunded", StringComparison.OrdinalIgnoreCase)
-            ? "order_refund_status_changed"
-            : "order_status_changed";
+    private static FulfillmentType ResolveFulfillmentType(string? fulfillmentType) =>
+        string.Equals(fulfillmentType, "pickup", StringComparison.OrdinalIgnoreCase) ||
+        string.Equals(fulfillmentType, nameof(FulfillmentType.Pickup), StringComparison.OrdinalIgnoreCase)
+            ? FulfillmentType.Pickup
+            : FulfillmentType.Delivery;
+
+    private static string ResolveOrderStatusPopupType(string newStatus, FulfillmentType fulfillment)
+    {
+        if (string.Equals(newStatus, nameof(OrderStatus.Refunded), StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(newStatus, "refunded", StringComparison.OrdinalIgnoreCase))
+        {
+            return "order_refund_status_changed";
+        }
+
+        if (fulfillment == FulfillmentType.Pickup &&
+            (string.Equals(newStatus, nameof(OrderStatus.ReadyForPickup), StringComparison.OrdinalIgnoreCase) ||
+             string.Equals(newStatus, "ready_for_pickup", StringComparison.OrdinalIgnoreCase)))
+        {
+            return "order_pickup_ready";
+        }
+
+        return "order_status_changed";
+    }
 
     public async Task SendDriverArrivalStateChangedToUserAsync(
         Guid userId,

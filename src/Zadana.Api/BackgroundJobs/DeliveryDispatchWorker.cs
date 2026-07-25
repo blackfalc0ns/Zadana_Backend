@@ -60,11 +60,19 @@ public class DeliveryDispatchWorker : BackgroundService
 
                 // 2. Find ready/in-progress orders stuck with no active offer.
                 //    Order by PlacedAtUtc ascending so older orders get priority.
+                // Delivery orders waiting for a courier, plus any pickup orders wrongly advanced
+                // into courier states (healed inside DeliveryDispatchService).
                 var stuckOrders = await context.Orders
                     .AsNoTracking()
                     .Where(order =>
-                        order.Status == OrderStatus.ReadyForPickup ||
-                        order.Status == OrderStatus.DriverAssignmentInProgress)
+                        (order.Fulfillment == FulfillmentType.Delivery &&
+                         (order.Status == OrderStatus.ReadyForPickup ||
+                          order.Status == OrderStatus.DriverAssignmentInProgress)) ||
+                        (order.Fulfillment == FulfillmentType.Pickup &&
+                         (order.Status == OrderStatus.DriverAssignmentInProgress ||
+                          order.Status == OrderStatus.DriverAssigned ||
+                          order.Status == OrderStatus.PickedUp ||
+                          order.Status == OrderStatus.OnTheWay)))
                     .OrderBy(order => order.PlacedAtUtc)
                     .Select(order => new { order.Id, order.OrderNumber, order.PlacedAtUtc, order.VendorId })
                     .ToListAsync(stoppingToken);

@@ -104,20 +104,31 @@ public class PickupNoShowWorker : BackgroundService
         {
             try
             {
+                // Never fall back to PlacedAtUtc — that false-expires pickup orders right after Ready.
                 var deadline = order.PickupNoShowDeadlineUtc
-                    ?? order.ReadyForPickupAtUtc?.Add(noShowTimeout)
-                    ?? order.PlacedAtUtc.Add(noShowTimeout);
+                    ?? order.ReadyForPickupAtUtc?.Add(noShowTimeout);
+
+                if (!deadline.HasValue)
+                {
+                    order.ExtendPickupNoShowDeadline(now.Add(noShowTimeout));
+                    await unitOfWork.SaveChangesAsync(cancellationToken);
+                    _logger.LogWarning(
+                        "PickupNoShowWorker: order {OrderId} had no deadline; seeded {DeadlineUtc}.",
+                        order.Id,
+                        order.PickupNoShowDeadlineUtc);
+                    continue;
+                }
 
                 var branchHours = order.VendorBranchId.HasValue &&
                                   hoursByBranchId.TryGetValue(order.VendorBranchId.Value, out var hours)
                     ? hours
                     : [];
 
-                if (now < deadline)
+                if (now < deadline.Value)
                 {
                     await TrySendPickupRemindersAsync(
                         order,
-                        deadline,
+                        deadline.Value,
                         notificationService,
                         unitOfWork,
                         cancellationToken);

@@ -14,9 +14,14 @@ public static class OrderTrackingStatusMapper
                 OrderStatus.PendingPayment or OrderStatus.Placed or OrderStatus.PendingVendorAcceptance => "pending",
                 OrderStatus.Accepted => "accepted",
                 OrderStatus.Preparing => "preparing",
-                OrderStatus.ReadyForPickup => "ready_for_pickup",
+                // Dispatch statuses are invalid for pickup; keep showing ready-for-pickup until healed.
+                OrderStatus.ReadyForPickup or
+                OrderStatus.DriverAssignmentInProgress or
+                OrderStatus.DriverAssigned or
+                OrderStatus.PickedUp or
+                OrderStatus.OnTheWay => "ready_for_pickup",
                 OrderStatus.Delivered => "delivered",
-                OrderStatus.Refunded => "cancelled",
+                OrderStatus.Cancelled or OrderStatus.VendorRejected or OrderStatus.DeliveryFailed or OrderStatus.Refunded => "cancelled",
                 _ => "cancelled"
             }
             : status switch
@@ -30,7 +35,10 @@ public static class OrderTrackingStatusMapper
                 _ => "cancelled"
             };
 
-    public static string NormalizeCustomerTrackingStatus(string status)
+    public static string NormalizeCustomerTrackingStatus(string status) =>
+        NormalizeCustomerTrackingStatus(status, FulfillmentType.Delivery);
+
+    public static string NormalizeCustomerTrackingStatus(string status, FulfillmentType fulfillment)
     {
         if (string.IsNullOrWhiteSpace(status))
         {
@@ -39,10 +47,26 @@ public static class OrderTrackingStatusMapper
 
         if (Enum.TryParse<OrderStatus>(status, ignoreCase: true, out var parsedStatus))
         {
-            return ToCustomerTrackingStatus(parsedStatus);
+            return ToCustomerTrackingStatus(parsedStatus, fulfillment);
         }
 
-        return status.Trim().ToLowerInvariant() switch
+        var normalized = status.Trim().ToLowerInvariant();
+        if (fulfillment == FulfillmentType.Pickup)
+        {
+            return normalized switch
+            {
+                "pending" => "pending",
+                "accepted" => "accepted",
+                "processing" or "preparing" => "preparing",
+                "ready_for_pickup" or "driver_assignment_in_progress" or "driver_assigned"
+                    or "picked_up" or "on_the_way" or "out_for_delivery" => "ready_for_pickup",
+                "delivered" or "returning" => "delivered",
+                "refunded" or "cancelled" or "canceled" or "vendor_rejected" or "delivery_failed" => "cancelled",
+                _ => normalized
+            };
+        }
+
+        return normalized switch
         {
             "pending" => "pending",
             "accepted" => "accepted",
@@ -61,7 +85,7 @@ public static class OrderTrackingStatusMapper
             "canceled" => "cancelled",
             "vendor_rejected" => "cancelled",
             "delivery_failed" => "cancelled",
-            var normalized => normalized
+            _ => normalized
         };
     }
 }

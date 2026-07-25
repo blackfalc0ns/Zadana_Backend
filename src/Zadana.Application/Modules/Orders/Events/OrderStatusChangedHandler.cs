@@ -256,11 +256,11 @@ public class OrderStatusChangedHandler : INotificationHandler<OrderStatusChanged
         Guid vendorOwnerUserId,
         CancellationToken cancellationToken)
     {
-        // Branch-bound: only VendorBranch-scoped users for THAT branch.
-        // Do not include the vendor owner unless they also hold that branch scope.
+        // Branch-bound: only that branch's staff. Owner is included ONLY when the branch is
+        // the vendor primary branch (main store account), never for secondary branches.
         if (branchId.HasValue)
         {
-            return await (
+            var branchStaffUserIds = await (
                 from scope in _context.UserAccessScopes.AsNoTracking()
                 join branch in _context.VendorBranches.AsNoTracking()
                     on scope.ScopeEntityId equals branch.Id
@@ -272,6 +272,21 @@ public class OrderStatusChangedHandler : INotificationHandler<OrderStatusChanged
                 select scope.UserId)
                 .Distinct()
                 .ToListAsync(cancellationToken);
+
+            var isPrimaryBranch = await _context.VendorBranches
+                .AsNoTracking()
+                .AnyAsync(
+                    branch => branch.Id == branchId.Value &&
+                              branch.VendorId == vendorId &&
+                              branch.IsPrimary,
+                    cancellationToken);
+
+            if (isPrimaryBranch)
+            {
+                branchStaffUserIds.Add(vendorOwnerUserId);
+            }
+
+            return branchStaffUserIds.Distinct().ToList();
         }
 
         // Company-wide orders (no branch): owner + VendorCompany staff.

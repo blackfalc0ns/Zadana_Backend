@@ -40,6 +40,7 @@ public sealed class OrderStatusNotificationDispatcher : IOrderStatusNotification
         var pushRequest = BuildCustomerMobilePushRequest(request, composed);
 
         var inboxQueued = false;
+        var realtimeQueued = false;
 
         _logger.LogInformation(
             "Dispatching customer order-status notification for order {OrderId} user {UserId} from {OldStatus} to {NewStatus}",
@@ -71,6 +72,35 @@ public sealed class OrderStatusNotificationDispatcher : IOrderStatusNotification
                 request.UserId);
         }
 
+        try
+        {
+            // Dedicated realtime popup channel expected by the customer app contracts.
+            await _notificationService.SendOrderStatusChangedToUserAsync(
+                request.UserId,
+                request.OrderId,
+                request.OrderNumber,
+                request.VendorId,
+                request.OldStatus.ToString(),
+                request.NewStatus.ToString(),
+                request.ActorRole,
+                composed.Action,
+                composed.TargetUrl,
+                cancellationToken,
+                request.Fulfillment.ToString());
+            realtimeQueued = true;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(
+                ex,
+                "Failed to send ReceiveOrderStatusChanged realtime event for order {OrderId} user {UserId}",
+                request.OrderId,
+                request.UserId);
+        }
+
+        var isForeground = _customerPresenceService.IsOnline(request.UserId);
+        var shouldSuppressPush = ShouldSuppressForegroundPush(request, isForeground);
+
         _logger.LogWarning(
             "[PUSH-DIAG] About to send OneSignal push for order {OrderId}. ExternalId: {ExternalId}. PushType: {PushType}. BusinessType: {BusinessType}. TitleEn: {TitleEn}. BodyEn: {BodyEn}. Profile: {Profile}. TargetUrl: {TargetUrl}. RealtimeSuppressed: {RealtimeSuppressed}",
             request.OrderId,
@@ -81,12 +111,12 @@ public sealed class OrderStatusNotificationDispatcher : IOrderStatusNotification
             pushRequest.BodyEn,
             pushRequest.Profile,
             pushRequest.TargetUrl,
-            true);
+            shouldSuppressPush);
 
         OneSignalPushDispatchResult pushResult;
         try
         {
-            if (_customerPresenceService.IsOnline(request.UserId))
+            if (shouldSuppressPush)
             {
                 pushResult = new OneSignalPushDispatchResult(
                     Attempted: false,
@@ -147,7 +177,7 @@ public sealed class OrderStatusNotificationDispatcher : IOrderStatusNotification
             request.OrderId,
             request.UserId,
             inboxQueued,
-            inboxQueued,
+            realtimeQueued,
             pushResult.Attempted,
             pushResult.Sent,
             pushResult.ProviderStatusCode,
@@ -155,11 +185,36 @@ public sealed class OrderStatusNotificationDispatcher : IOrderStatusNotification
 
         return new OrderStatusNotificationDispatchResult(
             inboxQueued,
-            inboxQueued,
+            realtimeQueued,
             pushResult.Attempted,
             pushResult.Sent,
             pushResult.ProviderStatusCode,
             pushResult.Reason);
+    }
+
+    /// <summary>
+    /// Only suppress low-priority status noise while the app is foregrounded.
+    /// Heads-up statuses (pickup ready / delivered / cancelled / on the way) always push
+    /// so mobile still gets a popup when SignalR is flaky or the screen is covered.
+    /// </summary>
+    private static bool ShouldSuppressForegroundPush(
+        OrderStatusCustomerNotificationRequest request,
+        bool isForeground)
+    {
+        if (!isForeground)
+        {
+            return false;
+        }
+
+        if (request.Fulfillment == FulfillmentType.Pickup &&
+            request.NewStatus is OrderStatus.ReadyForPickup or OrderStatus.Delivered
+                or OrderStatus.Cancelled or OrderStatus.VendorRejected or OrderStatus.Refunded)
+        {
+            return false;
+        }
+
+        return request.NewStatus is OrderStatus.Accepted or OrderStatus.Preparing
+            or OrderStatus.PendingVendorAcceptance or OrderStatus.Placed;
     }
 
     private static OneSignalMobilePushRequest BuildCustomerMobilePushRequest(

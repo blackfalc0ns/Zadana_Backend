@@ -53,7 +53,8 @@ public interface INotificationService
         string? actorRole = null,
         string? action = null,
         string? targetUrl = null,
-        CancellationToken cancellationToken = default);
+        CancellationToken cancellationToken = default,
+        string? fulfillmentType = null);
 
     Task SendDriverArrivalStateChangedToUserAsync(
         Guid userId,

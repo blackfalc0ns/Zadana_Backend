@@ -744,11 +744,18 @@ POST /api/orders/{orderId}/cancel
 /hubs/notifications
 ```
 
-### حدث حالة الطلب
+### حدث حالة الطلب (Popup realtime)
 
 ```text
 ReceiveOrderStatusChanged
 ```
+
+مهم:
+1. لازم تكون مشترك على `/hubs/notifications` (مش order-tracking فقط).
+2. الباك إند بيبعت الحدث ده مع كل تغيير حالة (Accepted / Preparing / Ready / Delivered / Cancelled).
+3. لو `showPopup == true` اعرض Popup فورًا.
+4. لـ Ready pickup: `popupType = "order_pickup_ready"` و `newStatus = "ready_for_pickup"`.
+5. كمان بيوصل OneSignal HeadsUp push بنفس `showPopup: true` حتى لو التطبيق في الواجهة لحالات الجاهزية/التسليم/الإلغاء.
 
 اشتراك مثال (Dart):
 
@@ -756,6 +763,12 @@ ReceiveOrderStatusChanged
 connection.on('ReceiveOrderStatusChanged', (arguments) {
   final payload = arguments?[0] as Map<String, dynamic>?;
   if (payload == null) return;
+
+  // Popup realtime
+  if (payload['showPopup'] == true) {
+    showOrderStatusPopup(payload);
+  }
+
   if (payload['orderId'] == openedOrderId) {
     // حدّث UI / أعد جلب details أو tracking
   }
@@ -775,7 +788,10 @@ connection.on('ReceiveOrderStatusChanged', (arguments) {
   "action": "status_changed",
   "targetUrl": "/orders/22222222-2222-2222-2222-222222222222",
   "changedAtUtc": "2026-04-28T10:05:00Z",
-  "fulfillmentType": "Pickup",
+  "presentation": "popup",
+  "popupType": "order_pickup_ready",
+  "showPopup": true,
+  "fulfillmentType": "pickup",
   "pickupOtpCode": "4821",
   "pickupOtpExpiresAtUtc": "2026-04-28T12:05:00Z",
   "pickupNoShowDeadlineUtc": "2026-04-28T16:05:00Z",

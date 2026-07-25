@@ -31,6 +31,20 @@ public class OrderStatusNotificationDispatcherTests
                 It.IsAny<string?>(),
                 It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
+        notificationServiceMock
+            .Setup(service => service.SendOrderStatusChangedToUserAsync(
+                It.IsAny<Guid>(),
+                It.IsAny<Guid>(),
+                It.IsAny<string>(),
+                It.IsAny<Guid>(),
+                It.IsAny<string>(),
+                It.IsAny<string>(),
+                It.IsAny<string?>(),
+                It.IsAny<string?>(),
+                It.IsAny<string?>(),
+                It.IsAny<CancellationToken>(),
+                It.IsAny<string?>()))
+            .Returns(Task.CompletedTask);
 
         pushServiceMock
             .Setup(service => service.SendMobileNotificationAsync(
@@ -97,17 +111,18 @@ public class OrderStatusNotificationDispatcherTests
 
         notificationServiceMock.Verify(
             service => service.SendOrderStatusChangedToUserAsync(
-                It.IsAny<Guid>(),
-                It.IsAny<Guid>(),
-                It.IsAny<string>(),
-                It.IsAny<Guid>(),
-                It.IsAny<string>(),
-                It.IsAny<string>(),
+                userId,
+                orderId,
+                "ORD-DISPATCH-001",
+                vendorId,
+                OrderStatus.PendingVendorAcceptance.ToString(),
+                OrderStatus.Accepted.ToString(),
+                "vendor",
                 It.IsAny<string?>(),
                 It.IsAny<string?>(),
-                It.IsAny<string?>(),
-                It.IsAny<CancellationToken>()),
-            Times.Never);
+                It.IsAny<CancellationToken>(),
+                It.IsAny<string?>()),
+            Times.Once);
 
         pushServiceMock.Verify(
             service => service.SendMobileNotificationAsync(
@@ -157,6 +172,20 @@ public class OrderStatusNotificationDispatcherTests
                 It.IsAny<string?>(),
                 It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
+        notificationServiceMock
+            .Setup(service => service.SendOrderStatusChangedToUserAsync(
+                It.IsAny<Guid>(),
+                It.IsAny<Guid>(),
+                It.IsAny<string>(),
+                It.IsAny<Guid>(),
+                It.IsAny<string>(),
+                It.IsAny<string>(),
+                It.IsAny<string?>(),
+                It.IsAny<string?>(),
+                It.IsAny<string?>(),
+                It.IsAny<CancellationToken>(),
+                It.IsAny<string?>()))
+            .Returns(Task.CompletedTask);
         presenceServiceMock.Setup(service => service.IsOnline(userId)).Returns(true);
 
         var dispatcher = new OrderStatusNotificationDispatcher(
@@ -177,6 +206,7 @@ public class OrderStatusNotificationDispatcherTests
             CancellationToken.None);
 
         result.InboxQueued.Should().BeTrue();
+        result.RealtimeQueued.Should().BeTrue();
         result.PushAttempted.Should().BeFalse();
         result.PushSent.Should().BeFalse();
         pushServiceMock.Verify(
@@ -184,6 +214,81 @@ public class OrderStatusNotificationDispatcherTests
                 It.IsAny<OneSignalMobilePushRequest>(),
                 It.IsAny<CancellationToken>()),
             Times.Never);
+    }
+
+    [Fact]
+    public async Task DispatchCustomerAsync_WhenPickupReadyAndForeground_ShouldStillSendHeadsUpPush()
+    {
+        var notificationServiceMock = new Mock<INotificationService>();
+        var pushServiceMock = new Mock<IOneSignalPushService>();
+        var presenceServiceMock = new Mock<ICustomerPresenceService>();
+        var userId = Guid.NewGuid();
+        var orderId = Guid.NewGuid();
+
+        notificationServiceMock
+            .Setup(service => service.SendToUserAsync(
+                It.IsAny<Guid>(),
+                It.IsAny<string>(),
+                It.IsAny<string>(),
+                It.IsAny<string>(),
+                It.IsAny<string>(),
+                It.IsAny<string?>(),
+                It.IsAny<Guid?>(),
+                It.IsAny<string?>(),
+                It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+        notificationServiceMock
+            .Setup(service => service.SendOrderStatusChangedToUserAsync(
+                It.IsAny<Guid>(),
+                It.IsAny<Guid>(),
+                It.IsAny<string>(),
+                It.IsAny<Guid>(),
+                It.IsAny<string>(),
+                It.IsAny<string>(),
+                It.IsAny<string?>(),
+                It.IsAny<string?>(),
+                It.IsAny<string?>(),
+                It.IsAny<CancellationToken>(),
+                It.IsAny<string?>()))
+            .Returns(Task.CompletedTask);
+        presenceServiceMock.Setup(service => service.IsOnline(userId)).Returns(true);
+        pushServiceMock
+            .Setup(service => service.SendMobileNotificationAsync(
+                It.IsAny<OneSignalMobilePushRequest>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new OneSignalPushDispatchResult(true, true, false, 200, "push-id", null));
+
+        var dispatcher = new OrderStatusNotificationDispatcher(
+            notificationServiceMock.Object,
+            pushServiceMock.Object,
+            presenceServiceMock.Object,
+            NullLogger<OrderStatusNotificationDispatcher>.Instance);
+
+        var result = await dispatcher.DispatchCustomerAsync(
+            new OrderStatusCustomerNotificationRequest(
+                userId,
+                orderId,
+                Guid.NewGuid(),
+                "ORD-PICKUP-READY-001",
+                OrderStatus.Preparing,
+                OrderStatus.ReadyForPickup,
+                ActorRole: "vendor",
+                Fulfillment: FulfillmentType.Pickup),
+            CancellationToken.None);
+
+        result.RealtimeQueued.Should().BeTrue();
+        result.PushAttempted.Should().BeTrue();
+        result.PushSent.Should().BeTrue();
+        pushServiceMock.Verify(
+            service => service.SendMobileNotificationAsync(
+                It.Is<OneSignalMobilePushRequest>(request =>
+                    request.ExternalUserId == userId.ToString() &&
+                    request.Profile == OneSignalPushProfile.MobileHeadsUp &&
+                    request.Data != null &&
+                    request.Data.Contains("\"showPopup\":true") &&
+                    request.Data.Contains("\"eventName\":\"order.pickup.ready\"")),
+                It.IsAny<CancellationToken>()),
+            Times.Once);
     }
 
     [Fact]
@@ -206,6 +311,20 @@ public class OrderStatusNotificationDispatcherTests
                 It.IsAny<Guid?>(),
                 It.IsAny<string?>(),
                 It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+        notificationServiceMock
+            .Setup(service => service.SendOrderStatusChangedToUserAsync(
+                It.IsAny<Guid>(),
+                It.IsAny<Guid>(),
+                It.IsAny<string>(),
+                It.IsAny<Guid>(),
+                It.IsAny<string>(),
+                It.IsAny<string>(),
+                It.IsAny<string?>(),
+                It.IsAny<string?>(),
+                It.IsAny<string?>(),
+                It.IsAny<CancellationToken>(),
+                It.IsAny<string?>()))
             .Returns(Task.CompletedTask);
 
         pushServiceMock

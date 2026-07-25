@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using Zadana.Api.Realtime.Contracts;
 using Zadana.Application.Common.Interfaces;
+using Zadana.Application.Modules.Orders.Support;
 using Zadana.Application.Modules.Vendors.Support;
 using Zadana.Domain.Modules.Orders.Enums;
 
@@ -10,15 +11,18 @@ namespace Zadana.Api.Realtime;
 public sealed class OrderTrackingRealtimeNotifier : IOrderTrackingRealtimeNotifier
 {
     private readonly IHubContext<OrderTrackingHub> _hubContext;
+    private readonly IHubContext<NotificationHub> _notificationHubContext;
     private readonly IApplicationDbContext _dbContext;
     private readonly ILogger<OrderTrackingRealtimeNotifier> _logger;
 
     public OrderTrackingRealtimeNotifier(
         IHubContext<OrderTrackingHub> hubContext,
+        IHubContext<NotificationHub> notificationHubContext,
         IApplicationDbContext dbContext,
         ILogger<OrderTrackingRealtimeNotifier> logger)
     {
         _hubContext = hubContext;
+        _notificationHubContext = notificationHubContext;
         _dbContext = dbContext;
         _logger = logger;
     }
@@ -95,7 +99,8 @@ public sealed class OrderTrackingRealtimeNotifier : IOrderTrackingRealtimeNotifi
                 .Group(OrderTrackingHub.GetOrderGroup(orderId))
                 .SendAsync(OrderTrackingHub.ReceiveOrderStatusChangedMethod, sharedPayload, cancellationToken);
 
-            if (customerUserId != Guid.Empty && pickupContext.IncludeCustomerPickupSecrets)
+            // Customer apps join user groups on NotificationHub — not OrderTrackingHub.
+            if (customerUserId != Guid.Empty)
             {
                 var customerPayload = BuildPayload(
                     orderId,
@@ -108,9 +113,9 @@ public sealed class OrderTrackingRealtimeNotifier : IOrderTrackingRealtimeNotifi
                     targetUrl,
                     changedAtUtc,
                     pickupContext,
-                    includeCustomerPickupSecrets: true);
+                    includeCustomerPickupSecrets: pickupContext.IncludeCustomerPickupSecrets);
 
-                await _hubContext.Clients
+                await _notificationHubContext.Clients
                     .Group(NotificationHub.GetUserGroup(customerUserId))
                     .SendAsync(NotificationHub.ReceiveOrderStatusChangedMethod, customerPayload, cancellationToken);
             }
@@ -223,24 +228,41 @@ public sealed class OrderTrackingRealtimeNotifier : IOrderTrackingRealtimeNotifi
         string targetUrl,
         DateTime changedAtUtc,
         PickupBroadcastContext pickupContext,
-        bool includeCustomerPickupSecrets) =>
-        new(
+        bool includeCustomerPickupSecrets)
+    {
+        var fulfillment = string.Equals(pickupContext.FulfillmentType, nameof(FulfillmentType.Pickup), StringComparison.OrdinalIgnoreCase)
+            ? FulfillmentType.Pickup
+            : FulfillmentType.Delivery;
+        var normalizedFulfillment = fulfillment == FulfillmentType.Pickup ? "pickup" : "delivery";
+        var normalizedOld = OrderTrackingStatusMapper.NormalizeCustomerTrackingStatus(oldStatus.ToString(), fulfillment);
+        var normalizedNew = OrderTrackingStatusMapper.NormalizeCustomerTrackingStatus(newStatus.ToString(), fulfillment);
+        var popupType = fulfillment == FulfillmentType.Pickup && newStatus == OrderStatus.ReadyForPickup
+            ? "order_pickup_ready"
+            : newStatus == OrderStatus.Refunded
+                ? "order_refund_status_changed"
+                : "order_status_changed";
+
+        return new OrderStatusChangedRealtimePayload(
             orderId,
             orderNumber,
             vendorId,
-            oldStatus.ToString(),
-            newStatus.ToString(),
+            normalizedOld,
+            normalizedNew,
             actorRole,
             action,
             targetUrl,
             changedAtUtc,
+            Presentation: "popup",
+            PopupType: popupType,
+            ShowPopup: true,
             OldStatusRaw: oldStatus.ToString(),
             NewStatusRaw: newStatus.ToString(),
-            FulfillmentType: pickupContext.FulfillmentType,
+            FulfillmentType: normalizedFulfillment,
             PickupOtpCode: includeCustomerPickupSecrets ? pickupContext.PickupOtpCode : null,
             PickupOtpExpiresAtUtc: includeCustomerPickupSecrets ? pickupContext.PickupOtpExpiresAtUtc : null,
             PickupNoShowDeadlineUtc: pickupContext.PickupNoShowDeadlineUtc,
             PickupBranch: pickupContext.PickupBranch);
+    }
 
     private static string ResolveAction(OrderStatus status) =>
         status switch

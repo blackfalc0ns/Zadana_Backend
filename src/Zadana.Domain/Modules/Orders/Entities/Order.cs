@@ -332,7 +332,8 @@ public class Order : BaseEntity
                 "Pickup OTP can only be generated when the order is ReadyForPickup.");
         }
 
-        ReadyForPickupAtUtc ??= DateTime.UtcNow;
+        // Always refresh the ready clock so re-ready / healed orders get a fresh no-show window.
+        ReadyForPickupAtUtc = DateTime.UtcNow;
         PickupNoShowDeadlineUtc = ReadyForPickupAtUtc.Value.Add(noShowTimeout);
         PickupReminder50Sent = false;
         PickupReminder90Sent = false;
