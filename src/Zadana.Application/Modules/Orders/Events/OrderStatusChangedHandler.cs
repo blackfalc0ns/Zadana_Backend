@@ -166,41 +166,42 @@ public class OrderStatusChangedHandler : INotificationHandler<OrderStatusChanged
             return;
         }
 
-        await DispatchVendorOrderActionEmailAsync(notification, vendorRecipient.EmailNotificationsEnabled, vendorRecipient.OwnerEmail, vendorRecipient.ContactEmail, vendorRecipient.BusinessNameAr, vendorRecipient.BusinessNameEn, cancellationToken);
+        // Branch-bound orders (pickup / resolved delivery branch) must NOT fan out to the
+        // vendor owner / main branch — only staff scoped to that exact branch.
+        var isBranchBoundOrder = orderContext?.VendorBranchId.HasValue == true;
+
+        if (!isBranchBoundOrder)
+        {
+            await DispatchVendorOrderActionEmailAsync(
+                notification,
+                vendorRecipient.EmailNotificationsEnabled,
+                vendorRecipient.OwnerEmail,
+                vendorRecipient.ContactEmail,
+                vendorRecipient.BusinessNameAr,
+                vendorRecipient.BusinessNameEn,
+                cancellationToken);
+        }
 
         var (vendorTitleAr, vendorTitleEn, vendorBodyAr, vendorBodyEn, vendorType) =
             GetVendorNotificationContent(notification.NewStatus, notification.OrderNumber);
 
-        await _notificationService.SendToUserAsync(
-            vendorRecipient.UserId,
-            vendorTitleAr,
-            vendorTitleEn,
-            vendorBodyAr,
-            vendorBodyEn,
-            vendorType,
-            notification.OrderId,
-            data,
-            cancellationToken);
-
-        await _notificationService.SendOrderStatusChangedToUserAsync(
-            vendorRecipient.UserId,
-            notification.OrderId,
-            notification.OrderNumber,
-            notification.VendorId,
-            notification.OldStatus.ToString(),
-            notification.NewStatus.ToString(),
-            notification.ActorRole,
-            action,
-            targetUrl,
-            cancellationToken);
-
-        var branchRecipientUserIds = await GetVendorNotificationRecipientUserIdsAsync(
+        var recipientUserIds = await GetVendorNotificationRecipientUserIdsAsync(
             notification.VendorId,
             orderContext?.VendorBranchId,
             vendorRecipient.UserId,
             cancellationToken);
 
-        foreach (var recipientUserId in branchRecipientUserIds)
+        if (recipientUserIds.Count == 0)
+        {
+            _logger.LogWarning(
+                "No vendor notification recipients for order {OrderId} vendor {VendorId} branch {BranchId}.",
+                notification.OrderId,
+                notification.VendorId,
+                orderContext?.VendorBranchId);
+            return;
+        }
+
+        foreach (var recipientUserId in recipientUserIds)
         {
             await _notificationService.SendToUserAsync(
                 recipientUserId,
@@ -231,7 +232,7 @@ public class OrderStatusChangedHandler : INotificationHandler<OrderStatusChanged
             return;
         }
 
-        foreach (var recipientUserId in new[] { vendorRecipient.UserId }.Concat(branchRecipientUserIds).Distinct())
+        foreach (var recipientUserId in recipientUserIds)
         {
             await _oneSignalPushService.SendToExternalUserAsync(
                 recipientUserId.ToString(),
@@ -255,28 +256,37 @@ public class OrderStatusChangedHandler : INotificationHandler<OrderStatusChanged
         Guid vendorOwnerUserId,
         CancellationToken cancellationToken)
     {
-        var userIds = await (
+        // Branch-bound: only VendorBranch-scoped users for THAT branch.
+        // Do not include the vendor owner unless they also hold that branch scope.
+        if (branchId.HasValue)
+        {
+            return await (
+                from scope in _context.UserAccessScopes.AsNoTracking()
+                join branch in _context.VendorBranches.AsNoTracking()
+                    on scope.ScopeEntityId equals branch.Id
+                where scope.IsActive &&
+                      scope.PanelScope == PanelScope.VendorPanel &&
+                      scope.ScopeType == AccessScopeType.VendorBranch &&
+                      scope.ScopeEntityId == branchId.Value &&
+                      branch.VendorId == vendorId
+                select scope.UserId)
+                .Distinct()
+                .ToListAsync(cancellationToken);
+        }
+
+        // Company-wide orders (no branch): owner + VendorCompany staff.
+        var companyUserIds = await (
             from scope in _context.UserAccessScopes.AsNoTracking()
-            join branch in _context.VendorBranches.AsNoTracking()
-                on scope.ScopeEntityId equals branch.Id into branchScope
-            from branch in branchScope.DefaultIfEmpty()
             where scope.IsActive &&
                   scope.PanelScope == PanelScope.VendorPanel &&
-                  scope.ScopeEntityId.HasValue &&
-                  (
-                      (scope.ScopeType == AccessScopeType.VendorCompany && scope.ScopeEntityId == vendorId) ||
-                      (branchId.HasValue &&
-                       scope.ScopeType == AccessScopeType.VendorBranch &&
-                       scope.ScopeEntityId == branchId.Value &&
-                       branch != null &&
-                       branch.VendorId == vendorId)
-                  )
+                  scope.ScopeType == AccessScopeType.VendorCompany &&
+                  scope.ScopeEntityId == vendorId
             select scope.UserId)
             .Distinct()
             .ToListAsync(cancellationToken);
 
-        return userIds
-            .Where(userId => userId != vendorOwnerUserId)
+        return companyUserIds
+            .Append(vendorOwnerUserId)
             .Distinct()
             .ToList();
     }

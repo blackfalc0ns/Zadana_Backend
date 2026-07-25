@@ -528,65 +528,68 @@ Body: فارغ / بدون حقول مطلوبة.
 GET /api/orders/{orderId}/tracking
 ```
 
-### Response مثال (pickup)
+### Response مثال (pickup أثناء التجهيز)
 
 ```json
 {
   "order": {
     "id": "44444444-4444-4444-4444-444444444444",
     "order_number": "ORD-10246",
-    "status": "ready_for_pickup"
+    "status": "preparing"
   },
   "fulfillment_type": "pickup",
   "estimated_delivery": null,
   "driver": null,
   "assigned_driver": null,
-  "driver_arrival_state": "",
+  "driver_arrival_state": "none",
   "driver_arrival_updated_at_utc": null,
   "delivery_otp": null,
   "show_delivery_otp": false,
-  "pickup_otp_code": "4821",
-  "pickup_otp_expires_at_utc": "2026-04-25T14:00:00Z",
-  "pickup_no_show_deadline_utc": "2026-04-25T18:00:00Z",
+  "pickup_otp_code": null,
+  "pickup_otp_expires_at_utc": null,
+  "pickup_no_show_deadline_utc": "2026-07-26T20:21:14Z",
   "pickup_branch": {
-    "name": "Mohandessin Branch",
-    "address": "12 Lebanon Sq, Giza",
-    "hours_today": "Today: 10:00 AM - 10:00 PM"
+    "name": "بقالة الأمل -2",
+    "address": "مركز المدينة, DHAHRAN, EASTERN",
+    "hours_today": "09:00 - 22:00"
   },
   "timeline": [
-    {
-      "id": "placed",
-      "title": "Order placed",
-      "time": "11:00 AM",
-      "is_active": false,
-      "is_completed": true
-    },
-    {
-      "id": "ready_for_pickup",
-      "title": "Ready for pickup",
-      "time": "12:10 PM",
-      "is_active": true,
-      "is_completed": true
-    }
+    { "id": "order_placed", "title": "تم إنشاء الطلب", "time": "08:20 PM", "is_active": false, "is_completed": true },
+    { "id": "vendor_confirmed", "title": "أكد المتجر الطلب", "time": "08:21 PM", "is_active": false, "is_completed": true },
+    { "id": "preparing", "title": "جاري تجهيز الطلب", "time": "08:21 PM", "is_active": true, "is_completed": false },
+    { "id": "ready_for_pickup", "title": "جاهز للاستلام من الفرع", "time": "", "is_active": false, "is_completed": false },
+    { "id": "delivered", "title": "تم الاستلام", "time": "", "is_active": false, "is_completed": false }
   ]
 }
 ```
 
+### Timeline الاستلام (بدل out_for_delivery)
+
+| id | المعنى |
+|---|---|
+| `order_placed` | تم إنشاء الطلب |
+| `vendor_confirmed` | أكد المتجر |
+| `preparing` | جاري التجهيز |
+| `ready_for_pickup` | جاهز للاستلام (+ OTP) |
+| `delivered` | تم الاستلام من الفرع |
+| `cancelled` | ملغي (بدل الخطوة الأخيرة لو اتلغى) |
+
 ### ماذا تعرض في Pickup Tracking
 
-- حالة الطلب
+- حالة الطلب (`preparing` / `ready_for_pickup` / `delivered`...)
 - بطاقة الفرع (اسم/عنوان/ساعات)
 - بطاقة OTP لو `pickup_otp_code != null`
 - عدّاد/نص لمهلة `pickup_no_show_deadline_utc`
-- التايملاين
+- التايملاين أعلاه
 
 ### ماذا تخفي تمامًا في Pickup
 
 - خريطة / موقع المندوب
 - كارت السائق / الاتصال بالمندوب
 - OTP التوصيل (`delivery_otp` / `show_delivery_otp`)
-- حالات وصول السائق (`driver_arrival_state`)
-- ETA التوصيل التقليدي (`estimated_delivery` غالبًا `null`)
+- حالات وصول السائق (`driver_arrival_state` دائمًا `none`)
+- ETA التوصيل (`estimated_delivery` = `null`)
+- خطوة `out_for_delivery` (مش راجعة في طلبات الاستلام)
 
 القاعدة الذهبية:  
 **لو `fulfillment_type === "pickup"` → UI فرع+OTP، مش UI مندوب.**

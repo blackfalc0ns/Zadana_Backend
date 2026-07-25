@@ -261,35 +261,39 @@ public class OrderReadService : IOrderReadService
             .OrderByDescending(x => x.CreatedAtUtc)
             .FirstOrDefaultAsync(cancellationToken);
 
+        var isPickup = order.Fulfillment == FulfillmentType.Pickup;
         var timeline = BuildTimeline(order);
-        var estimatedDelivery = await BuildEstimatedDeliveryAsync(order, assignment, cancellationToken);
-        var driver = BuildDriver(assignment);
-        var assignedDriver = BuildAssignedDriverSummary(assignment);
-        var arrivalState = ResolveArrivalState(assignment);
-        var arrivalUpdatedAtUtc = ResolveArrivalUpdatedAtUtc(assignment);
-        var showDeliveryOtp = (order.Status == OrderStatus.PickedUp || order.Status == OrderStatus.OnTheWay) &&
+        var estimatedDelivery = isPickup
+            ? null
+            : await BuildEstimatedDeliveryAsync(order, assignment, cancellationToken);
+        var driver = isPickup ? null : BuildDriver(assignment);
+        var assignedDriver = isPickup ? null : BuildAssignedDriverSummary(assignment);
+        var arrivalState = isPickup ? "none" : ResolveArrivalState(assignment);
+        var arrivalUpdatedAtUtc = isPickup ? null : ResolveArrivalUpdatedAtUtc(assignment);
+        var showDeliveryOtp = !isPickup &&
+            (order.Status == OrderStatus.PickedUp || order.Status == OrderStatus.OnTheWay) &&
             assignment is not null &&
             !assignment.DeliveryOtpVerifiedAtUtc.HasValue &&
             !string.IsNullOrWhiteSpace(assignment.DeliveryOtpCode);
         var pickupBranch = await BuildPickupBranchAsync(order, cancellationToken);
-        var showCustomerPickupOtp = order.Fulfillment == FulfillmentType.Pickup &&
+        var showCustomerPickupOtp = isPickup &&
             order.Status == OrderStatus.ReadyForPickup &&
             !order.PickupOtpVerifiedAtUtc.HasValue;
 
         return new CustomerOrderTrackingDto(
-            new CustomerOrderTrackingOrderDto(order.Id, order.OrderNumber, MapTrackingStatus(order.Status)),
+            new CustomerOrderTrackingOrderDto(order.Id, order.OrderNumber, MapTrackingStatus(order)),
             estimatedDelivery,
             driver,
             assignedDriver,
             BuildDeliveryBreakdown(order),
-            order.Fulfillment.ToString(),
+            MapFulfillmentType(order.Fulfillment),
             arrivalState,
             arrivalUpdatedAtUtc,
             showDeliveryOtp ? assignment!.DeliveryOtpCode : null,
             showDeliveryOtp,
             showCustomerPickupOtp ? order.PickupOtpCode : null,
             showCustomerPickupOtp ? order.PickupOtpExpiresAtUtc : null,
-            order.PickupNoShowDeadlineUtc,
+            isPickup ? order.PickupNoShowDeadlineUtc : null,
             pickupBranch,
             ResolveActiveSupportCaseSummary(order.SupportCases),
             timeline);
@@ -1253,10 +1257,10 @@ public class OrderReadService : IOrderReadService
             order.OrderNumber,
             order.PlacedAtUtc,
             order.TotalAmount,
-            MapStatus(order.Status),
+            MapCustomerFacingStatus(order),
             MapCustomerPaymentStatus(order.PaymentStatus),
             MapCustomerPaymentMethod(order.PaymentMethod),
-            order.Fulfillment.ToString(),
+            MapFulfillmentType(order.Fulfillment),
             CanRetryPayment(order),
             CanDelete(order),
             CanCancel(order.Status),
@@ -1600,7 +1604,12 @@ public class OrderReadService : IOrderReadService
                 supportCase.UpdatedAtUtc);
     }
 
-    private static List<CustomerOrderTrackingTimelineItemDto> BuildTimeline(Order order)
+    private static List<CustomerOrderTrackingTimelineItemDto> BuildTimeline(Order order) =>
+        order.Fulfillment == FulfillmentType.Pickup
+            ? BuildPickupTimeline(order)
+            : BuildDeliveryTimeline(order);
+
+    private static List<CustomerOrderTrackingTimelineItemDto> BuildDeliveryTimeline(Order order)
     {
         var history = order.StatusHistory
             .OrderBy(x => x.CreatedAtUtc)
@@ -1609,14 +1618,18 @@ public class OrderReadService : IOrderReadService
         var isCancelled = order.Status is OrderStatus.Cancelled or OrderStatus.VendorRejected or OrderStatus.DeliveryFailed;
         var isReturning = order.Status == OrderStatus.Refunded;
         var terminalId = isCancelled ? "cancelled" : isReturning ? "returning" : "delivered";
-        var terminalTitle = isCancelled ? "Order cancelled" : isReturning ? "Return in progress" : "Delivered";
+        var terminalTitle = isCancelled
+            ? L("تم إلغاء الطلب", "Order cancelled")
+            : isReturning
+                ? L("جاري الإرجاع", "Return in progress")
+                : L("تم التسليم", "Delivered");
 
         var steps = new List<TrackingStepDefinition>
         {
-            new("order_placed", "Order placed", GetStepTime(order.PlacedAtUtc), IsCurrentStage(order.Status, TrackingStage.OrderPlaced), IsCompletedStage(order.Status, TrackingStage.OrderPlaced)),
-            new("vendor_confirmed", "Vendor confirmed", GetStepTime(ResolveStepDate(history, OrderStatus.Accepted, OrderStatus.Preparing, OrderStatus.ReadyForPickup, OrderStatus.DriverAssignmentInProgress, OrderStatus.DriverAssigned, OrderStatus.PickedUp, OrderStatus.OnTheWay, OrderStatus.Delivered, OrderStatus.Refunded)), IsCurrentStage(order.Status, TrackingStage.VendorConfirmed), IsCompletedStage(order.Status, TrackingStage.VendorConfirmed)),
-            new("preparing", "Preparing order", GetStepTime(ResolveStepDate(history, OrderStatus.Preparing, OrderStatus.ReadyForPickup, OrderStatus.DriverAssignmentInProgress, OrderStatus.DriverAssigned, OrderStatus.PickedUp, OrderStatus.OnTheWay, OrderStatus.Delivered, OrderStatus.Refunded)), IsCurrentStage(order.Status, TrackingStage.Preparing), IsCompletedStage(order.Status, TrackingStage.Preparing)),
-            new("out_for_delivery", "Out for delivery", GetStepTime(ResolveStepDate(history, OrderStatus.PickedUp, OrderStatus.OnTheWay, OrderStatus.Delivered, OrderStatus.Refunded)), IsCurrentStage(order.Status, TrackingStage.OutForDelivery), IsCompletedStage(order.Status, TrackingStage.OutForDelivery))
+            new("order_placed", L("تم إنشاء الطلب", "Order placed"), GetStepTime(order.PlacedAtUtc), IsCurrentStage(order.Status, TrackingStage.OrderPlaced), IsCompletedStage(order.Status, TrackingStage.OrderPlaced)),
+            new("vendor_confirmed", L("أكد المتجر الطلب", "Vendor confirmed"), GetStepTime(ResolveStepDate(history, OrderStatus.Accepted, OrderStatus.Preparing, OrderStatus.ReadyForPickup, OrderStatus.DriverAssignmentInProgress, OrderStatus.DriverAssigned, OrderStatus.PickedUp, OrderStatus.OnTheWay, OrderStatus.Delivered, OrderStatus.Refunded)), IsCurrentStage(order.Status, TrackingStage.VendorConfirmed), IsCompletedStage(order.Status, TrackingStage.VendorConfirmed)),
+            new("preparing", L("جاري تجهيز الطلب", "Preparing order"), GetStepTime(ResolveStepDate(history, OrderStatus.Preparing, OrderStatus.ReadyForPickup, OrderStatus.DriverAssignmentInProgress, OrderStatus.DriverAssigned, OrderStatus.PickedUp, OrderStatus.OnTheWay, OrderStatus.Delivered, OrderStatus.Refunded)), IsCurrentStage(order.Status, TrackingStage.Preparing), IsCompletedStage(order.Status, TrackingStage.Preparing)),
+            new("out_for_delivery", L("في الطريق إليك", "Out for delivery"), GetStepTime(ResolveStepDate(history, OrderStatus.PickedUp, OrderStatus.OnTheWay, OrderStatus.Delivered, OrderStatus.Refunded)), IsCurrentStage(order.Status, TrackingStage.OutForDelivery), IsCompletedStage(order.Status, TrackingStage.OutForDelivery))
         };
 
         var terminalTime = terminalId switch
@@ -1633,7 +1646,68 @@ public class OrderReadService : IOrderReadService
             IsTerminalActive(order.Status),
             IsTerminalCompleted(order.Status)));
 
-        return steps
+        return MapTimelineSteps(steps);
+    }
+
+    private static List<CustomerOrderTrackingTimelineItemDto> BuildPickupTimeline(Order order)
+    {
+        var history = order.StatusHistory
+            .OrderBy(x => x.CreatedAtUtc)
+            .ToList();
+
+        var isCancelled = order.Status is OrderStatus.Cancelled or OrderStatus.VendorRejected or OrderStatus.DeliveryFailed or OrderStatus.Refunded;
+        var steps = new List<TrackingStepDefinition>
+        {
+            new(
+                "order_placed",
+                L("تم إنشاء الطلب", "Order placed"),
+                GetStepTime(order.PlacedAtUtc),
+                IsPickupCurrentStage(order.Status, TrackingStage.OrderPlaced),
+                IsPickupCompletedStage(order.Status, TrackingStage.OrderPlaced)),
+            new(
+                "vendor_confirmed",
+                L("أكد المتجر الطلب", "Vendor confirmed"),
+                GetStepTime(ResolveStepDate(history, OrderStatus.Accepted, OrderStatus.Preparing, OrderStatus.ReadyForPickup, OrderStatus.Delivered)),
+                IsPickupCurrentStage(order.Status, TrackingStage.VendorConfirmed),
+                IsPickupCompletedStage(order.Status, TrackingStage.VendorConfirmed)),
+            new(
+                "preparing",
+                L("جاري تجهيز الطلب", "Preparing order"),
+                GetStepTime(ResolveStepDate(history, OrderStatus.Preparing, OrderStatus.ReadyForPickup, OrderStatus.Delivered)),
+                IsPickupCurrentStage(order.Status, TrackingStage.Preparing),
+                IsPickupCompletedStage(order.Status, TrackingStage.Preparing)),
+            new(
+                "ready_for_pickup",
+                L("جاهز للاستلام من الفرع", "Ready for pickup"),
+                GetStepTime(ResolveStepDate(history, OrderStatus.ReadyForPickup, OrderStatus.Delivered) ?? order.ReadyForPickupAtUtc),
+                IsPickupCurrentStage(order.Status, TrackingStage.ReadyForPickup),
+                IsPickupCompletedStage(order.Status, TrackingStage.ReadyForPickup))
+        };
+
+        if (isCancelled)
+        {
+            steps.Add(new TrackingStepDefinition(
+                "cancelled",
+                L("تم إلغاء الطلب", "Order cancelled"),
+                GetStepTime(order.CancelledAtUtc ?? ResolveStepDate(history, OrderStatus.Cancelled, OrderStatus.VendorRejected, OrderStatus.DeliveryFailed, OrderStatus.Refunded)),
+                true,
+                false));
+        }
+        else
+        {
+            steps.Add(new TrackingStepDefinition(
+                "delivered",
+                L("تم الاستلام", "Collected"),
+                GetStepTime(order.DeliveredAtUtc ?? ResolveStepDate(history, OrderStatus.Delivered)),
+                order.Status == OrderStatus.Delivered,
+                order.Status == OrderStatus.Delivered));
+        }
+
+        return MapTimelineSteps(steps);
+    }
+
+    private static List<CustomerOrderTrackingTimelineItemDto> MapTimelineSteps(IEnumerable<TrackingStepDefinition> steps) =>
+        steps
             .Select(step => new CustomerOrderTrackingTimelineItemDto(
                 step.Id,
                 step.Title,
@@ -1641,7 +1715,6 @@ public class OrderReadService : IOrderReadService
                 step.IsActive,
                 step.IsCompleted))
             .ToList();
-    }
 
     private async Task<CustomerOrderEstimatedDeliveryDto?> BuildEstimatedDeliveryAsync(
         Order order, DeliveryAssignment? assignment, CancellationToken cancellationToken)
@@ -1782,8 +1855,25 @@ public class OrderReadService : IOrderReadService
             _ => "cancelled"
         };
 
-    private static string MapTrackingStatus(OrderStatus status) =>
-        OrderTrackingStatusMapper.ToCustomerTrackingStatus(status);
+    private static string MapCustomerFacingStatus(Order order) =>
+        order.Fulfillment == FulfillmentType.Pickup
+            ? order.Status switch
+            {
+                OrderStatus.PendingPayment or OrderStatus.PendingBankConfirmation or OrderStatus.Placed or OrderStatus.PendingVendorAcceptance => "pending",
+                OrderStatus.Accepted => "accepted",
+                OrderStatus.Preparing => "preparing",
+                OrderStatus.ReadyForPickup => "ready_for_pickup",
+                OrderStatus.Delivered => "delivered",
+                OrderStatus.Refunded => "cancelled",
+                _ => "cancelled"
+            }
+            : MapStatus(order.Status);
+
+    private static string MapTrackingStatus(Order order) =>
+        OrderTrackingStatusMapper.ToCustomerTrackingStatus(order.Status, order.Fulfillment);
+
+    private static string MapFulfillmentType(FulfillmentType fulfillment) =>
+        fulfillment == FulfillmentType.Pickup ? "pickup" : "delivery";
 
     private static bool CanCancel(OrderStatus status) =>
         status is OrderStatus.PendingVendorAcceptance or
@@ -2030,6 +2120,26 @@ public class OrderReadService : IOrderReadService
             TrackingStage.VendorConfirmed => status is OrderStatus.Accepted or OrderStatus.Preparing or OrderStatus.ReadyForPickup or OrderStatus.DriverAssignmentInProgress or OrderStatus.DriverAssigned or OrderStatus.PickedUp or OrderStatus.OnTheWay or OrderStatus.Delivered or OrderStatus.Refunded or OrderStatus.Cancelled or OrderStatus.VendorRejected or OrderStatus.DeliveryFailed,
             TrackingStage.Preparing => status is OrderStatus.ReadyForPickup or OrderStatus.DriverAssignmentInProgress or OrderStatus.DriverAssigned or OrderStatus.PickedUp or OrderStatus.OnTheWay or OrderStatus.Delivered or OrderStatus.Refunded,
             TrackingStage.OutForDelivery => status is OrderStatus.OnTheWay or OrderStatus.Delivered or OrderStatus.Refunded,
+            _ => false
+        };
+
+    private static bool IsPickupCurrentStage(OrderStatus status, TrackingStage stage) =>
+        stage switch
+        {
+            TrackingStage.OrderPlaced => status is OrderStatus.PendingPayment or OrderStatus.Placed,
+            TrackingStage.VendorConfirmed => status is OrderStatus.PendingVendorAcceptance or OrderStatus.Accepted,
+            TrackingStage.Preparing => status == OrderStatus.Preparing,
+            TrackingStage.ReadyForPickup => status == OrderStatus.ReadyForPickup,
+            _ => false
+        };
+
+    private static bool IsPickupCompletedStage(OrderStatus status, TrackingStage stage) =>
+        stage switch
+        {
+            TrackingStage.OrderPlaced => status is not (OrderStatus.PendingPayment or OrderStatus.Placed),
+            TrackingStage.VendorConfirmed => status is OrderStatus.Preparing or OrderStatus.ReadyForPickup or OrderStatus.Delivered or OrderStatus.Cancelled or OrderStatus.VendorRejected or OrderStatus.DeliveryFailed or OrderStatus.Refunded,
+            TrackingStage.Preparing => status is OrderStatus.ReadyForPickup or OrderStatus.Delivered or OrderStatus.Cancelled or OrderStatus.VendorRejected or OrderStatus.DeliveryFailed or OrderStatus.Refunded,
+            TrackingStage.ReadyForPickup => status == OrderStatus.Delivered,
             _ => false
         };
 
@@ -3487,6 +3597,7 @@ public class OrderReadService : IOrderReadService
         OrderPlaced,
         VendorConfirmed,
         Preparing,
+        ReadyForPickup,
         OutForDelivery
     }
 }

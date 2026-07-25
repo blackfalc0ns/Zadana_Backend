@@ -5,16 +5,30 @@ namespace Zadana.Application.Modules.Orders.Support;
 public static class OrderTrackingStatusMapper
 {
     public static string ToCustomerTrackingStatus(OrderStatus status) =>
-        status switch
-        {
-            OrderStatus.PendingPayment or OrderStatus.Placed or OrderStatus.PendingVendorAcceptance => "pending",
-            OrderStatus.Accepted => "accepted",
-            OrderStatus.Preparing or OrderStatus.ReadyForPickup or
-            OrderStatus.DriverAssignmentInProgress or OrderStatus.DriverAssigned => "preparing",
-            OrderStatus.PickedUp or OrderStatus.OnTheWay => "out_for_delivery",
-            OrderStatus.Delivered or OrderStatus.Refunded => "delivered",
-            _ => "cancelled"
-        };
+        ToCustomerTrackingStatus(status, FulfillmentType.Delivery);
+
+    public static string ToCustomerTrackingStatus(OrderStatus status, FulfillmentType fulfillment) =>
+        fulfillment == FulfillmentType.Pickup
+            ? status switch
+            {
+                OrderStatus.PendingPayment or OrderStatus.Placed or OrderStatus.PendingVendorAcceptance => "pending",
+                OrderStatus.Accepted => "accepted",
+                OrderStatus.Preparing => "preparing",
+                OrderStatus.ReadyForPickup => "ready_for_pickup",
+                OrderStatus.Delivered => "delivered",
+                OrderStatus.Refunded => "cancelled",
+                _ => "cancelled"
+            }
+            : status switch
+            {
+                OrderStatus.PendingPayment or OrderStatus.Placed or OrderStatus.PendingVendorAcceptance => "pending",
+                OrderStatus.Accepted => "accepted",
+                OrderStatus.Preparing or OrderStatus.ReadyForPickup or
+                OrderStatus.DriverAssignmentInProgress or OrderStatus.DriverAssigned => "preparing",
+                OrderStatus.PickedUp or OrderStatus.OnTheWay => "out_for_delivery",
+                OrderStatus.Delivered or OrderStatus.Refunded => "delivered",
+                _ => "cancelled"
+            };
 
     public static string NormalizeCustomerTrackingStatus(string status)
     {
@@ -34,7 +48,7 @@ public static class OrderTrackingStatusMapper
             "accepted" => "accepted",
             "processing" => "preparing",
             "preparing" => "preparing",
-            "ready_for_pickup" => "preparing",
+            "ready_for_pickup" => "ready_for_pickup",
             "driver_assignment_in_progress" => "preparing",
             "driver_assigned" => "preparing",
             "picked_up" => "out_for_delivery",
