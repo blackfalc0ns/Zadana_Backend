@@ -179,6 +179,14 @@ public sealed class AccessAuthorizationConvention : IApplicationModelConvention
                 [PermissionKeys.Admin.OrdersView],
                 edit: [PermissionKeys.Admin.OrdersEdit],
                 approve: [PermissionKeys.Admin.OrdersApprove]),
+            ["AdminPlatformPickupSettings"] = new(
+                [PermissionKeys.Admin.OrdersView],
+                edit: [PermissionKeys.Admin.SystemManageSettings],
+                overrides: new Dictionary<string, string[]>(StringComparer.Ordinal)
+                {
+                    ["Get"] = [PermissionKeys.Admin.OrdersView],
+                    ["Upsert"] = [PermissionKeys.Admin.SystemManageSettings]
+                }),
             ["AdminNotifications"] = new(
                 [PermissionKeys.Admin.NotificationsView],
                 edit: [PermissionKeys.Admin.NotificationsEdit]),
