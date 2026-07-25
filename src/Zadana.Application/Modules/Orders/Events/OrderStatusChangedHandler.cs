@@ -234,7 +234,7 @@ public class OrderStatusChangedHandler : INotificationHandler<OrderStatusChanged
 
         foreach (var recipientUserId in recipientUserIds)
         {
-            await _oneSignalPushService.SendToExternalUserAsync(
+            var pushResult = await _oneSignalPushService.SendToExternalUserAsync(
                 recipientUserId.ToString(),
                 vendorTitleAr,
                 vendorTitleEn,
@@ -247,6 +247,36 @@ public class OrderStatusChangedHandler : INotificationHandler<OrderStatusChanged
                 OneSignalPushProfile.Default,
                 OneSignalApplicationTarget.VendorWeb,
                 cancellationToken);
+
+            if (pushResult.Sent)
+            {
+                _logger.LogInformation(
+                    "Vendor OneSignal push delivered for order {OrderId} user {UserId}. Type: {Type}. ProviderNotificationId: {ProviderNotificationId}.",
+                    notification.OrderId,
+                    recipientUserId,
+                    vendorType,
+                    pushResult.ProviderNotificationId);
+                continue;
+            }
+
+            if (pushResult.Skipped)
+            {
+                _logger.LogWarning(
+                    "Vendor OneSignal push skipped for order {OrderId} user {UserId}. Type: {Type}. Reason: {Reason}",
+                    notification.OrderId,
+                    recipientUserId,
+                    vendorType,
+                    pushResult.Reason);
+                continue;
+            }
+
+            _logger.LogWarning(
+                "Vendor OneSignal push failed for order {OrderId} user {UserId}. Type: {Type}. ProviderStatusCode: {ProviderStatusCode}. Reason: {Reason}",
+                notification.OrderId,
+                recipientUserId,
+                vendorType,
+                pushResult.ProviderStatusCode,
+                pushResult.Reason);
         }
     }
 

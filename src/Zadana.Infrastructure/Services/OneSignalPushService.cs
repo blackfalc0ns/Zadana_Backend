@@ -1584,7 +1584,11 @@ public sealed class OneSignalPushService : IOneSignalPushService
     {
         var data = new Dictionary<string, object?>
         {
-            ["notificationId"] = notificationEventId
+            ["notificationId"] = notificationEventId,
+            ["titleAr"] = sanitized.TitleAr,
+            ["titleEn"] = sanitized.TitleEn,
+            ["bodyAr"] = sanitized.BodyAr,
+            ["bodyEn"] = sanitized.BodyEn
         };
 
         if (!string.IsNullOrWhiteSpace(sanitized.Type))
