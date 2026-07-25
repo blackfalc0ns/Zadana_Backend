@@ -123,6 +123,8 @@ if (fulfillment_type == "pickup") {
 
 ### تصميم التايملاين (مهم)
 
+الدليل الكامل المستقل: [`ORDER_TRACKING_TIMELINE_UI_MOBILE_HANDOFF_AR.md`](./ORDER_TRACKING_TIMELINE_UI_MOBILE_HANDOFF_AR.md)
+
 الـ API يضمن **خطوة واحدة فقط** `is_active: true` في أي لحظة.
 
 | الحالة | الشرط | التصميم |
