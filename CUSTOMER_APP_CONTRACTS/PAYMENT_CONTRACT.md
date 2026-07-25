@@ -13,15 +13,18 @@
 - `POST /api/payments/moyasar/confirm`
 - `GET /api/payments/moyasar/verify?id=<moyasar_payment_id>` (Moyasar callback, not a normal authenticated customer API)
 
+Vendor/admin convert-to-delivery flows may create an additional payment session for the customer when a delivery fee delta is required. Mobile should treat that as a separate upgrade payment, not as a normal retry-payment flow.
+
 ## Place Order
 
 `POST /api/orders`
 
-Body:
+Body (delivery):
 
 ```json
 {
   "vendor_id": "11111111-1111-1111-1111-111111111111",
+  "fulfillment_type": "delivery",
   "address_id": "22222222-2222-2222-2222-222222222222",
   "delivery_slot_id": "asap",
   "payment_method": "card",
@@ -29,6 +32,26 @@ Body:
   "notes": null
 }
 ```
+
+Body (pickup):
+
+```json
+{
+  "vendor_id": "11111111-1111-1111-1111-111111111111",
+  "fulfillment_type": "pickup",
+  "vendor_branch_id": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+  "payment_method": "card",
+  "promo_code": null,
+  "notes": null
+}
+```
+
+Pickup payment rules:
+
+- allowed methods: `card`, `apple_pay`, and `cash` when `pickup_cash_on_pickup_enabled` is true (see checkout config)
+- cash while disabled → `PICKUP_CASH_DISABLED`; other unsupported methods → `PICKUP_ONLY_ONLINE_PAYMENT`
+- online pickup (`card` / `apple_pay`): payment must succeed before vendor acceptance continues
+- cash pickup: order proceeds with pending cash collection; vendor marks paid at OTP handoff; vendor wallet tracks cash owed to the platform until remittance
 
 Card response includes a `payment` object:
 
@@ -67,6 +90,29 @@ Endpoint:
 `POST /api/orders/{orderId}/retry-payment`
 
 Response shape is the same `payment` contract shown above.
+
+## Convert Pickup To Delivery Upgrade Payment
+
+When a pickup order is converted to delivery and the new delivery fee is higher than the amount already paid, backend creates a delta payment session instead of completing the conversion immediately.
+
+Payment session metadata includes:
+
+```json
+{
+  "kind": "delivery_upgrade",
+  "originalOrderId": "33333333-3333-3333-3333-333333333333",
+  "order_id": "33333333-3333-3333-3333-333333333333",
+  "payment_id": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
+}
+```
+
+Mobile rules:
+
+- treat `metadata.kind = "delivery_upgrade"` as a convert-to-delivery delta payment, not a new order payment
+- render Moyasar from the returned `payment` object the same way as checkout card payment
+- confirm through `POST /api/payments/moyasar/confirm`
+- after confirmation succeeds, refresh order details/tracking because fulfillment may switch from pickup to delivery
+- do not mark the order as converted locally until backend returns delivery fulfillment and updated totals
 
 ## Mobile Rules
 

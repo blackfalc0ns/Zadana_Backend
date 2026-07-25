@@ -123,6 +123,7 @@ public class ConfirmCardPaymentCommandHandlerTests
             new NoOpPublisher(),
             captureService,
             Mock.Of<IEmailCenterService>(),
+            Mock.Of<Zadana.Application.Modules.Delivery.Interfaces.IDeliveryDispatchService>(),
             NullLogger<ConfirmCardPaymentCommandHandler>.Instance);
     }
 

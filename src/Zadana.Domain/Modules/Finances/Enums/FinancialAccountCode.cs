@@ -10,6 +10,8 @@ public enum FinancialAccountCode
     PlatformCash = 0,
     GatewayReceivable = 1,
     DriverCodReceivable = 2,
+    /// <summary>Cash collected by vendor at customer pickup (cash-on-pickup) awaiting remittance.</summary>
+    VendorCodReceivable = 16,
     VendorRecoveryReceivable = 10,
 
     // Liabilities

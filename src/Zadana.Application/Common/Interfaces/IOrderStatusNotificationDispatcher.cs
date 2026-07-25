@@ -16,7 +16,8 @@ public sealed record OrderStatusCustomerNotificationRequest(
     string OrderNumber,
     OrderStatus OldStatus,
     OrderStatus NewStatus,
-    string? ActorRole = null);
+    string? ActorRole = null,
+    FulfillmentType Fulfillment = FulfillmentType.Delivery);
 
 public sealed record OrderStatusNotificationDispatchResult(
     bool InboxQueued,

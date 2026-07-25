@@ -10,6 +10,7 @@ using Zadana.Application.Modules.Files.Commands.UploadFile;
 using Zadana.Application.Modules.Orders.Commands.CancelCustomerOrder;
 using Zadana.Application.Modules.Orders.Commands.CreateOrderComplaint;
 using Zadana.Application.Modules.Orders.Commands.DeleteCustomerOrder;
+using Zadana.Application.Modules.Orders.Commands.ResendCustomerPickupOtp;
 using Zadana.Application.Modules.Orders.DTOs;
 using Zadana.Application.Modules.Orders.Interfaces;
 using Zadana.Application.Modules.Orders.Queries.GetCustomerOrderComplaint;
@@ -141,6 +142,17 @@ public class OrdersController : ApiControllerBase
         return Ok(new CancelCustomerOrderResponse(
             result.Message,
             new CancelledOrderStatusResponse(result.Id, result.Status)));
+    }
+
+    [HttpPost("{orderId:guid}/resend-pickup-otp")]
+    public async Task<ActionResult<ResendCustomerPickupOtpResponse>> ResendPickupOtp(
+        Guid orderId,
+        CancellationToken cancellationToken = default)
+    {
+        var userId = _currentUserService.UserId ?? throw new UnauthorizedException("USER_NOT_AUTHENTICATED");
+        var result = await Sender.Send(new ResendCustomerPickupOtpCommand(orderId, userId), cancellationToken);
+
+        return Ok(new ResendCustomerPickupOtpResponse(result.OrderId, result.ExpiresAtUtc, result.Message));
     }
 
     [HttpPost("{orderId:guid}/retry-payment")]
@@ -533,7 +545,9 @@ public class OrdersController : ApiControllerBase
                 request.EffectivePromoCode,
                 request.EffectiveNotes,
                 ResolveDeviceIdHeader(),
-                request.EffectiveRemoveUnavailableItems),
+                request.EffectiveRemoveUnavailableItems,
+                request.EffectiveFulfillment,
+                request.EffectiveVendorBranchId),
             cancellationToken);
 
         return Ok(CheckoutController.MapPlacedOrder(result));
@@ -572,6 +586,7 @@ public class OrdersController : ApiControllerBase
             dto.Status,
             dto.PaymentStatus,
             dto.PaymentMethod,
+            dto.FulfillmentType,
             dto.CanRetryPayment,
             dto.CanDelete,
             dto.CanCancel,
@@ -580,6 +595,15 @@ public class OrdersController : ApiControllerBase
                 dto.Summary.Subtotal,
                 dto.Summary.ShippingCost,
                 dto.Summary.Total),
+            dto.PickupOtpCode,
+            dto.PickupOtpExpiresAtUtc,
+            dto.PickupNoShowDeadlineUtc,
+            dto.PickupBranch is null
+                ? null
+                : new CustomerPickupBranchResponse(
+                    dto.PickupBranch.Name,
+                    dto.PickupBranch.Address,
+                    dto.PickupBranch.HoursToday),
             dto.Items.Select(MapOrderProduct).ToList(),
             MapSupportCaseSummary(dto.ActiveCase));
 
@@ -615,10 +639,20 @@ public class OrdersController : ApiControllerBase
                     dto.AssignedDriver.PhoneNumber,
                     dto.AssignedDriver.VehicleType,
                     dto.AssignedDriver.PlateNumber),
+            dto.FulfillmentType,
             dto.DriverArrivalState,
             dto.DriverArrivalUpdatedAtUtc,
             dto.DeliveryOtp,
             dto.ShowDeliveryOtp,
+            dto.PickupOtpCode,
+            dto.PickupOtpExpiresAtUtc,
+            dto.PickupNoShowDeadlineUtc,
+            dto.PickupBranch is null
+                ? null
+                : new CustomerPickupBranchResponse(
+                    dto.PickupBranch.Name,
+                    dto.PickupBranch.Address,
+                    dto.PickupBranch.HoursToday),
             MapSupportCaseSummary(dto.ActiveCase),
             dto.Timeline
                 .Select(item => new CustomerOrderTrackingTimelineItemResponse(

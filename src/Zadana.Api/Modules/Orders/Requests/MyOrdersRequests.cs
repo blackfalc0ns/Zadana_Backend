@@ -37,13 +37,28 @@ public record CustomerOrderDetailResponse(
     [property: JsonPropertyName("status")] string Status,
     [property: JsonPropertyName("payment_status")] string PaymentStatus,
     [property: JsonPropertyName("payment_method")] string PaymentMethod,
+    [property: JsonPropertyName("fulfillment_type")] string FulfillmentType,
     [property: JsonPropertyName("can_retry_payment")] bool CanRetryPayment,
     [property: JsonPropertyName("can_delete")] bool CanDelete,
     [property: JsonPropertyName("can_cancel")] bool CanCancel,
     [property: JsonPropertyName("items_count")] int ItemsCount,
     [property: JsonPropertyName("summary")] CustomerOrderSummaryResponse Summary,
+    [property: JsonPropertyName("pickup_otp_code")] string? PickupOtpCode,
+    [property: JsonPropertyName("pickup_otp_expires_at_utc")] DateTime? PickupOtpExpiresAtUtc,
+    [property: JsonPropertyName("pickup_no_show_deadline_utc")] DateTime? PickupNoShowDeadlineUtc,
+    [property: JsonPropertyName("pickup_branch")] CustomerPickupBranchResponse? PickupBranch,
     [property: JsonPropertyName("items")] List<CustomerOrderProductResponse> Items,
     [property: JsonPropertyName("active_case")] OrderSupportCaseSummaryResponse? ActiveCase);
+
+public record CustomerPickupBranchResponse(
+    [property: JsonPropertyName("name")] string Name,
+    [property: JsonPropertyName("address")] string Address,
+    [property: JsonPropertyName("hours_today")] string? HoursToday);
+
+public record ResendCustomerPickupOtpResponse(
+    [property: JsonPropertyName("order_id")] Guid OrderId,
+    [property: JsonPropertyName("expires_at_utc")] DateTime ExpiresAtUtc,
+    [property: JsonPropertyName("message")] string Message);
 
 public record RetryOrderPaymentResponse(
     [property: JsonPropertyName("message")] string Message,
@@ -54,10 +69,15 @@ public record CustomerOrderTrackingResponse(
     [property: JsonPropertyName("estimated_delivery")] CustomerOrderEstimatedDeliveryResponse? EstimatedDelivery,
     [property: JsonPropertyName("driver")] CustomerOrderTrackingDriverResponse? Driver,
     [property: JsonPropertyName("assigned_driver")] CustomerAssignedDriverResponse? AssignedDriver,
+    [property: JsonPropertyName("fulfillment_type")] string FulfillmentType,
     [property: JsonPropertyName("driver_arrival_state")] string DriverArrivalState,
     [property: JsonPropertyName("driver_arrival_updated_at_utc")] DateTime? DriverArrivalUpdatedAtUtc,
     [property: JsonPropertyName("delivery_otp")] string? DeliveryOtp,
     [property: JsonPropertyName("show_delivery_otp")] bool ShowDeliveryOtp,
+    [property: JsonPropertyName("pickup_otp_code")] string? PickupOtpCode,
+    [property: JsonPropertyName("pickup_otp_expires_at_utc")] DateTime? PickupOtpExpiresAtUtc,
+    [property: JsonPropertyName("pickup_no_show_deadline_utc")] DateTime? PickupNoShowDeadlineUtc,
+    [property: JsonPropertyName("pickup_branch")] CustomerPickupBranchResponse? PickupBranch,
     [property: JsonPropertyName("active_case")] OrderSupportCaseSummaryResponse? ActiveCase,
     [property: JsonPropertyName("timeline")] List<CustomerOrderTrackingTimelineItemResponse> Timeline);
 

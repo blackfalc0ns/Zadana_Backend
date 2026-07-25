@@ -122,6 +122,7 @@ public sealed class WalletProjectionUpdater
                     currentBalance += line.CreditAmount - line.DebitAmount;
                     break;
                 case FinancialAccountCode.DriverCodReceivable:
+                case FinancialAccountCode.VendorCodReceivable:
                     codOwedBalance += line.DebitAmount - line.CreditAmount;
                     break;
             }
@@ -211,7 +212,8 @@ public sealed class WalletProjectionUpdater
                 .Sum(line => line.CreditAmount - line.DebitAmount);
 
             var expectedCod = lines
-                .Where(line => line.AccountCode == FinancialAccountCode.DriverCodReceivable)
+                .Where(line => line.AccountCode is FinancialAccountCode.DriverCodReceivable
+                    or FinancialAccountCode.VendorCodReceivable)
                 .Sum(line => line.DebitAmount - line.CreditAmount);
 
             var currentDiff = wallet.CurrentBalance - expectedCurrent;
@@ -257,6 +259,7 @@ public sealed class WalletProjectionUpdater
         line.AccountCode is FinancialAccountCode.VendorPayable
             or FinancialAccountCode.DriverPayable
             or FinancialAccountCode.DriverCodReceivable
+            or FinancialAccountCode.VendorCodReceivable
             or FinancialAccountCode.PlatformRevenue
             or FinancialAccountCode.ManualAdjustment;
 
@@ -294,7 +297,7 @@ public sealed class WalletProjectionUpdater
 
     private static string ResolveDirection(Domain.Modules.Finances.Entities.JournalLine line)
     {
-        if (line.AccountCode == FinancialAccountCode.DriverCodReceivable)
+        if (line.AccountCode is FinancialAccountCode.DriverCodReceivable or FinancialAccountCode.VendorCodReceivable)
         {
             return line.DebitAmount > 0 ? "OUT" : "IN";
         }
@@ -305,7 +308,7 @@ public sealed class WalletProjectionUpdater
     private static WalletTxnType ResolveTxnType(FinancialAccountCode accountCode) =>
         accountCode switch
         {
-            FinancialAccountCode.DriverCodReceivable => WalletTxnType.CashCollected,
+            FinancialAccountCode.DriverCodReceivable or FinancialAccountCode.VendorCodReceivable => WalletTxnType.CashCollected,
             FinancialAccountCode.ManualAdjustment => WalletTxnType.Adjustment,
             _ => WalletTxnType.OrderRevenue
         };

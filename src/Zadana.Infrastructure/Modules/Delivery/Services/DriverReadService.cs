@@ -938,7 +938,12 @@ public class DriverReadService : IDriverReadService
             .Take(normalizedPerPage)
             .ToListAsync(cancellationToken);
 
-        var addressIds = assignments.Select(a => a.Order.CustomerAddressId).Distinct().ToArray();
+        var addressIds = assignments
+            .Select(a => a.Order.CustomerAddressId)
+            .Where(id => id.HasValue)
+            .Select(id => id!.Value)
+            .Distinct()
+            .ToArray();
         var addresses = await _context.CustomerAddresses
             .AsNoTracking()
             .Where(a => addressIds.Contains(a.Id))
@@ -947,7 +952,11 @@ public class DriverReadService : IDriverReadService
         var items = assignments
             .Select(assignment =>
             {
-                addresses.TryGetValue(assignment.Order.CustomerAddressId, out var customerAddress);
+                CustomerAddress? customerAddress = null;
+                if (assignment.Order.CustomerAddressId.HasValue)
+                {
+                    addresses.TryGetValue(assignment.Order.CustomerAddressId.Value, out customerAddress);
+                }
 
                 return new DriverCompletedOrderListItemDto(
                     assignment.OrderId,

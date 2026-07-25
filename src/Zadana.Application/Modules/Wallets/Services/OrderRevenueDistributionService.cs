@@ -141,6 +141,7 @@ public class OrderRevenueDistributionService
             driverAssignment?.DriverId,
             distribution,
             order.PaymentMethod,
+            order.Fulfillment,
             order.DiscountTotal,
             order.CouponId);
 
@@ -175,6 +176,7 @@ public class OrderRevenueDistributionService
         Guid? driverId,
         RevenueDistribution distribution,
         PaymentMethodType paymentMethod,
+        FulfillmentType fulfillment,
         decimal discountTotal,
         Guid? couponId)
     {
@@ -200,20 +202,35 @@ public class OrderRevenueDistributionService
 
         if (paymentMethod == PaymentMethodType.CashOnDelivery)
         {
-            if (driverId is null)
+            if (fulfillment == FulfillmentType.Pickup)
             {
-                _logger.LogWarning("[RevenueDistribution] COD order {OrderId} has no assigned driver; posting skipped.", orderId);
-                return [];
+                // Customer paid the vendor in cash at pickup — vendor owes full cash remittance.
+                lines.Add(new JournalLineDraft(
+                    FinancialAccountCode.VendorCodReceivable,
+                    postingTotal,
+                    0m,
+                    FinancialOwnerType.Vendor,
+                    vendorId,
+                    orderId,
+                    Memo: $"Cash-on-pickup collected for order {orderId}"));
             }
+            else
+            {
+                if (driverId is null)
+                {
+                    _logger.LogWarning("[RevenueDistribution] COD order {OrderId} has no assigned driver; posting skipped.", orderId);
+                    return [];
+                }
 
-            lines.Add(new JournalLineDraft(
-                FinancialAccountCode.DriverCodReceivable,
-                postingTotal,
-                0m,
-                FinancialOwnerType.Driver,
-                driverId,
-                orderId,
-                Memo: $"COD cash collected for order {orderId}"));
+                lines.Add(new JournalLineDraft(
+                    FinancialAccountCode.DriverCodReceivable,
+                    postingTotal,
+                    0m,
+                    FinancialOwnerType.Driver,
+                    driverId,
+                    orderId,
+                    Memo: $"COD cash collected for order {orderId}"));
+            }
         }
         else
         {

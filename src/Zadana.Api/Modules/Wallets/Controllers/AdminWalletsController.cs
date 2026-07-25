@@ -1061,7 +1061,7 @@ public class AdminWalletsController : ApiControllerBase
         decimal activeHolds)
     {
         var reserved = pendingBalance + activeHolds;
-        if (ownerType == WalletOwnerType.Driver)
+        if (ownerType is WalletOwnerType.Driver or WalletOwnerType.Vendor)
         {
             return Math.Max(0m, currentBalance - codOwedBalance - reserved);
         }

@@ -12,6 +12,7 @@ using Zadana.Application.Modules.Orders.Interfaces;
 using Zadana.Application.Modules.Orders.Services;
 using Zadana.Application.Modules.Orders.Support;
 using Zadana.Domain.Modules.Orders.Entities;
+using Zadana.Domain.Modules.Orders.Enums;
 using Zadana.Domain.Modules.Payments.Enums;
 using Zadana.SharedKernel.Exceptions;
 
@@ -125,7 +126,7 @@ public class PlaceOrderCommandHandler : IRequestHandler<PlaceOrderCommand, Guid>
 
         var subtotal = cart.Items.Sum(item => vendorProducts[item.MasterProductId].SellingPrice * item.Quantity);
         var vendorCommissionRate = vendorProducts.Values.FirstOrDefault()?.Vendor?.CommissionRate ?? 0m;
-        var commissionAmount = cart.Items.Sum(item =>
+        var commissionAmount = request.CommissionOverride ?? cart.Items.Sum(item =>
         {
             var vendorProduct = vendorProducts[item.MasterProductId];
             var lineSubtotal = vendorProduct.SellingPrice * item.Quantity;
@@ -135,60 +136,65 @@ public class PlaceOrderCommandHandler : IRequestHandler<PlaceOrderCommand, Guid>
             .GroupBy(item => item.MasterProductId)
             .ToDictionary(group => group.Key, group => group.Sum(item => item.Quantity));
 
-        var reusableOrder = await _orderRepository.GetReusablePendingOrderForCheckoutAsync(
-            request.UserId,
-            request.VendorId,
-            request.CustomerAddressId,
-            paymentMethod,
-            vendorBranchId,
-            request.CouponId,
-            request.Notes,
-            subtotal,
-            cart.DiscountTotal,
-            cart.DeliveryFee,
-            request.BaseDeliveryFee,
-            request.DistanceDeliveryFee,
-            request.SurgeDeliveryFee,
-            request.QuotedDistanceKm,
-            request.DeliveryPricingMode,
-            request.DeliveryPricingRuleLabel,
-            request.DriverToVendorDistanceKm,
-            request.VendorToCustomerDistanceKm,
-            request.DriverToVendorFee,
-            request.VendorToCustomerFee,
-            request.DriverToVendorPricingSource,
-            request.VendorToCustomerPricingSource,
-            request.UsedEstimatedDriverPricing,
-            request.PricingOriginType,
-            request.PricingOriginDriverId,
-            request.DeliveryQuoteStatus,
-            request.DeliveryQuoteLockedAtUtc,
-            request.DeliveryQuoteVersion,
-            request.HasDeliveryAnomalyWarning,
-            commissionAmount,
-            request.VatAmount,
-            request.CodFee,
-            itemQuantities,
-            cancellationToken);
-
-        if (reusableOrder is not null)
+        // Reuse only for delivery orders with an address (pickup reuse is skipped for safety).
+        if (request.Fulfillment == FulfillmentType.Delivery && request.CustomerAddressId.HasValue)
         {
-            ApplyOrderFinancialSnapshot(reusableOrder, subtotal, cart.DiscountTotal, commissionAmount, request);
-            if (_orderInventoryWorkflowService is not null)
-            {
-                await _orderInventoryWorkflowService.ApplyExistingOrderReservationAsync(reusableOrder.Id, cancellationToken);
-            }
+            var reusableOrder = await _orderRepository.GetReusablePendingOrderForCheckoutAsync(
+                request.UserId,
+                request.VendorId,
+                request.CustomerAddressId.Value,
+                paymentMethod,
+                vendorBranchId,
+                request.CouponId,
+                request.Notes,
+                subtotal,
+                cart.DiscountTotal,
+                cart.DeliveryFee,
+                request.BaseDeliveryFee,
+                request.DistanceDeliveryFee,
+                request.SurgeDeliveryFee,
+                request.QuotedDistanceKm,
+                request.DeliveryPricingMode,
+                request.DeliveryPricingRuleLabel,
+                request.DriverToVendorDistanceKm,
+                request.VendorToCustomerDistanceKm,
+                request.DriverToVendorFee,
+                request.VendorToCustomerFee,
+                request.DriverToVendorPricingSource,
+                request.VendorToCustomerPricingSource,
+                request.UsedEstimatedDriverPricing,
+                request.PricingOriginType,
+                request.PricingOriginDriverId,
+                request.DeliveryQuoteStatus,
+                request.DeliveryQuoteLockedAtUtc,
+                request.DeliveryQuoteVersion,
+                request.HasDeliveryAnomalyWarning,
+                commissionAmount,
+                request.VatAmount,
+                request.CodFee,
+                itemQuantities,
+                cancellationToken);
 
-            if (request.ClearCartAfterPlacement)
+            if (reusableOrder is not null)
             {
-                _orderRepository.RemoveCart(cart);
-            }
+                ApplyOrderFinancialSnapshot(reusableOrder, subtotal, cart.DiscountTotal, commissionAmount, request);
+                if (_orderInventoryWorkflowService is not null)
+                {
+                    await _orderInventoryWorkflowService.ApplyExistingOrderReservationAsync(reusableOrder.Id, cancellationToken);
+                }
 
-            await _unitOfWork.SaveChangesAsync(cancellationToken);
-            return reusableOrder.Id;
+                if (request.ClearCartAfterPlacement)
+                {
+                    _orderRepository.RemoveCart(cart);
+                }
+
+                await _unitOfWork.SaveChangesAsync(cancellationToken);
+                return reusableOrder.Id;
+            }
         }
 
         var orderNumber = $"ORD-{DateTime.UtcNow:yyyyMMdd}-{Guid.NewGuid().ToString().Substring(0, 8).ToUpper()}";
+        var deliveryFee = request.Fulfillment == FulfillmentType.Pickup ? 0m : cart.DeliveryFee;
 
         var order = new Order(
             orderNumber: orderNumber,
@@ -198,7 +204,7 @@ public class PlaceOrderCommandHandler : IRequestHandler<PlaceOrderCommand, Guid>
             paymentMethod: paymentMethod,
             subtotal: subtotal,
             discountTotal: cart.DiscountTotal,
-            deliveryFee: cart.DeliveryFee,
+            deliveryFee: deliveryFee,
             baseDeliveryFee: request.BaseDeliveryFee,
             distanceDeliveryFee: request.DistanceDeliveryFee,
             surgeDeliveryFee: request.SurgeDeliveryFee,
@@ -223,7 +229,8 @@ public class PlaceOrderCommandHandler : IRequestHandler<PlaceOrderCommand, Guid>
             codFee: request.CodFee,
             notes: request.Notes,
             vendorBranchId: vendorBranchId,
-            couponId: request.CouponId
+            couponId: request.CouponId,
+            fulfillment: request.Fulfillment
         );
         ApplyOrderFinancialSnapshot(order, subtotal, cart.DiscountTotal, commissionAmount, request);
 
@@ -326,7 +333,17 @@ public class PlaceOrderCommandHandler : IRequestHandler<PlaceOrderCommand, Guid>
 
     private async Task<Guid?> ResolveVendorBranchIdAsync(PlaceOrderCommand request, CancellationToken cancellationToken)
     {
+        if (request.Fulfillment == FulfillmentType.Pickup)
+        {
+            return request.VendorBranchId;
+        }
+
         if (_context is null)
+        {
+            return request.VendorBranchId;
+        }
+
+        if (!request.CustomerAddressId.HasValue)
         {
             return request.VendorBranchId;
         }

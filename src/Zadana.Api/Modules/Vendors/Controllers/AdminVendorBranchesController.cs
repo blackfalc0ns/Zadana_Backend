@@ -1,9 +1,13 @@
+using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Zadana.Api.Controllers;
 using Zadana.Api.Localization;
 using Zadana.Application.Common.Interfaces;
+using Zadana.Application.Modules.Orders.Services;
+using Zadana.Application.Modules.Orders.Support;
+using Zadana.Application.Modules.Payments.Interfaces;
 using Zadana.Domain.Modules.Social.Enums;
 using Zadana.Domain.Modules.Vendors.Entities;
 using Zadana.SharedKernel.Exceptions;
@@ -21,15 +25,30 @@ public class AdminVendorBranchesController : ApiControllerBase
     private readonly IApplicationDbContext _context;
     private readonly INotificationService _notificationService;
     private readonly IOneSignalPushService _oneSignalPushService;
+    private readonly IUnitOfWork _unitOfWork;
+    private readonly IPublisher _publisher;
+    private readonly IPaymentGatewayResolver _gatewayResolver;
+    private readonly OrderInventoryWorkflowService _orderInventoryWorkflowService;
+    private readonly ILogger<AdminVendorBranchesController> _logger;
 
     public AdminVendorBranchesController(
         IApplicationDbContext context,
         INotificationService notificationService,
-        IOneSignalPushService oneSignalPushService)
+        IOneSignalPushService oneSignalPushService,
+        IUnitOfWork unitOfWork,
+        IPublisher publisher,
+        IPaymentGatewayResolver gatewayResolver,
+        OrderInventoryWorkflowService orderInventoryWorkflowService,
+        ILogger<AdminVendorBranchesController> logger)
     {
         _context = context;
         _notificationService = notificationService;
         _oneSignalPushService = oneSignalPushService;
+        _unitOfWork = unitOfWork;
+        _publisher = publisher;
+        _gatewayResolver = gatewayResolver;
+        _orderInventoryWorkflowService = orderInventoryWorkflowService;
+        _logger = logger;
     }
 
     [HttpGet]
@@ -116,22 +135,65 @@ public class AdminVendorBranchesController : ApiControllerBase
     }
 
     [HttpPost("{branchId:guid}/deactivate")]
-    public async Task<ActionResult> DeactivateBranch(Guid vendorId, Guid branchId, CancellationToken ct = default)
+    public async Task<ActionResult> DeactivateBranch(
+        Guid vendorId,
+        Guid branchId,
+        [FromQuery] bool force = false,
+        CancellationToken ct = default)
     {
         var branch = await RequireBranchAsync(vendorId, branchId, ct);
+        if (force)
+        {
+            await BranchActivePickupOrdersSupport.ForceCancelActivePickupOrdersAsync(
+                _context,
+                _unitOfWork,
+                _publisher,
+                _gatewayResolver,
+                _orderInventoryWorkflowService,
+                _logger,
+                branchId,
+                "Branch deactivated by admin (force).",
+                ct);
+        }
+        else
+        {
+            await BranchActivePickupOrdersSupport.EnsureNoActivePickupOrdersAsync(_context, branchId, ct);
+        }
+
         branch.Deactivate();
         await _context.SaveChangesAsync(ct);
 
-        // Notify vendor
         await NotifyVendorBranchStatusAsync(vendorId, branchId, branch.Name, "deactivated", ct);
 
         return Ok(new { Message = ApiLocalizedMessages.Resolve(HttpContext, "BRANCH_DEACTIVATED_SUCCESS") });
     }
 
     [HttpDelete("{branchId:guid}")]
-    public async Task<ActionResult> DeleteBranch(Guid vendorId, Guid branchId, CancellationToken ct = default)
+    public async Task<ActionResult> DeleteBranch(
+        Guid vendorId,
+        Guid branchId,
+        [FromQuery] bool force = false,
+        CancellationToken ct = default)
     {
         var branch = await RequireBranchAsync(vendorId, branchId, ct);
+        if (force)
+        {
+            await BranchActivePickupOrdersSupport.ForceCancelActivePickupOrdersAsync(
+                _context,
+                _unitOfWork,
+                _publisher,
+                _gatewayResolver,
+                _orderInventoryWorkflowService,
+                _logger,
+                branchId,
+                "Branch deleted by admin (force).",
+                ct);
+        }
+        else
+        {
+            await BranchActivePickupOrdersSupport.EnsureNoActivePickupOrdersAsync(_context, branchId, ct);
+        }
+
         _context.VendorBranches.Remove(branch);
         await _context.SaveChangesAsync(ct);
         return NoContent();

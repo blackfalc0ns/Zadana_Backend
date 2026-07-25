@@ -1,11 +1,16 @@
 namespace Zadana.Application.Modules.Orders.DTOs;
 
+public record PickupBranchDto(
+    string Name,
+    string Address,
+    string? HoursToday);
+
 public record OrderDto(
     Guid Id,
     string OrderNumber,
     Guid UserId,
     Guid VendorId,
-    Guid CustomerAddressId,
+    Guid? CustomerAddressId,
     string Status,
     string PaymentMethod,
     string PaymentStatus,
@@ -52,6 +57,7 @@ public record VendorOrderListItemDto(
     string CustomerName,
     string CustomerPhone,
     string Status,
+    string FulfillmentType,
     string PaymentStatus,
     string PaymentMethod,
     decimal TotalAmount,
@@ -86,15 +92,28 @@ public record DriverLiveLocationDto(
     decimal? AccuracyMeters,
     DateTime RecordedAtUtc);
 
+public record PendingCancellationRequestDto(
+    Guid Id,
+    string Status,
+    string? CustomerReason,
+    DateTime CreatedAtUtc);
+
+public record CustomerAddressOptionDto(
+    Guid Id,
+    string Label,
+    string AddressText);
+
 public record VendorOrderDetailDto(
     Guid Id,
     string OrderNumber,
     string CustomerName,
     string CustomerPhone,
     string CustomerAddress,
+    Guid CustomerUserId,
     string Status,
     string PaymentStatus,
     string PaymentMethod,
+    string FulfillmentType,
     decimal Subtotal,
     decimal DeliveryFee,
     OrderDeliveryBreakdownDto DeliveryBreakdown,
@@ -107,6 +126,12 @@ public record VendorOrderDetailDto(
     string? PickupOtp,
     bool CanConfirmPickup,
     string PickupOtpStatus,
+    int PickupOtpFailedAttempts,
+    DateTime? PickupOtpLockedUntilUtc,
+    DateTime? PickupNoShowDeadlineUtc,
+    PickupBranchDto? PickupBranch,
+    PendingCancellationRequestDto? PendingCancellationRequest,
+    IReadOnlyList<CustomerAddressOptionDto> CustomerAddresses,
     GeoPointDto? VendorLocation,
     GeoPointDto? CustomerLocation,
     DriverLiveLocationDto? DriverLiveLocation,
@@ -155,12 +180,17 @@ public record CustomerOrderDetailDto(
     string Status,
     string PaymentStatus,
     string PaymentMethod,
+    string FulfillmentType,
     bool CanRetryPayment,
     bool CanDelete,
     bool CanCancel,
     int ItemsCount,
     CustomerOrderPriceSummaryDto Summary,
     OrderDeliveryBreakdownDto DeliveryBreakdown,
+    string? PickupOtpCode,
+    DateTime? PickupOtpExpiresAtUtc,
+    DateTime? PickupNoShowDeadlineUtc,
+    PickupBranchDto? PickupBranch,
     IReadOnlyList<CustomerOrderProductDto> Items,
     OrderSupportCaseSummaryDto? ActiveCase);
 
@@ -186,10 +216,15 @@ public record CustomerOrderTrackingDto(
     CustomerOrderTrackingDriverDto? Driver,
     AssignedDriverSummaryDto? AssignedDriver,
     OrderDeliveryBreakdownDto DeliveryBreakdown,
+    string FulfillmentType,
     string DriverArrivalState,
     DateTime? DriverArrivalUpdatedAtUtc,
     string? DeliveryOtp,
     bool ShowDeliveryOtp,
+    string? PickupOtpCode,
+    DateTime? PickupOtpExpiresAtUtc,
+    DateTime? PickupNoShowDeadlineUtc,
+    PickupBranchDto? PickupBranch,
     OrderSupportCaseSummaryDto? ActiveCase,
     IReadOnlyList<CustomerOrderTrackingTimelineItemDto> Timeline);
 
@@ -462,6 +497,7 @@ public record AdminOrderDetailDto(
     string CustomerPhone,
     string CustomerEmail,
     string CustomerAddress,
+    Guid CustomerUserId,
     string MerchantName,
     string MerchantBranch,
     string MerchantLocation,
@@ -478,6 +514,13 @@ public record AdminOrderDetailDto(
     string Status,
     string PaymentStatus,
     string FulfillmentStatus,
+    string FulfillmentType,
+    string CustomerPickupOtpStatus,
+    int PickupOtpFailedAttempts,
+    DateTime? PickupOtpLockedUntilUtc,
+    DateTime? PickupNoShowDeadlineUtc,
+    PickupBranchDto? PickupBranch,
+    IReadOnlyList<CustomerAddressOptionDto> CustomerAddresses,
     string DispatchState,
     string DispatchReasonAr,
     string DispatchReasonEn,

@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Zadana.Api.Controllers;
 using Zadana.Application.Common.Interfaces;
+using Zadana.Application.Modules.Orders.Commands.ConvertOrderToDelivery;
 using Zadana.Application.Modules.Orders.DTOs;
 using Zadana.Application.Modules.Orders.Events;
 using Zadana.Application.Modules.Orders.Interfaces;
@@ -591,6 +592,31 @@ public class AdminOrdersController : ApiControllerBase
         return Ok(await RequireDetailAsync(orderId, cancellationToken));
     }
 
+    [HttpPost("{orderId:guid}/convert-to-delivery")]
+    public async Task<ActionResult<AdminConvertOrderToDeliveryResponse>> ConvertToDelivery(
+        Guid orderId,
+        [FromBody] AdminConvertOrderToDeliveryRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        var adminUserId = GetRequiredAdminUserId();
+        var result = await Sender.Send(
+            new ConvertOrderToDeliveryCommand(
+                orderId,
+                null,
+                adminUserId,
+                request.CustomerAddressId,
+                request.Reason),
+            cancellationToken);
+
+        return Ok(new AdminConvertOrderToDeliveryResponse(
+            result.OrderId,
+            result.Converted,
+            result.PaymentSessionUrl,
+            result.PaymentId,
+            result.Status,
+            result.Message));
+    }
+
     private async Task<Order> LoadOrderAsync(Guid orderId, CancellationToken cancellationToken)
     {
         return await _dbContext.Orders
@@ -941,3 +967,13 @@ public record AdminIssueFlagRequest(
     bool ShowInOperationsCenter,
     bool NotifyAssignedTeam,
     bool HighRiskAlert);
+
+public record AdminConvertOrderToDeliveryRequest(Guid CustomerAddressId, ConvertToDeliveryReason Reason);
+
+public record AdminConvertOrderToDeliveryResponse(
+    Guid OrderId,
+    bool Converted,
+    string? PaymentSessionUrl,
+    Guid? PaymentId,
+    string Status,
+    string Message);

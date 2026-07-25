@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using Zadana.Domain.Modules.Orders.Entities;
+using Zadana.Domain.Modules.Orders.Enums;
 using Zadana.Domain.Modules.Payments.Enums;
 
 namespace Zadana.Infrastructure.Persistence.Configurations;
@@ -37,9 +38,11 @@ public class OrderConfiguration : IEntityTypeConfiguration<Order>
             .IsDescending(false, true)
             .HasDatabaseName("IX_Orders_PaymentStatus_PlacedAt_Desc");
 
+        builder.Property(x => x.Fulfillment).HasConversion<string>().HasMaxLength(20).IsRequired().HasDefaultValue(FulfillmentType.Delivery);
         builder.Property(x => x.Status).HasConversion<string>().HasMaxLength(50).IsRequired().IsConcurrencyToken();
         builder.Property(x => x.PaymentMethod).HasConversion<string>().HasMaxLength(50).IsRequired();
         builder.Property(x => x.PaymentStatus).HasConversion<string>().HasMaxLength(50).IsRequired().IsConcurrencyToken();
+        builder.Property(x => x.CustomerAddressId).IsRequired(false);
 
         builder.Property(x => x.Subtotal).HasPrecision(18, 2).IsRequired();
         builder.Property(x => x.DiscountTotal).HasPrecision(18, 2).IsRequired();
@@ -76,6 +79,13 @@ public class OrderConfiguration : IEntityTypeConfiguration<Order>
         builder.Property(x => x.CommissionPolicySnapshot);
 
         builder.Property(x => x.Notes).HasMaxLength(1000);
+        builder.Property(x => x.PickupOtpCode).HasMaxLength(10);
+        builder.Property(x => x.RowVersion).IsRowVersion();
+
+        builder.HasIndex(x => new { x.Fulfillment, x.Status, x.ReadyForPickupAtUtc })
+            .HasDatabaseName("IX_Orders_Fulfillment_Status_ReadyForPickup");
+        builder.HasIndex(x => new { x.Fulfillment, x.Status, x.PickupNoShowDeadlineUtc })
+            .HasDatabaseName("IX_Orders_Fulfillment_Status_NoShowDeadline");
 
         builder.HasOne(x => x.User)
             .WithMany()

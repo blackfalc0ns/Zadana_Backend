@@ -9,6 +9,7 @@ using Zadana.Domain.Modules.Identity.Entities;
 using Zadana.Domain.Modules.Identity.Enums;
 using Zadana.Domain.Modules.Marketing.Entities;
 using Zadana.Domain.Modules.Marketing.Enums;
+using Zadana.Domain.Modules.Orders.Entities;
 using Zadana.Domain.Modules.Vendors.Entities;
 using Zadana.Domain.Modules.Vendors.Enums;
 using Zadana.Domain.Modules.Wallets.Entities;
@@ -79,6 +80,7 @@ public class ApplicationDbContextInitialiser
         await SeedSuperAdminAsync();
         await SeedSuperAdminAccessScopeAsync();
         await SeedUnitsOfMeasureAsync();
+        await SeedPlatformPickupSettingsAsync();
         await SeedPlatformBankAccountAsync();
         await SeedPlatformLegalDocumentsAsync();
         await RepairTestingBankAccountsAsync();
@@ -136,6 +138,17 @@ public class ApplicationDbContextInitialiser
         }
 
         return string.Empty;
+    }
+
+    private async Task SeedPlatformPickupSettingsAsync()
+    {
+        if (await _context.PlatformPickupSettings.AnyAsync(item => item.Id == PlatformPickupSettings.SingletonId))
+        {
+            return;
+        }
+
+        _context.PlatformPickupSettings.Add(new PlatformPickupSettings());
+        await _context.SaveChangesAsync();
     }
 
     private async Task SeedPlatformBankAccountAsync()

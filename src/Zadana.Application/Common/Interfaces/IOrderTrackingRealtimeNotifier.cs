@@ -27,6 +27,7 @@ public interface IOrderTrackingRealtimeNotifier
         Guid orderId,
         string orderNumber,
         Guid vendorId,
+        Guid customerUserId,
         OrderStatus oldStatus,
         OrderStatus newStatus,
         string? actorRole,

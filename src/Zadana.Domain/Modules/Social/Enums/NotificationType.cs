@@ -20,4 +20,9 @@ public static class NotificationTypes
     public const string DriverWalletUpdated = "driver_wallet_updated";
     public const string DriverAccountUpdated = "driver_account_updated";
     public const string DriverCommitmentEnforcement = "driver_commitment_enforcement";
+    public const string PickupOtpRegenerated = "pickup_otp_regenerated";
+    public const string PickupReminder = "pickup_reminder";
+    public const string PickupDeadlineExtended = "pickup_deadline_extended";
+    public const string PickupExpired = "pickup_expired";
+    public const string PickupReady = "pickup_ready";
 }

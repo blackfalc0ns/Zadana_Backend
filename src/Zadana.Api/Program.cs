@@ -282,6 +282,7 @@ builder.Services.AddHostedService<PendingPaymentExpirationWorker>();
 builder.Services.AddHostedService<PaymentProviderEventInboxWorker>();
 builder.Services.AddHostedService<PayoutStatusSyncWorker>();
 builder.Services.AddHostedService<DeliveryDispatchWorker>();
+builder.Services.AddHostedService<PickupNoShowWorker>();
 builder.Services.AddHostedService<AdminBrandBulkOperationWorker>();
 builder.Services.AddHostedService<AdminMasterProductBulkOperationWorker>();
 builder.Services.AddHostedService<VendorProductBulkOperationWorker>();

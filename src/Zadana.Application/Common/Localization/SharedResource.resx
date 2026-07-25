@@ -812,6 +812,51 @@
   <data name="ORDER_CANNOT_BE_CANCELLED" xml:space="preserve">
     <value>Order cannot be cancelled at the current stage.</value>
   </data>
+  <data name="PICKUP_ONLY_ONLINE_PAYMENT" xml:space="preserve">
+    <value>Pickup orders require online card or Apple Pay payment.</value>
+  </data>
+  <data name="PICKUP_BRANCH_REQUIRED" xml:space="preserve">
+    <value>Pickup orders require a vendor branch.</value>
+  </data>
+  <data name="PICKUP_BRANCH_INVALID" xml:space="preserve">
+    <value>The selected pickup branch is invalid or unavailable.</value>
+  </data>
+  <data name="PICKUP_OTP_LOCKED" xml:space="preserve">
+    <value>Pickup OTP verification is temporarily locked. Try again later.</value>
+  </data>
+  <data name="PICKUP_OTP_RESEND_RATE_LIMIT" xml:space="preserve">
+    <value>Pickup OTP resend limit reached. Try again later.</value>
+  </data>
+  <data name="DELIVERY_DISABLED_BY_ADMIN" xml:space="preserve">
+    <value>Delivery checkout is currently disabled.</value>
+  </data>
+  <data name="PICKUP_DISABLED_BY_ADMIN" xml:space="preserve">
+    <value>Pickup checkout is currently disabled.</value>
+  </data>
+  <data name="PICKUP_CASH_DISABLED" xml:space="preserve">
+    <value>Cash on pickup is currently disabled by the platform.</value>
+  </data>
+  <data name="PICKUP_CANCEL_NEEDS_VENDOR_APPROVAL" xml:space="preserve">
+    <value>This pickup order requires vendor approval before it can be cancelled.</value>
+  </data>
+  <data name="CANCELLATION_REQUEST_ALREADY_PENDING" xml:space="preserve">
+    <value>A cancellation request is already pending vendor approval.</value>
+  </data>
+  <data name="CONVERT_TO_DELIVERY_NOT_ALLOWED_IN_STATE" xml:space="preserve">
+    <value>Pickup order cannot be converted to delivery in its current state.</value>
+  </data>
+  <data name="CONVERT_TO_DELIVERY_PAYMENT_PENDING" xml:space="preserve">
+    <value>Complete the delivery upgrade payment before the order can be converted to delivery.</value>
+  </data>
+  <data name="REFUND_FAILED" xml:space="preserve">
+    <value>We could not process the refund automatically. Please contact support.</value>
+  </data>
+  <data name="BRANCH_HAS_ACTIVE_PICKUP_ORDERS" xml:space="preserve">
+    <value>This branch has active pickup orders. Complete or cancel them before deactivating the branch.</value>
+  </data>
+  <data name="ORDER_STATE_CHANGED_RETRY" xml:space="preserve">
+    <value>The order changed while you were completing this action. Refresh and try again.</value>
+  </data>
   <data name="ORDER_DELETE_NOT_ALLOWED" xml:space="preserve">
     <value>Only unpaid pending-payment orders can be deleted.</value>
   </data>

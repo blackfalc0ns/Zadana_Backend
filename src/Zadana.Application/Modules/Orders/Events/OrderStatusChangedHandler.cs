@@ -65,6 +65,7 @@ public class OrderStatusChangedHandler : INotificationHandler<OrderStatusChanged
             notification.OrderId,
             notification.OrderNumber,
             notification.VendorId,
+            notification.UserId,
             notification.OldStatus,
             notification.NewStatus,
             notification.ActorRole,
@@ -92,21 +93,23 @@ public class OrderStatusChangedHandler : INotificationHandler<OrderStatusChanged
 
         var targetUrl = OrderStatusNotificationComposer.ResolveTargetUrl(notification.OrderId);
         var action = OrderStatusNotificationComposer.ResolveAction(notification.NewStatus);
-        var baseData = OrderStatusNotificationComposer.BuildData(
-            notification.OrderId,
-            notification.OrderNumber,
-            notification.VendorId,
-            notification.OldStatus,
-            notification.NewStatus,
-            notification.ActorRole,
-            action,
-            targetUrl);
-        var orderBranchId = await _context.Orders
+        var orderContext = await _context.Orders
             .AsNoTracking()
             .Where(order => order.Id == notification.OrderId)
-            .Select(order => order.VendorBranchId)
+            .Select(order => new { order.VendorBranchId, order.Fulfillment })
             .FirstOrDefaultAsync(cancellationToken);
-        var data = AddBranchIdToData(baseData, orderBranchId);
+        var data = AddBranchIdToData(
+            OrderStatusNotificationComposer.BuildData(
+                notification.OrderId,
+                notification.OrderNumber,
+                notification.VendorId,
+                notification.OldStatus,
+                notification.NewStatus,
+                notification.ActorRole,
+                action,
+                targetUrl,
+                orderContext?.Fulfillment ?? FulfillmentType.Delivery),
+            orderContext?.VendorBranchId);
 
         if (notification.NotifyCustomer)
         {
@@ -120,7 +123,8 @@ public class OrderStatusChangedHandler : INotificationHandler<OrderStatusChanged
                         notification.OrderNumber,
                         notification.OldStatus,
                         notification.NewStatus,
-                        notification.ActorRole),
+                        notification.ActorRole,
+                        orderContext?.Fulfillment ?? FulfillmentType.Delivery),
                     cancellationToken);
             }
 
@@ -192,7 +196,7 @@ public class OrderStatusChangedHandler : INotificationHandler<OrderStatusChanged
 
         var branchRecipientUserIds = await GetVendorNotificationRecipientUserIdsAsync(
             notification.VendorId,
-            orderBranchId,
+            orderContext?.VendorBranchId,
             vendorRecipient.UserId,
             cancellationToken);
 

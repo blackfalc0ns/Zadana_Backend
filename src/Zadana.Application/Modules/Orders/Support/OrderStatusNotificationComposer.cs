@@ -12,14 +12,13 @@ internal static class OrderStatusNotificationComposer
         string orderNumber,
         OrderStatus oldStatus,
         OrderStatus newStatus,
-        string? actorRole)
+        string? actorRole,
+        FulfillmentType fulfillment = FulfillmentType.Delivery)
     {
         var action = ResolveAction(newStatus);
         var targetUrl = ResolveTargetUrl(orderId);
-        var type = newStatus == OrderStatus.Cancelled
-            ? NotificationTypes.OrderCancelled
-            : NotificationTypes.OrderStatusChanged;
-        var (titleAr, titleEn, bodyAr, bodyEn) = GetCustomerNotificationContent(newStatus, orderNumber);
+        var type = ResolveNotificationType(newStatus, fulfillment);
+        var (titleAr, titleEn, bodyAr, bodyEn) = GetCustomerNotificationContent(newStatus, orderNumber, fulfillment);
 
         return new CustomerOrderStatusNotification(
             titleAr,
@@ -27,9 +26,24 @@ internal static class OrderStatusNotificationComposer
             bodyAr,
             bodyEn,
             type,
-            BuildData(orderId, orderNumber, vendorId, oldStatus, newStatus, actorRole, action, targetUrl),
+            BuildData(orderId, orderNumber, vendorId, oldStatus, newStatus, actorRole, action, targetUrl, fulfillment),
             action,
             targetUrl);
+    }
+
+    public static string ResolveNotificationType(OrderStatus newStatus, FulfillmentType fulfillment)
+    {
+        if (newStatus == OrderStatus.Cancelled)
+        {
+            return NotificationTypes.OrderCancelled;
+        }
+
+        if (newStatus == OrderStatus.ReadyForPickup && fulfillment == FulfillmentType.Pickup)
+        {
+            return NotificationTypes.PickupReady;
+        }
+
+        return NotificationTypes.OrderStatusChanged;
     }
 
     public static string BuildData(
@@ -40,13 +54,16 @@ internal static class OrderStatusNotificationComposer
         OrderStatus newStatus,
         string? actorRole,
         string action,
-        string targetUrl)
+        string targetUrl,
+        FulfillmentType fulfillment = FulfillmentType.Delivery)
     {
         var isRefundUpdate = newStatus == OrderStatus.Refunded;
         var popupType = isRefundUpdate ? "order_refund_status_changed" : "order_status_changed";
         var eventName = isRefundUpdate
             ? "order.refund.refunded"
-            : $"order.status.{newStatus.ToString().ToLowerInvariant()}";
+            : newStatus == OrderStatus.ReadyForPickup && fulfillment == FulfillmentType.Pickup
+                ? "order.pickup.ready"
+                : $"order.status.{newStatus.ToString().ToLowerInvariant()}";
         var dedupeKey = $"order-status:{orderId:N}:{oldStatus}:{newStatus}";
 
         var data = new Dictionary<string, object?>
@@ -66,7 +83,8 @@ internal static class OrderStatusNotificationComposer
             ["presentation"] = "popup",
             ["popupType"] = popupType,
             ["showPopup"] = true,
-            ["eventName"] = eventName
+            ["eventName"] = eventName,
+            ["fulfillmentType"] = fulfillment.ToString()
         };
 
         if (isRefundUpdate)
@@ -92,7 +110,8 @@ internal static class OrderStatusNotificationComposer
 
     private static (string TitleAr, string TitleEn, string BodyAr, string BodyEn) GetCustomerNotificationContent(
         OrderStatus status,
-        string orderNumber)
+        string orderNumber,
+        FulfillmentType fulfillment)
     {
         return status switch
         {
@@ -125,6 +144,12 @@ internal static class OrderStatusNotificationComposer
                 "Order Being Prepared",
                 $"طلبك رقم {orderNumber} ينجهز الآن",
                 $"Your order #{orderNumber} is now being prepared"),
+
+            OrderStatus.ReadyForPickup when fulfillment == FulfillmentType.Pickup => (
+                "الطلب جاهز للاستلام",
+                "Order Ready for Pickup",
+                $"طلبك رقم {orderNumber} جاهز للاستلام من الفرع. افتح تفاصيل الطلب لعرض رمز الاستلام.",
+                $"Your order #{orderNumber} is ready for pickup at the branch. Open order details to view your pickup code."),
 
             OrderStatus.ReadyForPickup => (
                 "الطلب جاهز للاستلام",
@@ -165,8 +190,12 @@ internal static class OrderStatusNotificationComposer
             OrderStatus.Cancelled => (
                 "ألغينا الطلب",
                 "Order Cancelled",
-                $"ألغينا طلبك رقم {orderNumber}",
-                $"Your order #{orderNumber} has been cancelled"),
+                fulfillment == FulfillmentType.Pickup
+                    ? $"ألغينا طلب الاستلام رقم {orderNumber}"
+                    : $"ألغينا طلبك رقم {orderNumber}",
+                fulfillment == FulfillmentType.Pickup
+                    ? $"Your pickup order #{orderNumber} has been cancelled"
+                    : $"Your order #{orderNumber} has been cancelled"),
 
             OrderStatus.Refunded => (
                 "استرجعنا المبلغ",

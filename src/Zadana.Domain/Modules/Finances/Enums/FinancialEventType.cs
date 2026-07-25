@@ -13,6 +13,7 @@ public enum FinancialEventType
     VendorPayoutPaid = 2,
     DriverPayoutPaid = 3,
     DriverCashRemittance = 4,
+    VendorCashRemittance = 220,
     RefundIssued = 5,
     RecoveryCreated = 6,
     FinancialAdjustmentApplied = 7,

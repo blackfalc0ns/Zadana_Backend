@@ -35,7 +35,15 @@ public static class OrderStatusNoteCatalog
         ["Cancelled by admin."] = new("ألغينا من الإدارة", "Cancelled by admin"),
         ["Cancelled by admin"] = new("ألغينا من الإدارة", "Cancelled by admin"),
         ["Cancelled by customer."] = new("ألغينا من العميل", "Cancelled by customer"),
-        ["Cancelled by customer"] = new("ألغينا من العميل", "Cancelled by customer")
+        ["Cancelled by customer"] = new("ألغينا من العميل", "Cancelled by customer"),
+        ["PickupExpired"] = new("انتهت مهلة الاستلام", "Pickup window expired"),
+        ["Order is ready for customer pickup"] = new("الطلب جاهز لاستلام العميل من الفرع", "Order is ready for customer pickup at the branch"),
+        ["Order is ready for customer pickup."] = new("الطلب جاهز لاستلام العميل من الفرع", "Order is ready for customer pickup at the branch"),
+        ["Order is ready for pickup"] = new("الطلب جاهز لاستلام العميل من الفرع", "Order is ready for customer pickup at the branch"),
+        ["Order is ready for pickup."] = new("الطلب جاهز لاستلام العميل من الفرع", "Order is ready for customer pickup at the branch"),
+        ["Cancelled due to pickup window expiry"] = new("أُلغي الطلب لانتهاء مهلة الاستلام", "Cancelled due to pickup window expiry"),
+        ["Cancelled due to pickup window expiry."] = new("أُلغي الطلب لانتهاء مهلة الاستلام", "Cancelled due to pickup window expiry"),
+        ["Customer pickup OTP verified and order marked as delivered."] = new("تحققنا من رمز استلام العميل وتم تسليم الطلب", "Customer pickup OTP verified and order marked as delivered")
     };
 
     private static readonly Dictionary<string, LocalizedText> DispatchPendingCodes = new(StringComparer.OrdinalIgnoreCase)

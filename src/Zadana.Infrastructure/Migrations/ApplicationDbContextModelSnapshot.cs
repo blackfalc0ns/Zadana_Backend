@@ -4517,6 +4517,9 @@ namespace Zadana.Infrastructure.Migrations
                     b.Property<string>("CommissionPolicySnapshot")
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<DateTime?>("ConvertedToDeliveryAtUtc")
+                        .HasColumnType("datetime2");
+
                     b.Property<Guid?>("CouponId")
                         .HasColumnType("uniqueidentifier");
 
@@ -4530,7 +4533,7 @@ namespace Zadana.Infrastructure.Migrations
                         .HasColumnType("nvarchar(3)")
                         .HasDefaultValue("SAR");
 
-                    b.Property<Guid>("CustomerAddressId")
+                    b.Property<Guid?>("CustomerAddressId")
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<DateTime?>("DeliveredAtUtc")
@@ -4557,6 +4560,9 @@ namespace Zadana.Infrastructure.Migrations
 
                     b.Property<int>("DeliveryQuoteVersion")
                         .HasColumnType("int");
+
+                    b.Property<Guid?>("DeliveryUpgradePaymentId")
+                        .HasColumnType("uniqueidentifier");
 
                     b.Property<decimal>("DiscountTotal")
                         .HasPrecision(18, 2)
@@ -4608,6 +4614,13 @@ namespace Zadana.Infrastructure.Migrations
                     b.Property<string>("EtaSource")
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<string>("Fulfillment")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)")
+                        .HasDefaultValue("Delivery");
+
                     b.Property<bool>("HasDeliveryAnomalyWarning")
                         .HasColumnType("bit");
 
@@ -4630,6 +4643,40 @@ namespace Zadana.Infrastructure.Migrations
                         .IsRequired()
                         .HasMaxLength(50)
                         .HasColumnType("nvarchar(50)");
+
+                    b.Property<DateTime?>("PickupNoShowDeadlineUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("PickupOtpCode")
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<DateTime?>("PickupOtpExpiresAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("PickupOtpFailedAttempts")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("PickupOtpLockedUntilUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("PickupOtpResendCount")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("PickupOtpResendWindowStartedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("PickupOtpVerifiedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid?>("PickupOtpVerifiedByVendorUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<bool>("PickupReminder50Sent")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("PickupReminder90Sent")
+                        .HasColumnType("bit");
 
                     b.Property<DateTime>("PlacedAtUtc")
                         .HasColumnType("datetime2");
@@ -4663,6 +4710,15 @@ namespace Zadana.Infrastructure.Migrations
                     b.Property<decimal?>("QuotedDistanceKm")
                         .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
+
+                    b.Property<DateTime?>("ReadyForPickupAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
 
                     b.Property<string>("Status")
                         .IsConcurrencyToken()
@@ -4747,6 +4803,12 @@ namespace Zadana.Infrastructure.Migrations
                         .IsDescending(false, true)
                         .HasDatabaseName("IX_Orders_VendorId_PlacedAt_Desc");
 
+                    b.HasIndex("Fulfillment", "Status", "PickupNoShowDeadlineUtc")
+                        .HasDatabaseName("IX_Orders_Fulfillment_Status_NoShowDeadline");
+
+                    b.HasIndex("Fulfillment", "Status", "ReadyForPickupAtUtc")
+                        .HasDatabaseName("IX_Orders_Fulfillment_Status_ReadyForPickup");
+
                     b.HasIndex("UserId", "Status", "PlacedAtUtc")
                         .IsDescending(false, false, true)
                         .HasDatabaseName("IX_Orders_UserId_Status_PlacedAt_Desc");
@@ -4760,6 +4822,51 @@ namespace Zadana.Infrastructure.Migrations
                         .HasDatabaseName("IX_Orders_VendorId_BranchId_PlacedAt_Desc");
 
                     b.ToTable("Orders", (string)null);
+                });
+
+            modelBuilder.Entity("Zadana.Domain.Modules.Orders.Entities.OrderCancellationRequest", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("CustomerReason")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<DateTime?>("DecidedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid?>("DecidedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("OrderId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("RequestedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
+                    b.Property<DateTime>("UpdatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("VendorResponseNote")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OrderId", "Status")
+                        .HasDatabaseName("IX_OrderCancellationRequests_OrderId_Status");
+
+                    b.ToTable("OrderCancellationRequests", (string)null);
                 });
 
             modelBuilder.Entity("Zadana.Domain.Modules.Orders.Entities.OrderComplaint", b =>
@@ -5169,6 +5276,54 @@ namespace Zadana.Infrastructure.Migrations
                     b.HasIndex("OrderSupportCaseId");
 
                     b.ToTable("OrderSupportCaseAttachments", (string)null);
+                });
+
+            modelBuilder.Entity("Zadana.Domain.Modules.Orders.Entities.PlatformPickupSettings", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<bool>("DeliveryOptionEnabled")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("PickupCashOnPickupEnabled")
+                        .HasColumnType("bit");
+
+                    b.Property<decimal>("PickupCommissionPercent")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("decimal(5,2)");
+
+                    b.Property<int>("PickupNoShowTimeoutHours")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("PickupOptionEnabled")
+                        .HasColumnType("bit");
+
+                    b.Property<int>("PickupOtpLockoutMinutes")
+                        .HasColumnType("int");
+
+                    b.Property<int>("PickupOtpMaxAttempts")
+                        .HasColumnType("int");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.Property<DateTime>("UpdatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid?>("UpdatedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("PlatformPickupSettings", (string)null);
                 });
 
             modelBuilder.Entity("Zadana.Domain.Modules.Payments.Entities.Payment", b =>
@@ -8612,6 +8767,17 @@ namespace Zadana.Infrastructure.Migrations
                     b.Navigation("VendorBranch");
                 });
 
+            modelBuilder.Entity("Zadana.Domain.Modules.Orders.Entities.OrderCancellationRequest", b =>
+                {
+                    b.HasOne("Zadana.Domain.Modules.Orders.Entities.Order", "Order")
+                        .WithMany("CancellationRequests")
+                        .HasForeignKey("OrderId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Order");
+                });
+
             modelBuilder.Entity("Zadana.Domain.Modules.Orders.Entities.OrderComplaint", b =>
                 {
                     b.HasOne("Zadana.Domain.Modules.Orders.Entities.Order", "Order")
@@ -9214,6 +9380,8 @@ namespace Zadana.Infrastructure.Migrations
 
             modelBuilder.Entity("Zadana.Domain.Modules.Orders.Entities.Order", b =>
                 {
+                    b.Navigation("CancellationRequests");
+
                     b.Navigation("Complaints");
 
                     b.Navigation("Items");

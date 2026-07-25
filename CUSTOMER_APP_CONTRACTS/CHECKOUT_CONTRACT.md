@@ -6,7 +6,7 @@
 
 ## Purpose
 
-This contract explains the current checkout summary behavior after the delivery pricing upgrade.
+This contract explains the current checkout summary behavior after the delivery pricing upgrade and pickup fulfillment support.
 
 For the latest implemented pricing additions related to:
 
@@ -28,6 +28,83 @@ The backend now returns:
 - `summary.shipping_cost`
 
 Mobile should render the delivery fee from these backend values, not from local calculations.
+
+For pickup checkout, the backend also returns:
+
+- `fulfillment_type`
+- `pickup_branch`
+- pickup-only payment methods from checkout summary
+- platform pickup/delivery toggles from `GET /api/checkout/config`
+
+## Checkout Config Endpoint
+
+### Get Checkout Config
+
+- `GET /api/checkout/config`
+- Auth: optional (`AllowAnonymous`)
+- Use on checkout entry to decide whether delivery and/or pickup tiles should appear
+
+Example response:
+
+```json
+{
+  "delivery_enabled": true,
+  "pickup_enabled": true,
+  "pickup_cash_on_pickup_enabled": false,
+  "allowed_payments_for_pickup": ["card", "apple_pay"]
+}
+```
+
+Field meaning:
+
+- `delivery_enabled`: when `false`, hide the delivery fulfillment tile entirely
+- `pickup_enabled`: when `false`, hide the pickup fulfillment tile entirely
+- `pickup_cash_on_pickup_enabled`: when `true`, cash is allowed for pickup (also reflected in `allowed_payments_for_pickup`)
+- `allowed_payments_for_pickup`: authoritative payment methods for pickup checkout (`card`, `apple_pay`, and optionally `cash`)
+
+Mobile rules:
+
+- Offer only the methods listed in `allowed_payments_for_pickup`
+- When cash is enabled: show “Pay on Pickup” / الدفع عند الاستلام
+- Bank transfer remains unsupported for pickup
+- If `delivery_enabled = false`, do not show delivery as a selectable fulfillment option even if the cart previously used delivery pricing checks
+
+## Fulfillment Selection
+
+Checkout and place-order now support:
+
+- `fulfillment_type`: `"delivery"` or `"pickup"`
+- `vendor_branch_id`: required when `fulfillment_type = "pickup"`
+
+Accepted request/query aliases:
+
+- `fulfillmentType`
+- `vendorBranchId`
+
+Pickup summary query example:
+
+- `GET /api/checkout/summary?vendor_id={vendorId}&fulfillment_type=pickup&vendor_branch_id={branchId}&payment_method=card`
+
+Place-order pickup body fields:
+
+```json
+{
+  "vendor_id": "11111111-1111-1111-1111-111111111111",
+  "fulfillment_type": "pickup",
+  "vendor_branch_id": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+  "payment_method": "card",
+  "promo_code": null,
+  "notes": null
+}
+```
+
+Pickup mobile notes:
+
+- `address_id` is not required for pickup checkout
+- `delivery_slot_id` is ignored for pickup
+- `summary.shipping_cost` is `0` for pickup
+- `delivery_check.status` can be `pickup_ready` or `pickup_branch_required`
+- Checkout summary includes `pickup_branch` when a branch is selected
 
 ## Cart Gate Endpoint
 
@@ -177,6 +254,53 @@ Example response:
     "discount": 0.0,
     "total": 133.5,
     "currency": "EGP"
+  },
+  "fulfillment_type": "delivery",
+  "pickup_branch": null
+}
+```
+
+Pickup summary example:
+
+```json
+{
+  "fulfillment_type": "pickup",
+  "pickup_branch": {
+    "id": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+    "name": "Mohandessin Branch",
+    "address_line": "12 Lebanon Sq",
+    "city": "Giza"
+  },
+  "delivery_check": {
+    "status": "pickup_ready",
+    "is_deliverable": true,
+    "can_proceed_to_checkout": true,
+    "message": "Pickup checkout is ready.",
+    "message_ar": "يمكن متابعة الطلب للاستلام من الفرع.",
+    "message_en": "Pickup checkout is ready.",
+    "delivery_fee": 0.0,
+    "distance_km": 0.0
+  },
+  "payment_methods": [
+    {
+      "code": "card",
+      "label": "Credit / Debit Card",
+      "is_available": true,
+      "is_default": true
+    },
+    {
+      "code": "apple_pay",
+      "label": "Apple Pay",
+      "is_available": true,
+      "is_default": false
+    }
+  ],
+  "summary": {
+    "subtotal": 105.0,
+    "shipping_cost": 0.0,
+    "discount": 0.0,
+    "total": 105.0,
+    "currency": "EGP"
   }
 }
 ```
@@ -230,8 +354,18 @@ Suggested mapping:
 - `distance_surcharge` -> distance surcharge line
 - `peak_surcharge` -> peak surcharge line
 
+## Pickup Payment Rules
+
+- Pickup supports `card` and `apple_pay` always
+- Pickup supports `cash` only when `pickup_cash_on_pickup_enabled = true`
+- Selecting cash while cash-on-pickup is disabled → `PICKUP_CASH_DISABLED`
+- Selecting bank transfer (or any other unsupported method) → `PICKUP_ONLY_ONLINE_PAYMENT`
+- For cash pickup: payment is collected by the merchant at handoff (OTP verify); no online gateway session
+
 ## Important Mobile Notes
 
+- Hide the delivery fulfillment tile when `delivery_enabled = false` from checkout config
+- Hide the pickup fulfillment tile when `pickup_enabled = false` from checkout config
 - Do not calculate shipping on device
 - Do not calculate ETA on device
 - Do not rebuild delivery quote from address coordinates on mobile

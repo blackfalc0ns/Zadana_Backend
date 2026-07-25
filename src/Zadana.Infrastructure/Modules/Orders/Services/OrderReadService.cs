@@ -9,6 +9,7 @@ using Zadana.Application.Modules.Delivery.Interfaces;
 using Zadana.Application.Modules.Orders.DTOs;
 using Zadana.Application.Modules.Orders.Interfaces;
 using Zadana.Application.Modules.Orders.Support;
+using Zadana.Application.Modules.Vendors.Support;
 using Zadana.Domain.Modules.Catalog.Entities;
 using Zadana.Domain.Modules.Delivery.Entities;
 using Zadana.Domain.Modules.Delivery.Enums;
@@ -220,7 +221,13 @@ public class OrderReadService : IOrderReadService
             .Where(order => order.Id == orderId && order.UserId == userId)
             .FirstOrDefaultAsync(cancellationToken);
 
-        return order is null ? null : MapDetail(order);
+        if (order is null)
+        {
+            return null;
+        }
+
+        var pickupBranch = await BuildPickupBranchAsync(order, cancellationToken);
+        return MapDetail(order, pickupBranch);
     }
 
     public async Task<CustomerOrderTrackingDto?> GetCustomerOrderTrackingAsync(
@@ -264,6 +271,10 @@ public class OrderReadService : IOrderReadService
             assignment is not null &&
             !assignment.DeliveryOtpVerifiedAtUtc.HasValue &&
             !string.IsNullOrWhiteSpace(assignment.DeliveryOtpCode);
+        var pickupBranch = await BuildPickupBranchAsync(order, cancellationToken);
+        var showCustomerPickupOtp = order.Fulfillment == FulfillmentType.Pickup &&
+            order.Status == OrderStatus.ReadyForPickup &&
+            !order.PickupOtpVerifiedAtUtc.HasValue;
 
         return new CustomerOrderTrackingDto(
             new CustomerOrderTrackingOrderDto(order.Id, order.OrderNumber, MapTrackingStatus(order.Status)),
@@ -271,10 +282,15 @@ public class OrderReadService : IOrderReadService
             driver,
             assignedDriver,
             BuildDeliveryBreakdown(order),
+            order.Fulfillment.ToString(),
             arrivalState,
             arrivalUpdatedAtUtc,
             showDeliveryOtp ? assignment!.DeliveryOtpCode : null,
             showDeliveryOtp,
+            showCustomerPickupOtp ? order.PickupOtpCode : null,
+            showCustomerPickupOtp ? order.PickupOtpExpiresAtUtc : null,
+            order.PickupNoShowDeadlineUtc,
+            pickupBranch,
             ResolveActiveSupportCaseSummary(order.SupportCases),
             timeline);
     }
@@ -472,6 +488,7 @@ public class OrderReadService : IOrderReadService
             order.User.FullName,
             order.User.PhoneNumber ?? string.Empty,
             order.Status.ToString(),
+            order.Fulfillment.ToString(),
             order.PaymentStatus.ToString(),
             order.PaymentMethod.ToString(),
             order.TotalAmount,
@@ -518,7 +535,35 @@ public class OrderReadService : IOrderReadService
             order.Items.Select(item => item.MasterProductId),
             cancellationToken);
 
-        var customerAddress = await _dbContext.CustomerAddresses
+        var pendingCancellation = await _dbContext.OrderCancellationRequests
+            .AsNoTracking()
+            .Where(item =>
+                item.OrderId == order.Id &&
+                item.Status == OrderCancellationRequestStatus.Pending)
+            .OrderByDescending(item => item.CreatedAtUtc)
+            .Select(item => new PendingCancellationRequestDto(
+                item.Id,
+                item.Status.ToString(),
+                item.CustomerReason,
+                item.CreatedAtUtc))
+            .FirstOrDefaultAsync(cancellationToken);
+
+        var customerAddressOptions = await _dbContext.CustomerAddresses
+            .AsNoTracking()
+            .Where(address => address.UserId == order.UserId)
+            .OrderByDescending(address => address.IsDefault)
+            .ThenByDescending(address => address.UpdatedAtUtc)
+            .Select(address => new CustomerAddressOptionDto(
+                address.Id,
+                address.Label.HasValue ? address.Label.Value.ToString() : "Address",
+                ((address.AddressLine ?? string.Empty) +
+                 (string.IsNullOrWhiteSpace(address.Area) ? string.Empty : $", {address.Area}") +
+                 (string.IsNullOrWhiteSpace(address.City) ? string.Empty : $", {address.City}")).Trim(',', ' ')))
+            .ToListAsync(cancellationToken);
+
+        var customerAddress = order.CustomerAddressId is null
+            ? null
+            : await _dbContext.CustomerAddresses
             .AsNoTracking()
             .Where(address => address.Id == order.CustomerAddressId)
             .Select(address => new
@@ -613,15 +658,26 @@ public class OrderReadService : IOrderReadService
             }
         }
 
+        var pickupBranch = await BuildPickupBranchAsync(order, cancellationToken);
+        var customerPickupOtpStatus = order.Fulfillment != FulfillmentType.Pickup
+            ? "not_applicable"
+            : order.PickupOtpVerifiedAtUtc.HasValue
+                ? "verified"
+                : order.Status == OrderStatus.ReadyForPickup
+                    ? "pending"
+                    : "not_available";
+
         return new VendorOrderDetailDto(
             order.Id,
             order.OrderNumber,
             order.User.FullName,
             customerAddress?.ContactPhone ?? order.User.PhoneNumber ?? string.Empty,
             customerAddressText,
+            order.UserId,
             order.Status.ToString(),
             order.PaymentStatus.ToString(),
             order.PaymentMethod.ToString(),
+            order.Fulfillment.ToString(),
             order.Subtotal,
             order.DeliveryFee,
             BuildDeliveryBreakdown(order),
@@ -631,9 +687,15 @@ public class OrderReadService : IOrderReadService
             assignedDriver,
             arrivalState,
             arrivalUpdatedAtUtc,
-            null, // Deprecated: pickup OTP code is never shown to vendor; vendor inputs code from driver
+            null,
             canConfirmPickup,
-            pickupOtpStatus,
+            order.Fulfillment == FulfillmentType.Pickup ? customerPickupOtpStatus : pickupOtpStatus,
+            order.PickupOtpFailedAttempts,
+            order.PickupOtpLockedUntilUtc,
+            order.PickupNoShowDeadlineUtc,
+            pickupBranch,
+            pendingCancellation,
+            customerAddressOptions,
             vendorLocation,
             customerLocation,
             driverLiveLocation,
@@ -834,6 +896,20 @@ public class OrderReadService : IOrderReadService
             driverLiveLocation = latestLocation;
         }
 
+        var pickupBranch = await BuildPickupBranchAsync(order, cancellationToken);
+        var customerAddresses = await _dbContext.CustomerAddresses
+            .AsNoTracking()
+            .Where(item => item.UserId == order.UserId)
+            .OrderByDescending(item => item.IsDefault)
+            .ThenByDescending(item => item.UpdatedAtUtc)
+            .Select(item => new CustomerAddressOptionDto(
+                item.Id,
+                item.Label.HasValue ? item.Label.Value.ToString() : "Address",
+                ((item.AddressLine ?? string.Empty) +
+                 (string.IsNullOrWhiteSpace(item.Area) ? string.Empty : $", {item.Area}") +
+                 (string.IsNullOrWhiteSpace(item.City) ? string.Empty : $", {item.City}")).Trim(',', ' ')))
+            .ToListAsync(cancellationToken);
+
         return BuildAdminOrderDetail(
             order,
             address.GetValueOrDefault(order.Id),
@@ -841,7 +917,9 @@ public class OrderReadService : IOrderReadService
             refunds.GetValueOrDefault(order.Id),
             assignment,
             driverCandidates,
-            driverLiveLocation);
+            driverLiveLocation,
+            pickupBranch,
+            customerAddresses);
     }
 
     public async Task<AdminOrderSupportCasesListDto> GetAdminOrderSupportCasesAsync(
@@ -1138,8 +1216,39 @@ public class OrderReadService : IOrderReadService
                     BuildMeasurementUnitName(item)))
                 .ToList());
 
-    private static CustomerOrderDetailDto MapDetail(Order order) =>
-        new(
+    private async Task<PickupBranchDto?> BuildPickupBranchAsync(Order order, CancellationToken cancellationToken)
+    {
+        if (order.Fulfillment != FulfillmentType.Pickup || !order.VendorBranchId.HasValue)
+        {
+            return null;
+        }
+
+        var branch = await _dbContext.VendorBranches
+            .AsNoTracking()
+            .Include(item => item.OperatingHours)
+            .FirstOrDefaultAsync(item => item.Id == order.VendorBranchId.Value, cancellationToken);
+
+        if (branch is null)
+        {
+            return null;
+        }
+
+        var address = string.Join(", ", new[] { branch.AddressLine, branch.City, branch.Region }
+            .Where(value => !string.IsNullOrWhiteSpace(value)));
+
+        return new PickupBranchDto(
+            branch.Name,
+            address,
+            BranchOperatingHoursSupport.BuildHoursTodayLabel(branch.OperatingHours.ToList(), DateTime.UtcNow));
+    }
+
+    private static CustomerOrderDetailDto MapDetail(Order order, PickupBranchDto? pickupBranch)
+    {
+        var showCustomerPickupOtp = order.Fulfillment == FulfillmentType.Pickup &&
+            order.Status == OrderStatus.ReadyForPickup &&
+            !order.PickupOtpVerifiedAtUtc.HasValue;
+
+        return new CustomerOrderDetailDto(
             order.Id,
             order.OrderNumber,
             order.PlacedAtUtc,
@@ -1147,6 +1256,7 @@ public class OrderReadService : IOrderReadService
             MapStatus(order.Status),
             MapCustomerPaymentStatus(order.PaymentStatus),
             MapCustomerPaymentMethod(order.PaymentMethod),
+            order.Fulfillment.ToString(),
             CanRetryPayment(order),
             CanDelete(order),
             CanCancel(order.Status),
@@ -1156,6 +1266,10 @@ public class OrderReadService : IOrderReadService
                 order.DeliveryFee,
                 order.TotalAmount),
             BuildDeliveryBreakdown(order),
+            showCustomerPickupOtp ? order.PickupOtpCode : null,
+            showCustomerPickupOtp ? order.PickupOtpExpiresAtUtc : null,
+            order.PickupNoShowDeadlineUtc,
+            pickupBranch,
             order.Items
                 .Select(item => new CustomerOrderProductDto(
                     item.Id,
@@ -1169,6 +1283,7 @@ public class OrderReadService : IOrderReadService
                     BuildMeasurementUnitName(item)))
                 .ToList(),
             ResolveActiveSupportCaseSummary(order.SupportCases));
+    }
 
     private static OrderDeliveryBreakdownDto BuildDeliveryBreakdown(Order order) =>
         new(
@@ -2208,7 +2323,9 @@ public class OrderReadService : IOrderReadService
         IReadOnlyList<Refund>? refunds,
         DeliveryAssignment? assignment,
         IReadOnlyList<AdminDriverCandidateDto> driverCandidates,
-        DriverLiveLocationDto? driverLiveLocation = null)
+        DriverLiveLocationDto? driverLiveLocation = null,
+        PickupBranchDto? pickupBranch = null,
+        IReadOnlyList<CustomerAddressOptionDto>? customerAddresses = null)
     {
         var baseItem = BuildAdminOrderListItem(order, address, payment, refunds, assignment);
         var operationalCase = BuildOperationalCase(order, refunds);
@@ -2219,6 +2336,15 @@ public class OrderReadService : IOrderReadService
         var timeline = BuildAdminTimeline(order, payment, assignment, operationalCase);
         var activities = BuildAdminActivities(order, payment, refunds, assignment, operationalCase);
         var candidateScoreBreakdown = BuildCandidateScoreBreakdown(assignment, driverCandidates);
+        var customerPickupOtpStatus = order.Fulfillment != FulfillmentType.Pickup
+            ? "not_applicable"
+            : order.PickupOtpVerifiedAtUtc.HasValue
+                ? "verified"
+                : order.PickupOtpLockedUntilUtc.HasValue && order.PickupOtpLockedUntilUtc > DateTime.UtcNow
+                    ? "locked"
+                    : order.Status == OrderStatus.ReadyForPickup
+                        ? "pending"
+                        : "not_available";
 
         return new AdminOrderDetailDto(
             order.Id,
@@ -2227,6 +2353,7 @@ public class OrderReadService : IOrderReadService
             address?.ContactPhone ?? order.User.PhoneNumber ?? string.Empty,
             order.User.Email ?? string.Empty,
             BuildCustomerAddress(address),
+            order.UserId,
             order.Vendor?.BusinessNameAr ?? string.Empty,
             order.VendorBranch?.Name ?? L("الفرع الرئيسي", "Main branch"),
             merchantLocation,
@@ -2243,6 +2370,13 @@ public class OrderReadService : IOrderReadService
             baseItem.Status,
             baseItem.PaymentStatus,
             baseItem.FulfillmentStatus,
+            order.Fulfillment.ToString(),
+            customerPickupOtpStatus,
+            order.PickupOtpFailedAttempts,
+            order.PickupOtpLockedUntilUtc,
+            order.PickupNoShowDeadlineUtc,
+            pickupBranch,
+            customerAddresses ?? Array.Empty<CustomerAddressOptionDto>(),
             baseItem.DispatchState,
             baseItem.DispatchReasonAr,
             baseItem.DispatchReasonEn,

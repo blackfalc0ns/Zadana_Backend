@@ -56,7 +56,7 @@ final connection = HubConnectionBuilder()
     .build();
 ```
 
-Payload Sample:
+Payload Sample (delivery):
 
 ```json
 {
@@ -68,9 +68,59 @@ Payload Sample:
   "actorRole": "vendor",
   "action": "status_changed",
   "targetUrl": "/orders/22222222-2222-2222-2222-222222222222",
-  "changedAtUtc": "2026-04-28T10:05:00Z"
+  "changedAtUtc": "2026-04-28T10:05:00Z",
+  "fulfillmentType": "Delivery"
 }
 ```
+
+Payload Sample (pickup, customer user channel only):
+
+```json
+{
+  "orderId": "22222222-2222-2222-2222-222222222222",
+  "orderNumber": "ORD-12346",
+  "vendorId": "33333333-3333-3333-3333-333333333333",
+  "oldStatus": "preparing",
+  "newStatus": "ready_for_pickup",
+  "actorRole": "vendor",
+  "action": "status_changed",
+  "targetUrl": "/orders/22222222-2222-2222-2222-222222222222",
+  "changedAtUtc": "2026-04-28T10:05:00Z",
+  "fulfillmentType": "Pickup",
+  "pickupOtpCode": "4821",
+  "pickupOtpExpiresAtUtc": "2026-04-28T12:05:00Z",
+  "pickupNoShowDeadlineUtc": "2026-04-28T16:05:00Z",
+  "pickupBranch": {
+    "name": "Mohandessin Branch",
+    "address": "12 Lebanon Sq, Giza",
+    "hoursToday": "Today: 10:00 AM - 10:00 PM"
+  }
+}
+```
+
+## Pickup Realtime Field Rules
+
+New optional payload fields:
+
+- `fulfillmentType`
+- `pickupOtpCode`
+- `pickupOtpExpiresAtUtc`
+- `pickupNoShowDeadlineUtc`
+- `pickupBranch`
+
+OTP visibility rule:
+
+- pickup OTP secrets are sent only on the authenticated customer's user notification channel
+- order-tracking group broadcasts for the same event omit `pickupOtpCode`
+- mobile must not expect OTP on shared/non-user channels
+
+When to expect pickup secrets:
+
+- `fulfillmentType = "Pickup"`
+- `newStatus = "ready_for_pickup"`
+- OTP has not yet been verified
+
+After OTP verification or conversion to delivery, later events omit pickup OTP fields.
 
 Supported `newStatus` values for tracking screens:
 
@@ -78,6 +128,7 @@ Supported `newStatus` values for tracking screens:
 pending
 accepted
 preparing
+ready_for_pickup
 out_for_delivery
 delivered
 returning
@@ -87,8 +138,8 @@ cancelled
 Notes:
 
 - the customer keeps receiving `ReceiveOrderStatusChanged` updates until the order reaches `delivered`
-- pickup OTP confirmation from the vendor can trigger `newStatus = out_for_delivery`
-- delivery OTP confirmation from the driver can trigger `newStatus = delivered`
+- pickup OTP confirmation from the vendor can trigger `newStatus = delivered` for pickup orders
+- delivery OTP confirmation from the driver can trigger `newStatus = delivered` for delivery orders
 - this contract does not include live GPS or driver location streaming
 
 ## Driver Arrival State Changed
@@ -152,5 +203,10 @@ en_route
 arrived_at_vendor
 arrived_at_customer
 ```
+
+Pickup mobile note:
+
+- ignore `ReceiveDriverArrivalStateChanged` for pickup orders
+- this event is delivery-only in customer UI
 
 Arrival updates continue through the handoff and delivery flow, but they do not include live map coordinates in this contract.

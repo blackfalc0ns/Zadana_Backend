@@ -813,6 +813,51 @@
   <data name="ORDER_CANNOT_BE_CANCELLED" xml:space="preserve">
     <value>ما تقدر إلغاء الطلب في مرحلته الحالية.</value>
   </data>
+  <data name="PICKUP_ONLY_ONLINE_PAYMENT" xml:space="preserve">
+    <value>طلبات الاستلام من الفرع تتطلب الدفع الإلكتروني بالبطاقة أو Apple Pay.</value>
+  </data>
+  <data name="PICKUP_BRANCH_REQUIRED" xml:space="preserve">
+    <value>طلبات الاستلام من الفرع تتطلب اختيار فرع.</value>
+  </data>
+  <data name="PICKUP_BRANCH_INVALID" xml:space="preserve">
+    <value>فرع الاستلام المحدد غير صالح أو غير متاح.</value>
+  </data>
+  <data name="PICKUP_OTP_LOCKED" xml:space="preserve">
+    <value>التحقق من رمز الاستلام مقفل مؤقتًا. حاول مرة أخرى لاحقًا.</value>
+  </data>
+  <data name="PICKUP_OTP_RESEND_RATE_LIMIT" xml:space="preserve">
+    <value>تجاوزت حد إعادة إرسال رمز الاستلام. حاول مرة أخرى لاحقًا.</value>
+  </data>
+  <data name="DELIVERY_DISABLED_BY_ADMIN" xml:space="preserve">
+    <value>التوصيل معطّل حاليًا من الإدارة.</value>
+  </data>
+  <data name="PICKUP_DISABLED_BY_ADMIN" xml:space="preserve">
+    <value>الاستلام من الفرع معطّل حاليًا من الإدارة.</value>
+  </data>
+  <data name="PICKUP_CASH_DISABLED" xml:space="preserve">
+    <value>الدفع نقدًا عند الاستلام معطّل حاليًا من الإدارة.</value>
+  </data>
+  <data name="PICKUP_CANCEL_NEEDS_VENDOR_APPROVAL" xml:space="preserve">
+    <value>إلغاء طلب الاستلام هذا يحتاج موافقة المتجر.</value>
+  </data>
+  <data name="CANCELLATION_REQUEST_ALREADY_PENDING" xml:space="preserve">
+    <value>يوجد طلب إلغاء بانتظار موافقة المتجر بالفعل.</value>
+  </data>
+  <data name="CONVERT_TO_DELIVERY_NOT_ALLOWED_IN_STATE" xml:space="preserve">
+    <value>لا يمكن تحويل طلب الاستلام إلى توصيل في حالته الحالية.</value>
+  </data>
+  <data name="CONVERT_TO_DELIVERY_PAYMENT_PENDING" xml:space="preserve">
+    <value>أكمل دفع فرق التوصيل قبل تحويل الطلب إلى توصيل.</value>
+  </data>
+  <data name="REFUND_FAILED" xml:space="preserve">
+    <value>تعذّر علينا معالجة الاسترجاع تلقائيًا. يرجى التواصل مع الدعم.</value>
+  </data>
+  <data name="BRANCH_HAS_ACTIVE_PICKUP_ORDERS" xml:space="preserve">
+    <value>يوجد طلبات استلام نشطة على هذا الفرع. أكملها أو ألغها قبل تعطيل الفرع.</value>
+  </data>
+  <data name="ORDER_STATE_CHANGED_RETRY" xml:space="preserve">
+    <value>تغيّرت حالة الطلب أثناء تنفيذ العملية. حدّث الصفحة وحاول مرة أخرى.</value>
+  </data>
   <data name="ORDER_DELETE_NOT_ALLOWED" xml:space="preserve">
     <value>يمكن حذف الطلبات غير المدفوعة بانتظار الدفع فقط.</value>
   </data>

@@ -16,4 +16,5 @@ public record AdminOrderFinancialBreakdownDto(
     decimal DriverPayout,
     decimal PlatformRevenue,
     decimal NetMargin,
-    decimal MarginPercent);
+    decimal MarginPercent,
+    string? FulfillmentType = null);

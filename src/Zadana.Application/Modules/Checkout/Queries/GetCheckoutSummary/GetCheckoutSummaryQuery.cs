@@ -7,6 +7,7 @@ using Zadana.Application.Modules.Delivery.Interfaces;
 using Zadana.Application.Modules.Orders.Support;
 using Zadana.Application.Modules.Payments.Interfaces;
 using Zadana.Domain.Modules.Orders.Enums;
+using Zadana.SharedKernel.Exceptions;
 
 namespace Zadana.Application.Modules.Checkout.Queries.GetCheckoutSummary;
 
@@ -15,7 +16,9 @@ public record GetCheckoutSummaryQuery(
     Guid? VendorId,
     Guid? AddressId,
     string? DeliverySlotId,
-    string? PaymentMethod) : IRequest<CheckoutSummaryDto>;
+    string? PaymentMethod,
+    FulfillmentType Fulfillment = FulfillmentType.Delivery,
+    Guid? VendorBranchId = null) : IRequest<CheckoutSummaryDto>;
 
 public class GetCheckoutSummaryQueryHandler : IRequestHandler<GetCheckoutSummaryQuery, CheckoutSummaryDto>
 {
@@ -43,10 +46,38 @@ public class GetCheckoutSummaryQueryHandler : IRequestHandler<GetCheckoutSummary
             null,
             cancellationToken);
 
+        var pickupSettings = await CheckoutSupport.LoadPlatformPickupSettingsAsync(_context, cancellationToken);
+        if (request.Fulfillment == FulfillmentType.Delivery && !pickupSettings.DeliveryOptionEnabled)
+        {
+            throw new BusinessRuleException("DELIVERY_DISABLED_BY_ADMIN", "Delivery checkout is currently disabled.");
+        }
+
+        if (request.Fulfillment == FulfillmentType.Pickup && !pickupSettings.PickupOptionEnabled)
+        {
+            throw new BusinessRuleException("PICKUP_DISABLED_BY_ADMIN", "Pickup checkout is currently disabled.");
+        }
+
         var cart = await CheckoutSupport.GetRequiredCartAsync(_context, request.UserId, cancellationToken);
-        var address = await CheckoutSupport.ResolveSelectedAddressAsync(_context, request.UserId, request.AddressId, cancellationToken);
+        var cardAvailable = _gatewayResolver.TryResolve(CardProvider, out var gateway) && gateway is not null && gateway.IsEnabled;
+        var address = request.Fulfillment == FulfillmentType.Pickup
+            ? null
+            : await CheckoutSupport.ResolveSelectedAddressAsync(_context, request.UserId, request.AddressId, cancellationToken);
         var pricing = await CheckoutSupport.BuildPricingSnapshotAsync(_context, cart, request.VendorId, address, cancellationToken);
         var coupon = await CheckoutSupport.ResolveAppliedCouponAsync(_context, request.UserId, cart, cancellationToken);
+        var discount = coupon == null ? 0m : CheckoutSupport.CalculateDiscountAmount(coupon, pricing.Subtotal);
+
+        if (request.Fulfillment == FulfillmentType.Pickup)
+        {
+            return await BuildPickupSummaryAsync(
+                request,
+                pricing,
+                coupon,
+                discount,
+                cardAvailable,
+                pickupSettings.PickupCashOnPickupEnabled,
+                cancellationToken);
+        }
+
         var deliveryBranchId = await CheckoutSupport.ResolveDeliveryBranchIdAsync(_context, pricing, address, cancellationToken);
         var deliveryAssessment = await CheckoutSupport.EvaluateDeliveryAsync(
             _context,
@@ -80,7 +111,6 @@ public class GetCheckoutSummaryQueryHandler : IRequestHandler<GetCheckoutSummary
             deliveryAssessment.DeliveryCheck.IsDeliverable ? deliveryAssessment.DeliveryQuote.VendorToCustomerDistanceKm : 0m,
             operationalProfile,
             liveSignal);
-        var discount = coupon == null ? 0m : CheckoutSupport.CalculateDiscountAmount(coupon, pricing.Subtotal);
         var financeBreakdown = await CheckoutSupport.ResolveFinanceBreakdownV2Async(
             _context,
             address,
@@ -90,7 +120,6 @@ public class GetCheckoutSummaryQueryHandler : IRequestHandler<GetCheckoutSummary
             request.PaymentMethod,
             cancellationToken);
 
-        // Fetch all customer addresses for address selection in checkout
         var allAddresses = await _context.CustomerAddresses
             .AsNoTracking()
             .Where(a => a.UserId == request.UserId)
@@ -111,7 +140,7 @@ public class GetCheckoutSummaryQueryHandler : IRequestHandler<GetCheckoutSummary
             CheckoutSupport.BuildAddressDto(address),
             CheckoutSupport.BuildAvailableAddressesList(allAddresses),
             CheckoutSupport.BuildDeliverySlots(request.DeliverySlotId),
-            CheckoutSupport.BuildPaymentMethods(_gatewayResolver.TryResolve(CardProvider, out var gateway) && gateway is not null && gateway.IsEnabled),
+            CheckoutSupport.BuildPaymentMethods(cardAvailable),
             CheckoutSupport.BuildPromoCodeDto(coupon, discount),
             deliveryAssessment.DeliveryCheck,
             new CheckoutEstimatedDeliveryWindowDto(
@@ -127,5 +156,73 @@ public class GetCheckoutSummaryQueryHandler : IRequestHandler<GetCheckoutSummary
             CheckoutSupport.BuildShippingBreakdownV2(deliveryQuote, financeBreakdown),
             deliveryQuote.PricingMode,
             financeBreakdown.Totals);
+    }
+
+    private async Task<CheckoutSummaryDto> BuildPickupSummaryAsync(
+        GetCheckoutSummaryQuery request,
+        CheckoutSupport.CheckoutPricingSnapshot pricing,
+        Zadana.Domain.Modules.Marketing.Entities.Coupon? coupon,
+        decimal discount,
+        bool cardAvailable,
+        bool cashOnPickupEnabled,
+        CancellationToken cancellationToken)
+    {
+        var pickupBranch = request.VendorBranchId.HasValue
+            ? await CheckoutSupport.ValidatePickupBranchAsync(
+                _context,
+                pricing.VendorId,
+                request.VendorBranchId.Value,
+                cancellationToken)
+            : null;
+        var deliveryQuote = CheckoutSupport.BuildNoPricingQuote();
+        var financeBreakdown = await CheckoutSupport.ResolveFinanceBreakdownV2Async(
+            _context,
+            address: null,
+            pricing.Subtotal,
+            shippingCost: 0m,
+            discount,
+            request.PaymentMethod,
+            cancellationToken);
+        var preparationTimeMinutes = await _context.Vendors
+            .AsNoTracking()
+            .Where(v => v.Id == pricing.VendorId)
+            .Select(v => v.PreparationTimeMinutes)
+            .FirstOrDefaultAsync(cancellationToken);
+        var estimatedPickupWindow = DeliveryEtaPolicy.EstimateCheckoutWindow(
+            preparationTimeMinutes,
+            0m,
+            0m,
+            DeliveryEtaOperationalProfile.Default);
+
+        return new CheckoutSummaryDto(
+            new CheckoutCartDto(
+                pricing.Items.Count,
+                pricing.Items.Sum(x => x.Quantity),
+                pricing.Items,
+                pricing.UnavailableItems.Count > 0,
+                pricing.UnavailableItems.Count,
+                pricing.UnavailableItems.Count > 0,
+                pricing.UnavailableItems),
+            SelectedAddress: null,
+            AvailableAddresses: [],
+            DeliverySlots: [],
+            PaymentMethods: CheckoutSupport.BuildPickupPaymentMethods(cardAvailable, cashOnPickupEnabled),
+            CheckoutSupport.BuildPromoCodeDto(coupon, discount),
+            CheckoutSupport.BuildPickupDeliveryCheck(pickupBranch is not null),
+            new CheckoutEstimatedDeliveryWindowDto(
+                estimatedPickupWindow.MinMinutes,
+                estimatedPickupWindow.MaxMinutes,
+                estimatedPickupWindow.Confidence,
+                estimatedPickupWindow.Source,
+                estimatedPickupWindow.IsApproximate,
+                estimatedPickupWindow.CalculationMode,
+                estimatedPickupWindow.Explanation),
+            CheckoutSupport.BuildDeliveryQuoteDto(deliveryQuote),
+            CheckoutSupport.BuildDeliveryBreakdownDto(deliveryQuote),
+            CheckoutSupport.BuildShippingBreakdownV2(deliveryQuote, financeBreakdown),
+            deliveryQuote.PricingMode,
+            financeBreakdown.Totals,
+            FulfillmentType: "pickup",
+            PickupBranch: CheckoutSupport.BuildPickupBranchDto(pickupBranch));
     }
 }

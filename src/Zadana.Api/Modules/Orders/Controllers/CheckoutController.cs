@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using System.Globalization;
 using Zadana.Api.Controllers;
 using Zadana.Api.Modules.Orders.Requests;
@@ -8,6 +9,8 @@ using Zadana.Application.Modules.Checkout.Commands.ApplyCheckoutPromoCode;
 using Zadana.Application.Modules.Checkout.Commands.RemoveCheckoutPromoCode;
 using Zadana.Application.Modules.Checkout.DTOs;
 using Zadana.Application.Modules.Checkout.Queries.GetCheckoutSummary;
+using Zadana.Domain.Modules.Orders.Entities;
+using Zadana.Domain.Modules.Orders.Enums;
 using Zadana.SharedKernel.Exceptions;
 
 namespace Zadana.Api.Modules.Orders.Controllers;
@@ -30,6 +33,8 @@ public class CheckoutController : ApiControllerBase
         [FromQuery(Name = "address_id")] Guid? addressId = null,
         [FromQuery(Name = "delivery_slot_id")] string? deliverySlotId = null,
         [FromQuery(Name = "payment_method")] string? paymentMethod = null,
+        [FromQuery(Name = "fulfillment_type")] string? fulfillmentType = null,
+        [FromQuery(Name = "vendor_branch_id")] Guid? vendorBranchId = null,
         CancellationToken cancellationToken = default)
     {
         var userId = _currentUserService.UserId ?? throw new UnauthorizedException("USER_NOT_AUTHENTICATED");
@@ -37,12 +42,46 @@ public class CheckoutController : ApiControllerBase
         var resolvedAddressId = ResolveGuidQueryAlias(addressId, "addressId", "INVALID_ADDRESS_ID");
         var resolvedDeliverySlotId = ResolveStringQueryAlias(deliverySlotId, "deliverySlotId");
         var resolvedPaymentMethod = ResolveStringQueryAlias(paymentMethod, "paymentMethod");
+        var resolvedFulfillmentType = ResolveStringQueryAlias(fulfillmentType, "fulfillmentType");
+        var resolvedVendorBranchId = ResolveGuidQueryAlias(vendorBranchId, "vendorBranchId", "INVALID_VENDOR_BRANCH_ID");
+        var fulfillment = string.Equals(resolvedFulfillmentType, "pickup", StringComparison.OrdinalIgnoreCase)
+            ? FulfillmentType.Pickup
+            : FulfillmentType.Delivery;
 
         var result = await Sender.Send(
-            new GetCheckoutSummaryQuery(userId, resolvedVendorId, resolvedAddressId, resolvedDeliverySlotId, resolvedPaymentMethod),
+            new GetCheckoutSummaryQuery(
+                userId,
+                resolvedVendorId,
+                resolvedAddressId,
+                resolvedDeliverySlotId,
+                resolvedPaymentMethod,
+                fulfillment,
+                resolvedVendorBranchId),
             cancellationToken);
 
         return Ok(MapSummary(result));
+    }
+
+    [HttpGet("config")]
+    [AllowAnonymous]
+    public async Task<ActionResult<CheckoutConfigResponse>> GetConfig(
+        [FromServices] IApplicationDbContext context,
+        CancellationToken cancellationToken = default)
+    {
+        var settings = await context.PlatformPickupSettings
+            .AsNoTracking()
+            .FirstOrDefaultAsync(item => item.Id == PlatformPickupSettings.SingletonId, cancellationToken);
+
+        var cashOnPickupEnabled = settings?.PickupCashOnPickupEnabled ?? false;
+        var allowedPickupPayments = cashOnPickupEnabled
+            ? new[] { "card", "apple_pay", "cash" }
+            : new[] { "card", "apple_pay" };
+
+        return Ok(new CheckoutConfigResponse(
+            settings?.DeliveryOptionEnabled ?? true,
+            settings?.PickupOptionEnabled ?? true,
+            cashOnPickupEnabled,
+            allowedPickupPayments));
     }
 
     [HttpPost("promo-code")]
@@ -87,9 +126,15 @@ public class CheckoutController : ApiControllerBase
 
     private static GetCheckoutSummaryResponse MapSummary(CheckoutSummaryDto result)
     {
-        var canExposeDeliveryEstimate = result.DeliveryCheck.IsDeliverable && result.DeliveryCheck.CanProceedToCheckout;
-        var estimatedDeliveryWindow = canExposeDeliveryEstimate
-            ? new CheckoutEstimatedDeliveryWindowResponse(
+        var isPickup = string.Equals(result.FulfillmentType, "pickup", StringComparison.OrdinalIgnoreCase);
+        var canExposeDeliveryEstimate = !isPickup &&
+            result.DeliveryCheck.IsDeliverable &&
+            result.DeliveryCheck.CanProceedToCheckout;
+        var canExposePickupEstimate = isPickup && result.DeliveryCheck.CanProceedToCheckout;
+        CheckoutEstimatedDeliveryWindowResponse? estimatedDeliveryWindow = null;
+        if (canExposeDeliveryEstimate || canExposePickupEstimate)
+        {
+            estimatedDeliveryWindow = new CheckoutEstimatedDeliveryWindowResponse(
                 result.EstimatedDeliveryWindow.MinMinutes,
                 result.EstimatedDeliveryWindow.MaxMinutes,
                 result.EstimatedDeliveryWindow.Title,
@@ -99,9 +144,10 @@ public class CheckoutController : ApiControllerBase
                 result.EstimatedDeliveryWindow.Source,
                 result.EstimatedDeliveryWindow.IsApproximate,
                 result.EstimatedDeliveryWindow.CalculationMode,
-                result.EstimatedDeliveryWindow.Explanation)
-            : null;
-        var deliveryQuote = canExposeDeliveryEstimate
+                result.EstimatedDeliveryWindow.Explanation);
+        }
+
+        CheckoutDeliveryQuoteResponse? deliveryQuote = canExposeDeliveryEstimate || isPickup
             ? new CheckoutDeliveryQuoteResponse(
                 result.DeliveryQuote.DistanceKm,
                 result.DeliveryQuote.BaseFee,
@@ -111,7 +157,7 @@ public class CheckoutController : ApiControllerBase
                 result.DeliveryQuote.PricingMode,
                 result.DeliveryQuote.RuleLabel)
             : null;
-        var deliveryBreakdown = canExposeDeliveryEstimate
+        CheckoutDeliveryBreakdownResponse? deliveryBreakdown = canExposeDeliveryEstimate || isPickup
             ? new CheckoutDeliveryBreakdownResponse(
                 new CheckoutDeliveryLegResponse(
                     result.DeliveryBreakdown.DriverToVendor.DistanceKm,
@@ -205,7 +251,15 @@ public class CheckoutController : ApiControllerBase
                 result.Summary.VatAmount,
                 result.Summary.CodFee,
                 result.Summary.Total,
-                result.Summary.Currency));
+                result.Summary.Currency),
+            result.FulfillmentType,
+            result.PickupBranch == null
+                ? null
+                : new CheckoutPickupBranchResponse(
+                    result.PickupBranch.Id,
+                    result.PickupBranch.Name,
+                    result.PickupBranch.AddressLine,
+                    result.PickupBranch.City));
     }
 
     private static ApplyCheckoutPromoCodeResponse MapApplyPromoCodeResponse(

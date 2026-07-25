@@ -35,7 +35,8 @@ public sealed class OrderStatusNotificationDispatcher : IOrderStatusNotification
             request.OrderNumber,
             request.OldStatus,
             request.NewStatus,
-            request.ActorRole);
+            request.ActorRole,
+            request.Fulfillment);
         var pushRequest = BuildCustomerMobilePushRequest(request, composed);
 
         var inboxQueued = false;

@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Common.Localization;
+using Zadana.Application.Modules.Delivery.Interfaces;
 using Zadana.Application.Modules.EmailCenter;
 using Zadana.Application.Modules.EmailCenter.DTOs;
 using Zadana.Application.Modules.EmailCenter.Interfaces;
@@ -49,6 +50,7 @@ public class ConfirmCardPaymentCommandHandler : IRequestHandler<ConfirmCardPayme
     private readonly IPublisher _publisher;
     private readonly OnlinePaymentCaptureService _captureService;
     private readonly IEmailCenterService _emailCenterService;
+    private readonly IDeliveryDispatchService _deliveryDispatchService;
     private readonly ILogger<ConfirmCardPaymentCommandHandler> _logger;
 
     public ConfirmCardPaymentCommandHandler(
@@ -58,6 +60,7 @@ public class ConfirmCardPaymentCommandHandler : IRequestHandler<ConfirmCardPayme
         IPublisher publisher,
         OnlinePaymentCaptureService captureService,
         IEmailCenterService emailCenterService,
+        IDeliveryDispatchService deliveryDispatchService,
         ILogger<ConfirmCardPaymentCommandHandler> logger)
     {
         _context = context;
@@ -66,6 +69,7 @@ public class ConfirmCardPaymentCommandHandler : IRequestHandler<ConfirmCardPayme
         _publisher = publisher;
         _captureService = captureService;
         _emailCenterService = emailCenterService;
+        _deliveryDispatchService = deliveryDispatchService;
         _logger = logger;
     }
 
@@ -105,6 +109,11 @@ public class ConfirmCardPaymentCommandHandler : IRequestHandler<ConfirmCardPayme
         }
 
         details ??= await gateway.FetchPaymentAsync(providerPaymentId, cancellationToken);
+
+        if (IsDeliveryUpgradePayment(details.Metadata))
+        {
+            return await ApplyDeliveryUpgradePaymentAsync(payment, order, details, request.CustomerDeviceId, cancellationToken);
+        }
 
         // Verification: currency, amount, metadata.order_id must match.
         CurrencyPolicy.EnsureOfficial(details.Currency);
@@ -485,6 +494,164 @@ public class ConfirmCardPaymentCommandHandler : IRequestHandler<ConfirmCardPayme
         {
             // Another concurrent confirmation already cleared the cart.
         }
+    }
+
+    private async Task<CardPaymentConfirmationResultDto> ApplyDeliveryUpgradePaymentAsync(
+        Domain.Modules.Payments.Entities.Payment payment,
+        Domain.Modules.Orders.Entities.Order order,
+        Gateways.GatewayPaymentDetails details,
+        string? customerDeviceId,
+        CancellationToken cancellationToken)
+    {
+        if (order.DeliveryUpgradePaymentId != payment.Id)
+        {
+            throw new BusinessRuleException(
+                "PAYMENT_ORDER_MISMATCH",
+                "Delivery upgrade payment does not match the order upgrade session.");
+        }
+
+        CurrencyPolicy.EnsureOfficial(details.Currency);
+        var expectedMinor = CurrencyPolicy.ToMinorUnits(payment.Amount, payment.Currency);
+        if (details.AmountMinorUnits != expectedMinor)
+        {
+            throw new BusinessRuleException(
+                "PAYMENT_AMOUNT_MISMATCH",
+                $"Provider amount {details.AmountMinorUnits} (minor units) does not match upgrade amount {expectedMinor}.");
+        }
+
+        if (TryGetMetadataValue(details.Metadata, "originalOrderId", out var originalOrderId)
+            && !string.Equals(originalOrderId, order.Id.ToString(), StringComparison.OrdinalIgnoreCase))
+        {
+            throw new BusinessRuleException(
+                "PAYMENT_ORDER_MISMATCH",
+                "Provider metadata.originalOrderId does not match the local order.");
+        }
+
+        payment.ApplyProviderFetch(details.ProviderStatus, details.ProviderReferenceNumber, details.RawResponse);
+        payment.SetProviderTransactionId(details.ProviderPaymentId);
+
+        if (!IsPaidStatus(details.ProviderStatus))
+        {
+            if (IsFailedStatus(details.ProviderStatus))
+            {
+                if (payment.Status is not (PaymentStatus.Paid or PaymentStatus.Failed))
+                {
+                    payment.MarkAsFailed(details.FailureMessage ?? "Provider reported payment failure.", details.ProviderPaymentId);
+                }
+
+                await _unitOfWork.SaveChangesAsync(cancellationToken);
+                return BuildResult(
+                    payment,
+                    order,
+                    LocalizedMessages.GetAr(LocalizedMessages.PaymentConfirmationFailed),
+                    LocalizedMessages.GetEn(LocalizedMessages.PaymentConfirmationFailed),
+                    false);
+            }
+
+            await _unitOfWork.SaveChangesAsync(cancellationToken);
+            return BuildResult(
+                payment,
+                order,
+                LocalizedMessages.GetAr(LocalizedMessages.PaymentStillPending),
+                LocalizedMessages.GetEn(LocalizedMessages.PaymentStillPending),
+                false);
+        }
+
+        var alreadyConverted = order.ConvertedToDeliveryAtUtc.HasValue && payment.Status == PaymentStatus.Paid;
+        if (!alreadyConverted)
+        {
+            if (payment.Status != PaymentStatus.Paid)
+            {
+                payment.MarkAsPaid(details.ProviderPaymentId);
+            }
+
+            var customerAddressId = ReadMetadataGuid(details.Metadata, "customer_address_id")
+                ?? throw new BusinessRuleException("DELIVERY_UPGRADE_METADATA_MISSING", "Delivery upgrade metadata is missing customer_address_id.");
+            var reason = ReadMetadataEnum(details.Metadata, "reason") ?? ConvertToDeliveryReason.CustomerRequest;
+            var deliveryFee = ReadMetadataDecimal(details.Metadata, "delivery_fee") ?? payment.Amount;
+            var baseDeliveryFee = ReadMetadataDecimal(details.Metadata, "base_delivery_fee") ?? 0m;
+            var distanceDeliveryFee = ReadMetadataDecimal(details.Metadata, "distance_delivery_fee") ?? 0m;
+            var surgeDeliveryFee = ReadMetadataDecimal(details.Metadata, "surge_delivery_fee") ?? 0m;
+            var changedByUserId = ReadMetadataGuid(details.Metadata, "changed_by_user_id");
+
+            var oldStatus = order.Status;
+            order.ConvertToDelivery(
+                customerAddressId,
+                deliveryFee,
+                baseDeliveryFee,
+                distanceDeliveryFee,
+                surgeDeliveryFee,
+                changedByUserId,
+                reason);
+            order.ApplyDeliveryFeeDeltaPaid(payment.Amount);
+            OrderStatusHistoryTracking.TrackNewEntries(_context, order);
+            await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+            if (oldStatus != order.Status)
+            {
+                await _publisher.Publish(
+                    new OrderStatusChangedNotification(
+                        order.Id,
+                        order.UserId,
+                        order.VendorId,
+                        order.OrderNumber,
+                        oldStatus,
+                        order.Status,
+                        NotifyCustomer: true,
+                        NotifyVendor: true,
+                        ActorRole: "payment_gateway"),
+                    cancellationToken);
+            }
+
+            await _deliveryDispatchService.TryAutoDispatchAsync(order.Id, cancellationToken: cancellationToken);
+        }
+
+        return BuildResult(
+            payment,
+            order,
+            alreadyConverted
+                ? LocalizedMessages.GetAr(LocalizedMessages.PaymentAlreadyConfirmed)
+                : LocalizedMessages.GetAr(LocalizedMessages.PaymentConfirmedSuccess),
+            alreadyConverted
+                ? LocalizedMessages.GetEn(LocalizedMessages.PaymentAlreadyConfirmed)
+                : LocalizedMessages.GetEn(LocalizedMessages.PaymentConfirmedSuccess),
+            alreadyConverted);
+    }
+
+    private static bool IsDeliveryUpgradePayment(IReadOnlyDictionary<string, string> metadata) =>
+        TryGetMetadataValue(metadata, "kind", out var kind) &&
+        string.Equals(kind, "delivery_upgrade", StringComparison.OrdinalIgnoreCase);
+
+    private static Guid? ReadMetadataGuid(IReadOnlyDictionary<string, string> metadata, string key)
+    {
+        if (!TryGetMetadataValue(metadata, key, out var value) || !Guid.TryParse(value, out var parsed))
+        {
+            return null;
+        }
+
+        return parsed;
+    }
+
+    private static decimal? ReadMetadataDecimal(IReadOnlyDictionary<string, string> metadata, string key)
+    {
+        if (!TryGetMetadataValue(metadata, key, out var value))
+        {
+            return null;
+        }
+
+        return decimal.TryParse(value, System.Globalization.NumberStyles.Number, System.Globalization.CultureInfo.InvariantCulture, out var parsed)
+            ? parsed
+            : null;
+    }
+
+    private static ConvertToDeliveryReason? ReadMetadataEnum(IReadOnlyDictionary<string, string> metadata, string key)
+    {
+        if (!TryGetMetadataValue(metadata, key, out var value))
+        {
+            return null;
+        }
+
+        return Enum.TryParse<ConvertToDeliveryReason>(value, true, out var parsed) ? parsed : null;
     }
 
     private static CardPaymentConfirmationResultDto BuildResult(

@@ -125,6 +125,8 @@ public class ApplicationDbContext : IdentityDbContext<User, IdentityRole<Guid>, 
     public DbSet<OrderSupportCase> OrderSupportCases => Set<OrderSupportCase>();
     public DbSet<OrderSupportCaseAttachment> OrderSupportCaseAttachments => Set<OrderSupportCaseAttachment>();
     public DbSet<OrderSupportCaseActivity> OrderSupportCaseActivities => Set<OrderSupportCaseActivity>();
+    public DbSet<OrderCancellationRequest> OrderCancellationRequests => Set<OrderCancellationRequest>();
+    public DbSet<PlatformPickupSettings> PlatformPickupSettings => Set<PlatformPickupSettings>();
 
     // Payments
     public DbSet<Payment> Payments => Set<Payment>();

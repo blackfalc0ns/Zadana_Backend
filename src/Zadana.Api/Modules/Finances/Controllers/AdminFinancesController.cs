@@ -88,7 +88,8 @@ public class AdminFinancesController(
             driverPayout,
             platformRevenue,
             netMargin,
-            marginPercent));
+            marginPercent,
+            order.Fulfillment.ToString()));
     }
 
     [HttpGet("pricing-settings")]
@@ -686,6 +687,89 @@ public class AdminFinancesController(
             result.WasAlreadyPosted));
     }
 
+    [HttpPost("vendor-cod-remittances")]
+    [ProducesResponseType(typeof(AdminCodRemittanceResultDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<ActionResult<AdminCodRemittanceResultDto>> CreateVendorCodRemittance(
+        [FromBody] CreateVendorCodRemittanceRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        if (request.VendorId == Guid.Empty)
+        {
+            return BadRequest(ApiLocalizedMessages.Resolve(HttpContext, "VENDOR_ID_REQUIRED"));
+        }
+
+        if (request.Amount <= 0)
+        {
+            return BadRequest(ApiLocalizedMessages.Resolve(HttpContext, "AMOUNT_GREATER_THAN_ZERO"));
+        }
+
+        var idempotencyKey = string.IsNullOrWhiteSpace(request.IdempotencyKey)
+            ? $"vendor-cod-remittance:{request.VendorId:N}:{DateTime.UtcNow:yyyyMMddHHmmssfffffff}"
+            : request.IdempotencyKey.Trim();
+
+        var result = await financialEventPostingService.PostAsync(
+            FinancialEventType.VendorCashRemittance,
+            idempotencyKey,
+            [
+                new JournalLineDraft(
+                    FinancialAccountCode.PlatformCash,
+                    request.Amount,
+                    0m,
+                    FinancialOwnerType.Platform,
+                    request.PlatformOwnerId,
+                    Memo: request.Reference ?? $"Cash-on-pickup remittance from vendor {request.VendorId}"),
+                new JournalLineDraft(
+                    FinancialAccountCode.VendorCodReceivable,
+                    0m,
+                    request.Amount,
+                    FinancialOwnerType.Vendor,
+                    request.VendorId,
+                    Memo: request.Reference ?? $"Cash-on-pickup remittance from vendor {request.VendorId}")
+            ],
+            description: request.Reference ?? $"Cash-on-pickup remittance from vendor {request.VendorId}",
+            cancellationToken: cancellationToken);
+
+        await walletProjectionUpdater.ApplyJournalEntryAsync(result.JournalEntryId, cancellationToken);
+
+        return Ok(new AdminCodRemittanceResultDto(
+            result.FinancialEventId,
+            result.JournalEntryId,
+            result.SequenceNumber,
+            result.WasAlreadyPosted));
+    }
+
+    [HttpGet("vendor-cod-reconciliation")]
+    [ProducesResponseType(typeof(AdminVendorCodReconciliationListDto), StatusCodes.Status200OK)]
+    public async Task<ActionResult<AdminVendorCodReconciliationListDto>> GetVendorCodReconciliation(
+        CancellationToken cancellationToken)
+    {
+        var vendorWallets = await context.Wallets
+            .AsNoTracking()
+            .Where(wallet => wallet.OwnerType == Zadana.Domain.Modules.Wallets.Enums.WalletOwnerType.Vendor &&
+                             wallet.CodOwedBalance != 0)
+            .OrderByDescending(wallet => wallet.CodOwedBalance)
+            .ToListAsync(cancellationToken);
+
+        var vendorIds = vendorWallets.Select(wallet => wallet.OwnerId).ToList();
+        var vendors = await context.Vendors
+            .AsNoTracking()
+            .Where(vendor => vendorIds.Contains(vendor.Id))
+            .ToDictionaryAsync(vendor => vendor.Id, cancellationToken);
+
+        var items = vendorWallets.Select(wallet =>
+        {
+            vendors.TryGetValue(wallet.OwnerId, out var vendor);
+            return new AdminVendorCodReconciliationDto(
+                wallet.OwnerId,
+                vendor?.BusinessNameAr ?? vendor?.BusinessNameEn ?? "Unknown vendor",
+                wallet.CodOwedBalance,
+                wallet.LastJournalSequence);
+        }).ToList();
+
+        return Ok(new AdminVendorCodReconciliationListDto(items, items.Sum(item => item.CodOwedBalance)));
+    }
+
     [HttpGet("cod-reconciliation")]
     [ProducesResponseType(typeof(AdminCodReconciliationListDto), StatusCodes.Status200OK)]
     public async Task<ActionResult<AdminCodReconciliationListDto>> GetCodReconciliation(CancellationToken cancellationToken)
@@ -1057,6 +1141,23 @@ public sealed record CreateCodRemittanceRequest(
     string? Reference,
     string? IdempotencyKey,
     Guid? PlatformOwnerId);
+
+public sealed record CreateVendorCodRemittanceRequest(
+    Guid VendorId,
+    decimal Amount,
+    string? Reference,
+    string? IdempotencyKey,
+    Guid? PlatformOwnerId);
+
+public sealed record AdminVendorCodReconciliationDto(
+    Guid VendorId,
+    string VendorName,
+    decimal CodOwedBalance,
+    long LastJournalSequence);
+
+public sealed record AdminVendorCodReconciliationListDto(
+    IReadOnlyList<AdminVendorCodReconciliationDto> Items,
+    decimal TotalCodOwedBalance);
 
 public sealed record AdminCodRemittanceResultDto(
     Guid FinancialEventId,

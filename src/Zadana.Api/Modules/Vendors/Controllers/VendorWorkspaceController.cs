@@ -386,7 +386,7 @@ public class VendorWorkspaceController : ApiControllerBase
 
         var activeHoldAmount = await GetActiveVendorHoldAmountAsync(vendorId, cancellationToken);
         var holdAmount = (vendorWallet?.PendingBalance ?? 0m) + activeHoldAmount;
-        var availableBalance = Math.Max(0m, (vendorWallet?.CurrentBalance ?? 0m) - holdAmount);
+        var availableBalance = Math.Max(0m, (vendorWallet?.CurrentBalance ?? 0m) - holdAmount - (vendorWallet?.CodOwedBalance ?? 0m));
         var pendingSettlement = settlements.Where(settlement => settlement.Status is SettlementStatus.Pending or SettlementStatus.PendingReview or SettlementStatus.Processing).Sum(settlement => settlement.NetAmount);
 
         var effectiveFinancialLifecycleMode = NormalizeFinancialLifecycleMode(
@@ -919,6 +919,7 @@ public class VendorWorkspaceController : ApiControllerBase
                 order.Id,
                 order.OrderNumber,
                 order.VendorBranchId,
+                order.Fulfillment,
                 order.Status,
                 order.PaymentStatus,
                 order.TotalAmount,
@@ -1016,7 +1017,8 @@ public class VendorWorkspaceController : ApiControllerBase
             .Sum(settlement => settlement.NetAmount);
         var activeHoldAmount = await GetActiveVendorHoldAmountAsync(vendorId, cancellationToken);
         var holdAmount = (vendorWallet?.PendingBalance ?? 0m) + activeHoldAmount;
-        var availableBalance = Math.Max(0m, (vendorWallet?.CurrentBalance ?? 0m) - holdAmount);
+        var codOwedBalance = vendorWallet?.CodOwedBalance ?? 0m;
+        var availableBalance = Math.Max(0m, (vendorWallet?.CurrentBalance ?? 0m) - holdAmount - codOwedBalance);
         var viewingSingleBranch = selectedBranchId.HasValue;
 
         if (viewingSingleBranch)
@@ -1024,6 +1026,7 @@ public class VendorWorkspaceController : ApiControllerBase
             availableBalance = vendorNetRevenue;
             pendingSettlement = 0m;
             holdAmount = 0m;
+            codOwedBalance = 0m;
         }
 
         var trend = BuildFinanceTrend(normalizedPeriod, from, to, deliveredOrders, payouts);
@@ -1053,7 +1056,8 @@ public class VendorWorkspaceController : ApiControllerBase
                 new VendorFinanceKpiResponse("gross-sales", "VENDOR_FINANCE.KPIS.GROSS_SALES", grossSales, 0, "up", "primary"),
                 new VendorFinanceKpiResponse("vendor-profit", "VENDOR_FINANCE.KPIS.VENDOR_PROFIT", vendorProfit, 0, "up", "success"),
                 new VendorFinanceKpiResponse("platform-fees", "VENDOR_FINANCE.KPIS.PLATFORM_FEES", fees, 0, "down", "warning"),
-                new VendorFinanceKpiResponse("vendor-net", "VENDOR_FINANCE.KPIS.VENDOR_NET", vendorNetRevenue, 0, "up", "success")
+                new VendorFinanceKpiResponse("vendor-net", "VENDOR_FINANCE.KPIS.VENDOR_NET", vendorNetRevenue, 0, "up", "success"),
+                new VendorFinanceKpiResponse("cash-to-remit", "VENDOR_FINANCE.KPIS.CASH_TO_REMIT", codOwedBalance, 0, "down", "warning")
             ],
             trend,
             settlements.Select(settlement =>
@@ -1085,7 +1089,8 @@ public class VendorWorkspaceController : ApiControllerBase
                     branch.Name,
                     branch.IsPrimary)).ToList()),
             branchSections,
-            (vendorPayoutSettings?.PayoutDay ?? PayoutScheduleDay.Monday).ToString()));
+            (vendorPayoutSettings?.PayoutDay ?? PayoutScheduleDay.Monday).ToString(),
+            codOwedBalance));
     }
 
     [HttpGet("finance/statement")]
@@ -2021,6 +2026,9 @@ public class VendorWorkspaceController : ApiControllerBase
                 var fees = branchOrders.Sum(order => order.CommissionAmount);
                 var vendorNet = branchOrders.Sum(order => Math.Max((order.TotalAmount - order.DeliveryFee) - order.CommissionAmount, 0m));
 
+                var pickupOrdersCount = branchOrders.Count(order => order.Fulfillment == FulfillmentType.Pickup);
+                var deliveryOrdersCount = branchOrders.Count - pickupOrdersCount;
+
                 return new VendorFinanceBranchSectionResponse(
                     branch.Id.ToString(),
                     branch.Name,
@@ -2029,7 +2037,9 @@ public class VendorWorkspaceController : ApiControllerBase
                     vendorProfit,
                     fees,
                     vendorNet,
-                    branchOrders.Count);
+                    branchOrders.Count,
+                    pickupOrdersCount,
+                    deliveryOrdersCount);
             })
             .OrderByDescending(section => section.IsPrimary)
             .ThenByDescending(section => section.GrossSales)
@@ -2057,6 +2067,7 @@ public class VendorWorkspaceController : ApiControllerBase
         Guid Id,
         string OrderNumber,
         Guid? VendorBranchId,
+        FulfillmentType Fulfillment,
         OrderStatus Status,
         PaymentStatus PaymentStatus,
         decimal TotalAmount,
@@ -2116,7 +2127,8 @@ public record VendorFinanceSnapshotResponse(
     List<VendorFinanceAlertResponse> Alerts,
     VendorFinanceBranchScopeResponse BranchScope,
     List<VendorFinanceBranchSectionResponse> BranchSections,
-    string PayoutDay = "Monday");
+    string PayoutDay = "Monday",
+    decimal CodOwedBalance = 0m);
 
 public record VendorFinanceBranchScopeResponse(
     bool CanSelectBranch,
@@ -2133,7 +2145,9 @@ public record VendorFinanceBranchSectionResponse(
     decimal VendorProfit,
     decimal PlatformFees,
     decimal VendorNet,
-    int OrdersCount);
+    int OrdersCount,
+    int PickupOrdersCount,
+    int DeliveryOrdersCount);
 
 public record VendorFinanceKpiResponse(string Id, string LabelKey, decimal Value, decimal Delta, string Trend, string Tone);
 public record VendorFinanceTrendPointResponse(string Label, decimal Sales, decimal Payout);

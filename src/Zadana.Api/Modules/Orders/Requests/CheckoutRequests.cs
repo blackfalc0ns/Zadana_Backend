@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using OrderFulfillmentType = Zadana.Domain.Modules.Orders.Enums.FulfillmentType;
 
 namespace Zadana.Api.Modules.Orders.Requests;
 
@@ -17,7 +18,21 @@ public record GetCheckoutSummaryResponse(
     [property: JsonPropertyName("delivery_breakdown")] CheckoutDeliveryBreakdownResponse? DeliveryBreakdown,
     [property: JsonPropertyName("shipping_breakdown")] List<CheckoutShippingBreakdownLineResponse> ShippingBreakdown,
     [property: JsonPropertyName("pricing_mode")] string PricingMode,
-    [property: JsonPropertyName("summary")] CheckoutSummaryTotalsResponse Summary);
+    [property: JsonPropertyName("summary")] CheckoutSummaryTotalsResponse Summary,
+    [property: JsonPropertyName("fulfillment_type")] string FulfillmentType = "delivery",
+    [property: JsonPropertyName("pickup_branch")] CheckoutPickupBranchResponse? PickupBranch = null);
+
+public record CheckoutPickupBranchResponse(
+    [property: JsonPropertyName("id")] Guid Id,
+    [property: JsonPropertyName("name")] string Name,
+    [property: JsonPropertyName("address_line")] string AddressLine,
+    [property: JsonPropertyName("city")] string City);
+
+public record CheckoutConfigResponse(
+    [property: JsonPropertyName("delivery_enabled")] bool DeliveryEnabled,
+    [property: JsonPropertyName("pickup_enabled")] bool PickupEnabled,
+    [property: JsonPropertyName("pickup_cash_on_pickup_enabled")] bool PickupCashOnPickupEnabled,
+    [property: JsonPropertyName("allowed_payments_for_pickup")] IReadOnlyList<string> AllowedPaymentsForPickup);
 
 public record CheckoutCartResponse(
     [property: JsonPropertyName("items_count")] int ItemsCount,
@@ -201,6 +216,12 @@ public class PlaceOrderRequest
     [JsonPropertyName("remove_unavailable_items")]
     public bool RemoveUnavailableItems { get; init; }
 
+    [JsonPropertyName("fulfillment_type")]
+    public string? FulfillmentType { get; init; }
+
+    [JsonPropertyName("vendor_branch_id")]
+    public Guid? VendorBranchId { get; init; }
+
     [JsonExtensionData]
     public Dictionary<string, JsonElement>? ExtensionData { get; init; }
 
@@ -228,6 +249,19 @@ public class PlaceOrderRequest
         ReadBool("removeUnavailableItems") ||
         ReadBool("allowPartialCheckout") ||
         ReadBool("confirmUnavailableItemsRemoval");
+
+    [JsonIgnore]
+    public string EffectiveFulfillmentType =>
+        NormalizeFulfillmentType(FulfillmentType ?? ReadString("fulfillmentType"));
+
+    [JsonIgnore]
+    public Guid? EffectiveVendorBranchId => NormalizeGuid(VendorBranchId) ?? ReadGuid("vendorBranchId");
+
+    [JsonIgnore]
+    public OrderFulfillmentType EffectiveFulfillment =>
+        EffectiveFulfillmentType == "pickup"
+            ? OrderFulfillmentType.Pickup
+            : OrderFulfillmentType.Delivery;
 
     private Guid? ReadGuid(string propertyName)
     {
@@ -286,6 +320,16 @@ public class PlaceOrderRequest
             "credit_card" or "creditcard" or "debit_card" or "debitcard" => "card",
             "applepay" => "apple_pay",
             _ => normalized ?? string.Empty
+        };
+    }
+
+    private static string NormalizeFulfillmentType(string? value)
+    {
+        var normalized = value?.Trim().ToLowerInvariant();
+        return normalized switch
+        {
+            "pickup" => "pickup",
+            _ => "delivery"
         };
     }
 }

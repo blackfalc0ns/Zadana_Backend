@@ -16,6 +16,7 @@ using Zadana.Application.Modules.Identity.Commands.UpdateUserScope;
 using Zadana.Application.Modules.Identity.DTOs;
 using Zadana.Application.Modules.Identity.Interfaces;
 using Zadana.Application.Modules.Identity.Queries.GetUserEffectiveAccess;
+using Zadana.Application.Modules.Orders.Support;
 using Zadana.Domain.Modules.Identity.Constants;
 using Zadana.Domain.Modules.Identity.Entities;
 using Zadana.Domain.Modules.Identity.Enums;
@@ -532,6 +533,8 @@ public class VendorAccessController : ApiControllerBase
                 "This branch cannot be deleted because products are assigned to it.");
         }
 
+        await BranchActivePickupOrdersSupport.EnsureNoActivePickupOrdersAsync(_context, branch.Id, cancellationToken);
+
         var hasOrders = await _context.Orders
             .AsNoTracking()
             .AnyAsync(item => item.VendorBranchId == branch.Id, cancellationToken);
@@ -943,6 +946,7 @@ public class VendorAccessController : ApiControllerBase
         }
         else
         {
+            await BranchActivePickupOrdersSupport.EnsureNoActivePickupOrdersAsync(_context, id, cancellationToken);
             branch.Deactivate();
         }
 

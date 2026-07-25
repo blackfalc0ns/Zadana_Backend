@@ -7,6 +7,7 @@ using Zadana.Application.Common.Localization;
 using Zadana.Application.Modules.Delivery.Interfaces;
 using Zadana.Application.Modules.Orders.Events;
 using Zadana.Application.Modules.Orders.Services;
+using Zadana.Application.Modules.Orders.Support;
 using Zadana.Domain.Modules.Orders.Enums;
 using Zadana.Domain.Modules.Payments.Enums;
 using Zadana.SharedKernel.Exceptions;
@@ -85,7 +86,7 @@ public class VendorUpdateOrderStatusCommandHandler : IRequestHandler<VendorUpdat
         {
             EnsureVendorCanActOnPayment(order.PaymentMethod, order.PaymentStatus);
 
-            if (request.NewStatus == OrderStatus.ReadyForPickup)
+            if (request.NewStatus == OrderStatus.ReadyForPickup && order.Fulfillment != FulfillmentType.Pickup)
             {
                 await _deliveryDispatchService.TryAutoDispatchAsync(order.Id, cancellationToken: cancellationToken);
             }
@@ -107,6 +108,14 @@ public class VendorUpdateOrderStatusCommandHandler : IRequestHandler<VendorUpdat
             await _orderInventoryWorkflowService.ApplyRestockAsync(order.Id, "vendor_rejected", cancellationToken);
         }
 
+        if (request.NewStatus == OrderStatus.ReadyForPickup && order.Fulfillment == FulfillmentType.Pickup)
+        {
+            var pickupSettings = await PlatformPickupSettingsSupport.LoadAsync(_context, cancellationToken);
+            order.MarkReadyForCustomerPickup(
+                PlatformPickupSettingsSupport.ResolveOtpTtl(pickupSettings),
+                PlatformPickupSettingsSupport.ResolveNoShowTimeout(pickupSettings));
+        }
+
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
         await _orderStatusNotificationDispatcher.DispatchCustomerAsync(
@@ -117,7 +126,8 @@ public class VendorUpdateOrderStatusCommandHandler : IRequestHandler<VendorUpdat
                 order.OrderNumber,
                 oldStatus,
                 request.NewStatus,
-                ActorRole: "vendor"),
+                ActorRole: "vendor",
+                Fulfillment: order.Fulfillment),
             cancellationToken);
 
         // Publish notification event
@@ -135,7 +145,7 @@ public class VendorUpdateOrderStatusCommandHandler : IRequestHandler<VendorUpdat
                 CustomerNotificationAlreadySent: true),
             cancellationToken);
 
-        if (request.NewStatus == OrderStatus.ReadyForPickup)
+        if (request.NewStatus == OrderStatus.ReadyForPickup && order.Fulfillment != FulfillmentType.Pickup)
         {
             await _deliveryDispatchService.TryAutoDispatchAsync(order.Id, cancellationToken: cancellationToken);
         }

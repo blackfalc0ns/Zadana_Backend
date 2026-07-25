@@ -4,6 +4,8 @@ This folder documents the customer-facing backend changes that are already imple
 
 Files:
 
+- `PLATFORM_CONTACT_SUPPORT_SOCIAL_MOBILE_HANDOFF_AR.md` — دعم المنصة ووسائل التواصل (عام بدون توكن)
+- `LEGAL_TERMS_PRIVACY_MOBILE_HANDOFF_AR.md` — الشروط والأحكام وسياسة الخصوصية (عام بدون توكن)
 - `CHECKOUT_CONTRACT.md`
 - `CHECKOUT_UNAVAILABLE_ITEMS_AND_RESERVATION_HANDOFF.md`
 - `PRODUCT_DETAILS_VARIANT_AVAILABILITY_HANDOFF.md`

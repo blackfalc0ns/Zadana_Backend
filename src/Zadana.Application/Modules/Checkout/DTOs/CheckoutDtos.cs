@@ -16,7 +16,15 @@ public record CheckoutSummaryDto(
     CheckoutDeliveryBreakdownDto DeliveryBreakdown,
     List<CheckoutShippingBreakdownLineDto> ShippingBreakdown,
     string PricingMode,
-    CheckoutTotalsDto Summary);
+    CheckoutTotalsDto Summary,
+    string FulfillmentType = "delivery",
+    CheckoutPickupBranchDto? PickupBranch = null);
+
+public record CheckoutPickupBranchDto(
+    Guid Id,
+    string Name,
+    string AddressLine,
+    string City);
 
 public record CheckoutCartDto(
     int ItemsCount,

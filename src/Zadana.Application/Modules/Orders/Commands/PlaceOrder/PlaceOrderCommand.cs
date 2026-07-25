@@ -1,6 +1,5 @@
 using FluentValidation;
-using Microsoft.Extensions.Localization;
-using Zadana.Application.Common.Localization;
+using Zadana.Domain.Modules.Orders.Enums;
 using Zadana.Domain.Modules.Payments.Enums;
 
 namespace Zadana.Application.Modules.Orders.Commands.PlaceOrder;
@@ -8,7 +7,7 @@ namespace Zadana.Application.Modules.Orders.Commands.PlaceOrder;
 public record PlaceOrderCommand(
     Guid UserId,
     Guid VendorId,
-    Guid CustomerAddressId,
+    Guid? CustomerAddressId,
     string PaymentMethod,
     string? Notes,
     Guid? VendorBranchId,
@@ -34,7 +33,9 @@ public record PlaceOrderCommand(
     bool HasDeliveryAnomalyWarning = false,
     decimal VatAmount = 0m,
     decimal CodFee = 0m,
-    bool ClearCartAfterPlacement = true) : MediatR.IRequest<Guid>;
+    bool ClearCartAfterPlacement = true,
+    FulfillmentType Fulfillment = FulfillmentType.Delivery,
+    decimal? CommissionOverride = null) : MediatR.IRequest<Guid>;
 
 public class PlaceOrderCommandValidator : AbstractValidator<PlaceOrderCommand>
 {
@@ -42,8 +43,17 @@ public class PlaceOrderCommandValidator : AbstractValidator<PlaceOrderCommand>
     {
         RuleFor(x => x.UserId).NotEmpty().WithMessage("User ID is required.");
         RuleFor(x => x.VendorId).NotEmpty().WithMessage("Vendor ID is required.");
-        RuleFor(x => x.CustomerAddressId).NotEmpty().WithMessage("Customer Address ID is required.");
-        
+
+        RuleFor(x => x.CustomerAddressId)
+            .NotEmpty()
+            .When(x => x.Fulfillment == FulfillmentType.Delivery)
+            .WithMessage("Customer Address ID is required for delivery orders.");
+
+        RuleFor(x => x.VendorBranchId)
+            .NotEmpty()
+            .When(x => x.Fulfillment == FulfillmentType.Pickup)
+            .WithMessage("Vendor branch is required for pickup orders.");
+
         RuleFor(x => x.PaymentMethod)
             .NotEmpty().WithMessage("Payment method is required.")
             .IsEnumName(typeof(PaymentMethodType), caseSensitive: false)

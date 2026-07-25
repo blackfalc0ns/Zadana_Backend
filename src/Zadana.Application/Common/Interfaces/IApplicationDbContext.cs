@@ -70,6 +70,8 @@ public interface IApplicationDbContext
     DbSet<OrderSupportCase> OrderSupportCases { get; }
     DbSet<OrderSupportCaseAttachment> OrderSupportCaseAttachments { get; }
     DbSet<OrderSupportCaseActivity> OrderSupportCaseActivities { get; }
+    DbSet<OrderCancellationRequest> OrderCancellationRequests { get; }
+    DbSet<PlatformPickupSettings> PlatformPickupSettings { get; }
 
     // Payments
     DbSet<Payment> Payments { get; }

@@ -15,11 +15,14 @@ public class VendorOrdersControllerTests
 {
     private readonly Mock<ISender> _senderMock = new();
     private readonly Mock<ICurrentVendorService> _currentVendorServiceMock = new();
+    private readonly Mock<ICurrentUserService> _currentUserServiceMock = new();
     private readonly VendorOrdersController _controller;
 
     public VendorOrdersControllerTests()
     {
-        _controller = new VendorOrdersController(_currentVendorServiceMock.Object);
+        _controller = new VendorOrdersController(
+            _currentVendorServiceMock.Object,
+            _currentUserServiceMock.Object);
 
         var services = new ServiceCollection();
         services.AddSingleton(_senderMock.Object);
@@ -53,9 +56,11 @@ public class VendorOrdersControllerTests
             "Customer",
             "+966500000000",
             "Customer address",
+            Guid.NewGuid(),
             "OUT_FOR_DELIVERY",
             "PAID",
             "CASH",
+            "Delivery",
             100m,
             12m,
             CreateDeliveryBreakdown(),
@@ -68,6 +73,12 @@ public class VendorOrdersControllerTests
             null,
             false,
             "UNAVAILABLE",
+            0,
+            null,
+            null,
+            null,
+            null,
+            [],
             vendorLocation,
             customerLocation,
             driverLiveLocation,

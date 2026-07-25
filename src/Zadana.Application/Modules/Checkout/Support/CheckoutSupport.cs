@@ -13,6 +13,8 @@ using Zadana.Domain.Modules.Identity.Enums;
 using Zadana.Domain.Modules.Marketing.Entities;
 using Zadana.Domain.Modules.Marketing.Enums;
 using Zadana.Domain.Modules.Orders.Entities;
+using Zadana.Domain.Modules.Orders.Enums;
+using Zadana.Domain.Modules.Vendors.Entities;
 using Zadana.Domain.Modules.Vendors.Enums;
 using Zadana.SharedKernel.Exceptions;
 
@@ -1484,4 +1486,89 @@ internal static class CheckoutSupport
             }
         }
     }
+
+    public static FulfillmentType ResolveFulfillmentType(string? fulfillmentType) =>
+        Enum.TryParse<FulfillmentType>(fulfillmentType, true, out var parsed) && Enum.IsDefined(parsed)
+            ? parsed
+            : FulfillmentType.Delivery;
+
+    public static async Task<PlatformPickupSettings> LoadPlatformPickupSettingsAsync(
+        IApplicationDbContext context,
+        CancellationToken cancellationToken)
+    {
+        var settings = await context.PlatformPickupSettings
+            .AsNoTracking()
+            .FirstOrDefaultAsync(item => item.Id == PlatformPickupSettings.SingletonId, cancellationToken);
+
+        return settings ?? new PlatformPickupSettings();
+    }
+
+    public static async Task<VendorBranch> ValidatePickupBranchAsync(
+        IApplicationDbContext context,
+        Guid vendorId,
+        Guid vendorBranchId,
+        CancellationToken cancellationToken)
+    {
+        var branch = await context.VendorBranches
+            .AsNoTracking()
+            .FirstOrDefaultAsync(item => item.Id == vendorBranchId, cancellationToken)
+            ?? throw new NotFoundException("VendorBranch", vendorBranchId);
+
+        if (branch.VendorId != vendorId)
+        {
+            throw new BusinessRuleException(
+                "PICKUP_BRANCH_VENDOR_MISMATCH",
+                "Selected pickup branch does not belong to the checkout vendor.");
+        }
+
+        if (!branch.IsActive)
+        {
+            throw new BusinessRuleException(
+                "PICKUP_BRANCH_INACTIVE",
+                "Selected pickup branch is not active.");
+        }
+
+        return branch;
+    }
+
+    public static CheckoutDeliveryCheckDto BuildPickupDeliveryCheck(bool canProceed, string? messageEn = null) =>
+        new(
+            canProceed ? "pickup_ready" : "pickup_branch_required",
+            canProceed,
+            canProceed,
+            canProceed ? "يمكن متابعة الطلب للاستلام من الفرع." : "يرجى اختيار فرع الاستلام.",
+            messageEn ?? (canProceed ? "Pickup checkout is ready." : "Please select a pickup branch."),
+            0m,
+            0m);
+
+    public static List<CheckoutPaymentMethodDto> BuildPickupPaymentMethods(bool cardAvailable, bool cashOnPickupEnabled = false)
+    {
+        var methods = new List<CheckoutPaymentMethodDto>
+        {
+            new("card", "بطاقة ائتمان / مدى", "Credit / Debit Card", "فيزا، ماستركارد، مدى", "Visa, Mastercard, Mada", cardAvailable, cardAvailable),
+            new("apple_pay", "Apple Pay", "Apple Pay", "دفع سريع وآمن", "Fast and secure payment", cardAvailable, false)
+        };
+
+        if (cashOnPickupEnabled)
+        {
+            methods.Add(new CheckoutPaymentMethodDto(
+                "cash",
+                "الدفع عند الاستلام",
+                "Pay on Pickup",
+                "ادفع نقدًا للتاجر عند استلام الطلب",
+                "Pay cash to the merchant when collecting the order",
+                true,
+                true));
+        }
+
+        return methods;
+    }
+
+    public static CheckoutPickupBranchDto? BuildPickupBranchDto(VendorBranch? branch) =>
+        branch is null
+            ? null
+            : new CheckoutPickupBranchDto(branch.Id, branch.Name, branch.AddressLine, branch.City);
+
+    public static decimal CalculatePickupCommissionAmount(decimal subtotal, decimal pickupCommissionPercent) =>
+        Math.Round(subtotal * pickupCommissionPercent / 100m, 2, MidpointRounding.AwayFromZero);
 }
