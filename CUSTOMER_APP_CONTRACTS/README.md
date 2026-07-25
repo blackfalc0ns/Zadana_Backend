@@ -4,6 +4,7 @@ This folder documents the customer-facing backend changes that are already imple
 
 Files:
 
+- `CUSTOMER_PICKUP_FULFILLMENT_MOBILE_HANDOFF_AR.md` — استلام من الفرع (Pickup) لتطبيق العميل
 - `PLATFORM_CONTACT_SUPPORT_SOCIAL_MOBILE_HANDOFF_AR.md` — دعم المنصة ووسائل التواصل (عام بدون توكن)
 - `LEGAL_TERMS_PRIVACY_MOBILE_HANDOFF_AR.md` — الشروط والأحكام وسياسة الخصوصية (عام بدون توكن)
 - `CHECKOUT_CONTRACT.md`
