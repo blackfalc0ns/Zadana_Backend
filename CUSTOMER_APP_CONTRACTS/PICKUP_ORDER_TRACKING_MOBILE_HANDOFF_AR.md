@@ -121,6 +121,34 @@ if (fulfillment_type == "pickup") {
 }
 ```
 
+### تصميم التايملاين (مهم)
+
+الـ API يضمن **خطوة واحدة فقط** `is_active: true` في أي لحظة.
+
+| الحالة | الشرط | التصميم |
+|---|---|---|
+| مكتملة | `is_completed == true` و `is_active == false` | أيقونة ✓، لون هادئ/رمادي-teal، بدون pulse |
+| الحالية (واحدة بس) | `is_active == true` | **التركيز البصري هنا فقط**: لون أساسي أقوى، نقطة أكبر، pulse خفيف، عنوان أسمك |
+| قادمة | `is_active == false` و `is_completed == false` | باهتة، أيقونة فارغة، بدون حركة |
+
+```dart
+// استخدم is_active للتمييز — مش باقي الخطوات
+final active = timeline.where((s) => s.isActive).toList();
+assert(active.length <= 1);
+
+for (final step in timeline) {
+  if (step.isActive) {
+    // CurrentStepStyle — design هنا فقط
+  } else if (step.isCompleted) {
+    // CompletedStepStyle
+  } else {
+    // PendingStepStyle (باهت)
+  }
+}
+```
+
+لا تعمل highlight على كل الخطوات اللي `is_active: false, is_completed: false` — دي قادمة وبس.
+
 ---
 
 ## 6) Checklist

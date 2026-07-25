@@ -1708,8 +1708,9 @@ public class OrderReadService : IOrderReadService
         return MapTimelineSteps(steps);
     }
 
-    private static List<CustomerOrderTrackingTimelineItemDto> MapTimelineSteps(IEnumerable<TrackingStepDefinition> steps) =>
-        steps
+    private static List<CustomerOrderTrackingTimelineItemDto> MapTimelineSteps(IEnumerable<TrackingStepDefinition> steps)
+    {
+        var mapped = steps
             .Select(step => new CustomerOrderTrackingTimelineItemDto(
                 step.Id,
                 step.Title,
@@ -1717,6 +1718,26 @@ public class OrderReadService : IOrderReadService
                 step.IsActive,
                 step.IsCompleted))
             .ToList();
+
+        // Contract: exactly one visual "current" step for the mobile timeline design.
+        var activeIndexes = mapped
+            .Select((step, index) => (step, index))
+            .Where(item => item.step.IsActive)
+            .Select(item => item.index)
+            .ToList();
+
+        if (activeIndexes.Count <= 1)
+        {
+            return mapped;
+        }
+
+        var keepIndex = activeIndexes[^1];
+        return mapped
+            .Select((step, index) => index == keepIndex
+                ? step
+                : step with { IsActive = false })
+            .ToList();
+    }
 
     private async Task<CustomerOrderEstimatedDeliveryDto?> BuildEstimatedDeliveryAsync(
         Order order, DeliveryAssignment? assignment, CancellationToken cancellationToken)
@@ -2113,8 +2134,9 @@ public class OrderReadService : IOrderReadService
         stage switch
         {
             TrackingStage.OrderPlaced => status is OrderStatus.PendingPayment or OrderStatus.Placed,
-            TrackingStage.VendorConfirmed => status is OrderStatus.PendingVendorAcceptance or OrderStatus.Accepted,
-            TrackingStage.Preparing => status is OrderStatus.Preparing or OrderStatus.ReadyForPickup or OrderStatus.DriverAssignmentInProgress or OrderStatus.DriverAssigned,
+            // Waiting for merchant acceptance only — once Accepted, preparing becomes current.
+            TrackingStage.VendorConfirmed => status is OrderStatus.PendingVendorAcceptance,
+            TrackingStage.Preparing => status is OrderStatus.Accepted or OrderStatus.Preparing or OrderStatus.ReadyForPickup or OrderStatus.DriverAssignmentInProgress or OrderStatus.DriverAssigned,
             TrackingStage.OutForDelivery => status is OrderStatus.PickedUp or OrderStatus.OnTheWay,
             _ => false
         };
@@ -2140,8 +2162,8 @@ public class OrderReadService : IOrderReadService
         stage switch
         {
             TrackingStage.OrderPlaced => status is OrderStatus.PendingPayment or OrderStatus.Placed,
-            TrackingStage.VendorConfirmed => status is OrderStatus.PendingVendorAcceptance or OrderStatus.Accepted,
-            TrackingStage.Preparing => status == OrderStatus.Preparing,
+            TrackingStage.VendorConfirmed => status is OrderStatus.PendingVendorAcceptance,
+            TrackingStage.Preparing => status is OrderStatus.Accepted or OrderStatus.Preparing,
             TrackingStage.ReadyForPickup => IsPickupReadyLike(status),
             _ => false
         };
@@ -2152,7 +2174,7 @@ public class OrderReadService : IOrderReadService
             TrackingStage.OrderPlaced => status is not (OrderStatus.PendingPayment or OrderStatus.Placed),
             TrackingStage.VendorConfirmed =>
                 IsPickupReadyLike(status) ||
-                status is OrderStatus.Preparing or OrderStatus.Delivered
+                status is OrderStatus.Accepted or OrderStatus.Preparing or OrderStatus.Delivered
                     or OrderStatus.Cancelled or OrderStatus.VendorRejected
                     or OrderStatus.DeliveryFailed or OrderStatus.Refunded,
             TrackingStage.Preparing =>

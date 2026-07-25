@@ -241,10 +241,23 @@ Use for pickup tracking header/card:
 
 No map coordinates are returned in this contract.
 
+### `timeline` visual states
+
+Backend guarantees **at most one** step with `is_active = true`.
+
+| State | Flags | UI treatment |
+|---|---|---|
+| Completed | `is_completed=true`, `is_active=false` | Checkmark, muted teal/gray, no motion |
+| Current (only one) | `is_active=true` | Primary accent, larger node, optional pulse — **design focus here only** |
+| Pending | `is_active=false`, `is_completed=false` | Faded/empty node, no highlight, no animation |
+
+Do not style every pending step as current. Pending steps are future milestones only.
+
 ## Important Mobile Notes
 
 - Treat backend tracking response as the source of truth
 - Branch on `fulfillment_type` before rendering driver or map sections
+- Highlight only the timeline step where `is_active == true`
 - Do not recalculate ETA locally from coordinates or timeline state
 - Tracking ETA is progressively refined by stage using live order state plus historical branch/vendor calibration on delivery orders only
 - Do not infer OTP visibility from order status alone
