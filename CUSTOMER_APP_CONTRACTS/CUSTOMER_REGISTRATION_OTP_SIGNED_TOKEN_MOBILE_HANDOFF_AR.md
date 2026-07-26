@@ -121,15 +121,23 @@ Rate limit: سياسة `Auth`.
     "mustChangePassword": false
   },
   "isVerified": true,
+  "message": "تم إنشاء الحساب بنجاح.",
   "registrationToken": null
 }
 ```
 
 ### المطلوب من Flutter
 
-1. احفظ `tokens` وخلّي المستخدم logged in.
-2. امسح `registrationToken` المحلي.
-3. كمّل onboarding / home.
+1. اعرض `message` للمستخدم عند النجاح.
+2. احفظ `tokens` وخلّي المستخدم logged in.
+3. امسح `registrationToken` المحلي.
+4. كمّل onboarding / home.
+
+### الأخطاء
+
+خطأ API (4xx/5xx) يرجع ProblemDetails وفيه:
+- `detail` و **`message`** = نص الخطأ للعرض
+- `errorCode` = كود ثابت (مثل `INVALID_OTP`)
 
 ### أخطاء شائعة
 

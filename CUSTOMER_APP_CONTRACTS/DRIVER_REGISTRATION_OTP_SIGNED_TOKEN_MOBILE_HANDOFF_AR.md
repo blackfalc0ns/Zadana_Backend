@@ -132,6 +132,7 @@ Rate limit: سياسة `Auth`.
     "mustChangePassword": false
   },
   "isVerified": true,
+  "message": "تم إنشاء الحساب بنجاح.",
   "driverStatus": {
     "...": "قد يظهر حسب حالة المندوب بعد الإنشاء"
   },
@@ -141,9 +142,14 @@ Rate limit: سياسة `Auth`.
 
 ### المطلوب من Flutter
 
-1. احفظ `tokens`.
-2. امسح `registrationToken` المحلي.
-3. وجّه حسب `driverStatus` / حالة المراجعة (لو التطبيق بيعتمد عليها بعد التسجيل).
+1. اعرض `message` عند النجاح.
+2. احفظ `tokens`.
+3. امسح `registrationToken` المحلي.
+4. وجّه حسب `driverStatus` / حالة المراجعة (لو التطبيق بيعتمد عليها بعد التسجيل).
+
+### الأخطاء
+
+خطأ API يرجع `detail` و **`message`** (نفس النص) + `errorCode`.
 
 ### أخطاء شائعة
 

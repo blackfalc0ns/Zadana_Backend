@@ -209,6 +209,9 @@
   <data name="AccountVerifiedSuccessfully" xml:space="preserve">
     <value>فعّلنا الحساب بنجاح.</value>
   </data>
+  <data name="AccountCreatedSuccessfully" xml:space="preserve">
+    <value>تم إنشاء الحساب بنجاح.</value>
+  </data>
   <data name="OtpCodeMustBe4Digits" xml:space="preserve">
     <value>رمز التفعيل لازم يكون 4 أرقام.</value>
   </data>

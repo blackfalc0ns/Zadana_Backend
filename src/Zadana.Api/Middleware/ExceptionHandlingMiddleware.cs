@@ -75,25 +75,29 @@ public class ExceptionHandlingMiddleware
         var isDevelopment = context.RequestServices.GetRequiredService<IWebHostEnvironment>().IsDevelopment();
         if (exception is ValidationException validationException)
         {
+            var validationDetail = validationException.Errors.SelectMany(e => e.Value).FirstOrDefault()
+                ?? GetLocalizedResource("ValidationErrorTitle", context, localizer);
             var validationProblem = new ValidationProblemDetails(validationException.Errors)
             {
                 Status = (int)HttpStatusCode.BadRequest,
                 Title = GetLocalizedResource("ValidationErrorTitle", context, localizer),
-                Detail = validationException.Errors.SelectMany(e => e.Value).FirstOrDefault()
-                    ?? GetLocalizedResource("ValidationErrorTitle", context, localizer),
+                Detail = validationDetail,
                 Instance = context.Request.Path
             };
 
             validationProblem.Extensions["traceId"] = context.TraceIdentifier;
             validationProblem.Extensions["errorCode"] = "VALIDATION_ERROR";
+            // Mobile clients commonly read `message` (same text as detail).
+            validationProblem.Extensions["message"] = validationDetail;
             return validationProblem;
         }
 
+        var detail = ResolveDetail(exception, context, localizer);
         var problemDetails = new ProblemDetails
         {
             Status = GetStatusCode(exception),
             Title = GetTitle(exception, context, localizer),
-            Detail = ResolveDetail(exception, context, localizer),
+            Detail = detail,
             Instance = context.Request.Path
         };
 
@@ -104,6 +108,8 @@ public class ExceptionHandlingMiddleware
         }
 
         problemDetails.Extensions["traceId"] = context.TraceIdentifier;
+        // Mobile clients commonly read `message` (same text as detail).
+        problemDetails.Extensions["message"] = detail;
 
         if (context.Items.TryGetValue("errorDiagnostic", out var diagnostic) &&
             diagnostic is string diagnosticText &&

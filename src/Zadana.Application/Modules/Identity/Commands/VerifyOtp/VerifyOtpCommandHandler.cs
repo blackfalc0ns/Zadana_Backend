@@ -199,7 +199,12 @@ public class VerifyOtpCommandHandler : IRequestHandler<VerifyOtpCommand, AuthRes
             ProfilePhotoUrl: user.ProfilePhotoUrl);
 
         var isVerified = AuthResponseVerificationResolver.Resolve(user, driverStatus);
-        return new AuthResponseDto(tokens, userDto, IsVerified: isVerified, DriverStatus: driverStatus);
+        return new AuthResponseDto(
+            tokens,
+            userDto,
+            IsVerified: isVerified,
+            Message: _localizer["AccountCreatedSuccessfully"],
+            DriverStatus: driverStatus);
     }
 
     private static void EnsureIdentifierMatchesAccount(string identifier, IdentityAccountSnapshot account)

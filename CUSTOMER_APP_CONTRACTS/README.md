@@ -7,6 +7,7 @@ Files:
 - `REGISTRATION_OTP_EMAIL_DEFER_HANDOFF_AR.md` — تسجيل بدون حفظ قبل OTP (مرجع مشترك)
 - `CUSTOMER_REGISTRATION_OTP_SIGNED_TOKEN_MOBILE_HANDOFF_AR.md` — Handoff Flutter لتسجيل العميل + OTP
 - `DRIVER_REGISTRATION_OTP_SIGNED_TOKEN_MOBILE_HANDOFF_AR.md` — Handoff Flutter لتسجيل المندوب + OTP
+- `VENDOR_REGISTRATION_OTP_SIGNED_TOKEN_MOBILE_HANDOFF_AR.md` — Handoff لتسجيل التاجر + OTP
 - `CUSTOMER_PICKUP_FULFILLMENT_MOBILE_HANDOFF_AR.md` — استلام من الفرع (Pickup) لتطبيق العميل
 - `PLATFORM_CONTACT_SUPPORT_SOCIAL_MOBILE_HANDOFF_AR.md` — دعم المنصة ووسائل التواصل (عام بدون توكن)
 - `LEGAL_TERMS_PRIVACY_MOBILE_HANDOFF_AR.md` — الشروط والأحكام وسياسة الخصوصية (عام بدون توكن)

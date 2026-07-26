@@ -212,6 +212,9 @@
   <data name="AccountVerifiedSuccessfully" xml:space="preserve">
     <value>Account verified successfully.</value>
   </data>
+  <data name="AccountCreatedSuccessfully" xml:space="preserve">
+    <value>Account created successfully.</value>
+  </data>
   <data name="OtpCodeMustBe4Digits" xml:space="preserve">
     <value>Verification code must be 4 digits.</value>
   </data>
