@@ -69,11 +69,16 @@ public class RegisterCustomerCommandHandlerTests
             .ReturnsAsync(new PendingRegistrationStartResult(
                 PendingRegistrationStartStatus.Succeeded,
                 pending,
-                "1234"));
+                "1234",
+                "reg-token"));
 
         _registrationWorkflow
-            .Setup(x => x.BuildPendingAuthResponse(pending, null))
-            .Returns(new AuthResponseDto(null, new CurrentUserDto(pendingId, "Ahmed Ali", "ahmed@test.com", "01011122233", "Customer", false), false));
+            .Setup(x => x.BuildPendingAuthResponse(pending, "reg-token", null))
+            .Returns(new AuthResponseDto(
+                null,
+                new CurrentUserDto(pendingId, "Ahmed Ali", "ahmed@test.com", "01011122233", "Customer", false),
+                false,
+                RegistrationToken: "reg-token"));
 
         var handler = CreateHandler();
         var result = await handler.Handle(CreateCommand(), CancellationToken.None);

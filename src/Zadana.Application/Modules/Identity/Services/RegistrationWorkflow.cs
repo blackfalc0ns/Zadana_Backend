@@ -139,6 +139,7 @@ public class RegistrationWorkflow : IRegistrationWorkflow
 
     public AuthResponseDto BuildPendingAuthResponse(
         PendingRegistrationSnapshot pending,
+        string? registrationToken = null,
         string? message = null)
     {
         var pendingUserDto = new CurrentUserDto(
@@ -155,7 +156,8 @@ public class RegistrationWorkflow : IRegistrationWorkflow
             Tokens: null,
             User: pendingUserDto,
             IsVerified: false,
-            Message: message ?? _localizer["AccountEmailNotVerified"]);
+            Message: message ?? _localizer["AccountEmailNotVerified"],
+            RegistrationToken: registrationToken);
     }
 
     private async Task<RegistrationOtpDispatch> GenerateRegistrationOtpInternalAsync(

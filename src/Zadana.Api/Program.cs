@@ -288,7 +288,6 @@ builder.Services.AddHostedService<AdminMasterProductBulkOperationWorker>();
 builder.Services.AddHostedService<VendorProductBulkOperationWorker>();
 builder.Services.AddHostedService<AdminAlertOutboxWorker>();
 builder.Services.AddHostedService<NotificationCleanupWorker>();
-builder.Services.AddHostedService<PendingRegistrationCleanupWorker>();
 builder.Services.AddHostedService<VendorSettlementCycleWorker>();
 builder.Services.AddHostedService<VendorWeeklySummaryEmailWorker>();
 builder.Services.AddHostedService<SupportCaseSlaWorker>();

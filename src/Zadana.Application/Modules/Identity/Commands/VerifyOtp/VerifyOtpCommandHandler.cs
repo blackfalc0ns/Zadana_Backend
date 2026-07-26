@@ -55,10 +55,13 @@ public class VerifyOtpCommandHandler : IRequestHandler<VerifyOtpCommand, AuthRes
             throw new BusinessRuleException("EMAIL_REQUIRED", _localizer["RequiredField", _localizer["Identifier"].Value]);
         }
 
-        var pending = await _pendingRegistrationService.FindByIdentifierAsync(request.Identifier, cancellationToken);
-        if (pending is not null)
+        if (!string.IsNullOrWhiteSpace(request.RegistrationToken))
         {
-            return await CompletePendingRegistrationAsync(request.Identifier, request.OtpCode, cancellationToken);
+            return await CompletePendingRegistrationAsync(
+                request.Identifier,
+                request.RegistrationToken,
+                request.OtpCode,
+                cancellationToken);
         }
 
         return await CompleteLegacyUserVerificationAsync(request.Identifier, request.OtpCode, cancellationToken);
@@ -66,11 +69,12 @@ public class VerifyOtpCommandHandler : IRequestHandler<VerifyOtpCommand, AuthRes
 
     private async Task<AuthResponseDto> CompletePendingRegistrationAsync(
         string identifier,
+        string registrationToken,
         string otpCode,
         CancellationToken cancellationToken)
     {
         var completion = await _pendingRegistrationService.VerifyAndCreateAccountAsync(
-            identifier,
+            registrationToken,
             otpCode,
             cancellationToken);
 
@@ -95,8 +99,15 @@ public class VerifyOtpCommandHandler : IRequestHandler<VerifyOtpCommand, AuthRes
             string.IsNullOrWhiteSpace(completion.PayloadJson))
         {
             var errors = string.Join(", ", completion.Errors ?? []);
+            if (completion.Errors?.Contains("USER_ALREADY_EXISTS") == true)
+            {
+                throw new BusinessRuleException("USER_ALREADY_EXISTS", _localizer["USER_ALREADY_EXISTS"]);
+            }
+
             throw new BusinessRuleException("VERIFICATION_FAILED", $"{_localizer["VERIFICATION_FAILED"]}: {errors}");
         }
+
+        EnsureIdentifierMatchesAccount(identifier, completion.Account);
 
         try
         {
@@ -189,5 +200,19 @@ public class VerifyOtpCommandHandler : IRequestHandler<VerifyOtpCommand, AuthRes
 
         var isVerified = AuthResponseVerificationResolver.Resolve(user, driverStatus);
         return new AuthResponseDto(tokens, userDto, IsVerified: isVerified, DriverStatus: driverStatus);
+    }
+
+    private static void EnsureIdentifierMatchesAccount(string identifier, IdentityAccountSnapshot account)
+    {
+        var trimmed = identifier.Trim();
+        var emailMatch = !string.IsNullOrWhiteSpace(account.Email) &&
+                         string.Equals(account.Email, trimmed, StringComparison.OrdinalIgnoreCase);
+        var phoneMatch = !string.IsNullOrWhiteSpace(account.PhoneNumber) &&
+                         string.Equals(account.PhoneNumber, trimmed, StringComparison.Ordinal);
+
+        if (!emailMatch && !phoneMatch)
+        {
+            throw new BusinessRuleException("USER_NOT_FOUND", "USER_NOT_FOUND");
+        }
     }
 }

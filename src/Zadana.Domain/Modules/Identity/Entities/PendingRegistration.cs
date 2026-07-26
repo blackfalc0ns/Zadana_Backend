@@ -3,8 +3,8 @@ using Zadana.Domain.Modules.Identity.Enums;
 namespace Zadana.Domain.Modules.Identity.Entities;
 
 /// <summary>
-/// Holds signup data + OTP until email verification succeeds.
-/// Email/phone are not written to AspNetUsers until this record is completed.
+/// In-memory signup session used while OTP is outstanding.
+/// Serialized into a signed registration token — never persisted to the database.
 /// </summary>
 public class PendingRegistration
 {
@@ -55,21 +55,42 @@ public class PendingRegistration
         ExpiresAtUtc = CreatedAtUtc.Add(DefaultTtl);
     }
 
-    public bool IsExpired() => DateTime.UtcNow > ExpiresAtUtc;
-
-    public void ReplaceSignupData(
+    public static PendingRegistration Rehydrate(
+        Guid id,
+        string email,
+        string phoneNumber,
         string passwordHash,
         string fullName,
+        UserRole role,
         string payloadJson,
-        string? profilePhotoUrl)
-    {
-        PasswordHash = passwordHash;
-        FullName = fullName.Trim();
-        PayloadJson = payloadJson;
-        ProfilePhotoUrl = string.IsNullOrWhiteSpace(profilePhotoUrl) ? null : profilePhotoUrl.Trim();
-        ExpiresAtUtc = DateTime.UtcNow.Add(DefaultTtl);
-        UpdatedAtUtc = DateTime.UtcNow;
-    }
+        string? profilePhotoUrl,
+        string? otpCodeHash,
+        DateTime? otpExpiryUtc,
+        int otpAttempts,
+        DateTime? lastOtpSentAtUtc,
+        DateTime createdAtUtc,
+        DateTime updatedAtUtc,
+        DateTime expiresAtUtc) =>
+        new()
+        {
+            Id = id,
+            Email = email,
+            PhoneNumber = phoneNumber,
+            PasswordHash = passwordHash,
+            FullName = fullName,
+            Role = role,
+            PayloadJson = payloadJson,
+            ProfilePhotoUrl = profilePhotoUrl,
+            OtpCodeHash = otpCodeHash,
+            OtpExpiryUtc = otpExpiryUtc,
+            OtpAttempts = otpAttempts,
+            LastOtpSentAtUtc = lastOtpSentAtUtc,
+            CreatedAtUtc = createdAtUtc,
+            UpdatedAtUtc = updatedAtUtc,
+            ExpiresAtUtc = expiresAtUtc
+        };
+
+    public bool IsExpired() => DateTime.UtcNow > ExpiresAtUtc;
 
     public bool CanResendOtp()
     {

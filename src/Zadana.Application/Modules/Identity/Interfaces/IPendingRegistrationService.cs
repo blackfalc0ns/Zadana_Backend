@@ -3,6 +3,10 @@ using Zadana.Domain.Modules.Identity.Enums;
 
 namespace Zadana.Application.Modules.Identity.Interfaces;
 
+/// <summary>
+/// Stateless pending registration: signup data lives only in a signed token until OTP succeeds.
+/// Nothing is written to AspNetUsers or any pending table before verification.
+/// </summary>
 public interface IPendingRegistrationService
 {
     Task<PendingRegistrationStartResult> StartAsync(
@@ -10,18 +14,12 @@ public interface IPendingRegistrationService
         CancellationToken cancellationToken = default);
 
     Task<PendingOtpDispatchResult> ResendOtpAsync(
-        string identifier,
+        string registrationToken,
         UserRole? expectedRole = null,
         CancellationToken cancellationToken = default);
 
     Task<PendingCompletionResult> VerifyAndCreateAccountAsync(
-        string identifier,
+        string registrationToken,
         string otpCode,
         CancellationToken cancellationToken = default);
-
-    Task<PendingRegistrationSnapshot?> FindByIdentifierAsync(
-        string identifier,
-        CancellationToken cancellationToken = default);
-
-    Task<int> CleanupExpiredAsync(CancellationToken cancellationToken = default);
 }

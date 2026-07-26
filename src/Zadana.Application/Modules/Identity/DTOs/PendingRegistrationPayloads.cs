@@ -109,6 +109,7 @@ public sealed record PendingRegistrationStartResult(
     PendingRegistrationStartStatus Status,
     PendingRegistrationSnapshot? Pending = null,
     string? PlainOtpCode = null,
+    string? RegistrationToken = null,
     IReadOnlyCollection<string>? Errors = null);
 
 public enum PendingOtpDispatchStatus
@@ -124,6 +125,7 @@ public sealed record PendingOtpDispatchResult(
     PendingOtpDispatchStatus Status,
     PendingRegistrationSnapshot? Pending = null,
     string? PlainOtpCode = null,
+    string? RegistrationToken = null,
     int? CooldownSecondsRemaining = null,
     IReadOnlyCollection<string>? Errors = null);
 
@@ -141,4 +143,5 @@ public sealed record PendingCompletionResult(
     IdentityAccountSnapshot? Account = null,
     UserRole? Role = null,
     string? PayloadJson = null,
+    string? RegistrationToken = null,
     IReadOnlyCollection<string>? Errors = null);

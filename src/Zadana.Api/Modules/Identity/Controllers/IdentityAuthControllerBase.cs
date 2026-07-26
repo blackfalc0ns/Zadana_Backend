@@ -42,7 +42,10 @@ public abstract class IdentityAuthControllerBase : ApiControllerBase
 
     protected async Task<IActionResult> VerifyOtpAsync(VerifyOtpRequest request)
     {
-        var result = await Sender.Send(new VerifyOtpCommand(request.Identifier, request.OtpCode));
+        var result = await Sender.Send(new VerifyOtpCommand(
+            request.Identifier,
+            request.OtpCode,
+            request.RegistrationToken));
         return Ok(result);
     }
 
@@ -51,7 +54,8 @@ public abstract class IdentityAuthControllerBase : ApiControllerBase
         var result = await Sender.Send(new ResendOtpCommand(
             request.Identifier,
             OtpResendPurposeParser.Parse(request.Purpose),
-            !string.IsNullOrWhiteSpace(request.Purpose)));
+            !string.IsNullOrWhiteSpace(request.Purpose),
+            request.RegistrationToken));
         return Ok(result);
     }
 

@@ -90,7 +90,8 @@ public class RegisterVendorCommandHandler : IRequestHandler<RegisterVendorComman
 
         if (startResult.Status != PendingRegistrationStartStatus.Succeeded ||
             startResult.Pending is null ||
-            string.IsNullOrWhiteSpace(startResult.PlainOtpCode))
+            string.IsNullOrWhiteSpace(startResult.PlainOtpCode) ||
+            string.IsNullOrWhiteSpace(startResult.RegistrationToken))
         {
             var errors = string.Join(", ", startResult.Errors ?? []);
             throw new BusinessRuleException("CREATION_FAILED", errors);
@@ -101,7 +102,9 @@ public class RegisterVendorCommandHandler : IRequestHandler<RegisterVendorComman
             startResult.PlainOtpCode,
             cancellationToken);
 
-        return _registrationWorkflow.BuildPendingAuthResponse(startResult.Pending);
+        return _registrationWorkflow.BuildPendingAuthResponse(
+            startResult.Pending,
+            startResult.RegistrationToken);
     }
 
     private async Task<AuthResponseDto> HandleGoogleSignupAsync(

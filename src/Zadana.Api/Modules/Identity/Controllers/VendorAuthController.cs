@@ -84,7 +84,10 @@ public class VendorAuthController : IdentityAuthControllerBase
     [ValidateCsrfToken]
     public async Task<IActionResult> VerifyOtp([FromBody] VerifyOtpRequest request)
     {
-        var result = await Sender.Send(new VerifyOtpCommand(request.Identifier, request.OtpCode));
+        var result = await Sender.Send(new VerifyOtpCommand(
+            request.Identifier,
+            request.OtpCode,
+            request.RegistrationToken));
         WriteRefreshCookie(result.Tokens);
         return Ok(StripRefreshToken(result));
     }

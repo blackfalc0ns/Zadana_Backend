@@ -33,5 +33,6 @@ public interface IRegistrationWorkflow
 
     AuthResponseDto BuildPendingAuthResponse(
         PendingRegistrationSnapshot pending,
+        string? registrationToken = null,
         string? message = null);
 }

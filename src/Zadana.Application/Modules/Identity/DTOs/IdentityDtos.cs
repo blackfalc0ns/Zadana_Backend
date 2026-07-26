@@ -35,7 +35,8 @@ public record AuthResponseDto(
     CurrentUserDto? User,
     bool IsVerified = true,
     string? Message = null,
-    DriverOperationalStatusDto? DriverStatus = null);
+    DriverOperationalStatusDto? DriverStatus = null,
+    string? RegistrationToken = null);
 
 public record IdentityAccountSnapshot(
     Guid Id,

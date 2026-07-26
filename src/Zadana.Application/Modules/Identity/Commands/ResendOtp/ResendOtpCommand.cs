@@ -11,7 +11,8 @@ namespace Zadana.Application.Modules.Identity.Commands.ResendOtp;
 public record ResendOtpCommand(
     string Identifier,
     OtpResendPurpose Purpose = OtpResendPurpose.Registration,
-    bool PurposeExplicitlyProvided = false) : IRequest<AuthResponseDto>;
+    bool PurposeExplicitlyProvided = false,
+    string? RegistrationToken = null) : IRequest<AuthResponseDto>;
 
 public class ResendOtpCommandValidator : AbstractValidator<ResendOtpCommand>
 {

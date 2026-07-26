@@ -71,12 +71,13 @@ public class DriverRegistrationRegionCityTests
             .ReturnsAsync(new PendingRegistrationStartResult(
                 PendingRegistrationStartStatus.Succeeded,
                 pending,
-                "1234"));
+                "1234",
+                "reg-token"));
 
         var registrationWorkflow = new Mock<IRegistrationWorkflow>();
         registrationWorkflow
-            .Setup(workflow => workflow.BuildPendingAuthResponse(pending, null))
-            .Returns(new AuthResponseDto(null, null, IsVerified: false));
+            .Setup(workflow => workflow.BuildPendingAuthResponse(pending, "reg-token", null))
+            .Returns(new AuthResponseDto(null, null, IsVerified: false, RegistrationToken: "reg-token"));
 
         var otpService = new Mock<IOtpService>();
         var localizer = CreateLocalizer();

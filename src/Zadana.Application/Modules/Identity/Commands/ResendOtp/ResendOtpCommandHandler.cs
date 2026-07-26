@@ -44,40 +44,59 @@ public class ResendOtpCommandHandler : IRequestHandler<ResendOtpCommand, AuthRes
         return resolvedPurpose switch
         {
             OtpResendPurpose.PasswordReset => await ResendPasswordResetOtpAsync(request.Identifier, cancellationToken),
-            _ => await ResendRegistrationOtpAsync(request.Identifier, cancellationToken)
+            _ => await ResendRegistrationOtpAsync(request.Identifier, request.RegistrationToken, cancellationToken)
         };
     }
 
     private async Task<AuthResponseDto> ResendRegistrationOtpAsync(
         string identifier,
+        string? registrationToken,
         CancellationToken cancellationToken)
     {
-        var pendingResult = await _pendingRegistrationService.ResendOtpAsync(identifier, cancellationToken: cancellationToken);
-        if (pendingResult.Status == PendingOtpDispatchStatus.Succeeded &&
-            pendingResult.Pending is not null &&
-            !string.IsNullOrWhiteSpace(pendingResult.PlainOtpCode))
+        if (!string.IsNullOrWhiteSpace(registrationToken))
         {
-            await SendRegistrationOtpEmailAsync(pendingResult.Pending.Email, pendingResult.PlainOtpCode, cancellationToken);
-            var pendingUserDto = new CurrentUserDto(
-                pendingResult.Pending.Id,
-                pendingResult.Pending.FullName,
-                pendingResult.Pending.Email,
-                pendingResult.Pending.PhoneNumber,
-                pendingResult.Pending.Role.ToString(),
-                MustChangePassword: false,
-                ProfilePhotoUrl: pendingResult.Pending.ProfilePhotoUrl);
-            return new AuthResponseDto(null, pendingUserDto, false, _localizer["OtpResentSuccessfully"]);
-        }
+            var pendingResult = await _pendingRegistrationService.ResendOtpAsync(
+                registrationToken,
+                cancellationToken: cancellationToken);
 
-        if (pendingResult.Status == PendingOtpDispatchStatus.CooldownActive)
-        {
-            var pendingCooldown = pendingResult.CooldownSecondsRemaining ?? 0;
-            throw new BusinessRuleException("OTP_COOLDOWN", _localizer["OtpCooldown", pendingCooldown]);
-        }
+            if (pendingResult.Status == PendingOtpDispatchStatus.Succeeded &&
+                pendingResult.Pending is not null &&
+                !string.IsNullOrWhiteSpace(pendingResult.PlainOtpCode) &&
+                !string.IsNullOrWhiteSpace(pendingResult.RegistrationToken))
+            {
+                EnsureIdentifierMatchesPending(identifier, pendingResult.Pending);
+                await SendRegistrationOtpEmailAsync(pendingResult.Pending.Email, pendingResult.PlainOtpCode, cancellationToken);
+                var pendingUserDto = new CurrentUserDto(
+                    pendingResult.Pending.Id,
+                    pendingResult.Pending.FullName,
+                    pendingResult.Pending.Email,
+                    pendingResult.Pending.PhoneNumber,
+                    pendingResult.Pending.Role.ToString(),
+                    MustChangePassword: false,
+                    ProfilePhotoUrl: pendingResult.Pending.ProfilePhotoUrl);
+                return new AuthResponseDto(
+                    null,
+                    pendingUserDto,
+                    false,
+                    _localizer["OtpResentSuccessfully"],
+                    RegistrationToken: pendingResult.RegistrationToken);
+            }
 
-        if (pendingResult.Status == PendingOtpDispatchStatus.Expired)
-        {
-            throw new BusinessRuleException("INVALID_OTP", _localizer["InvalidOrExpiredOtp"]);
+            if (pendingResult.Status == PendingOtpDispatchStatus.CooldownActive)
+            {
+                var pendingCooldown = pendingResult.CooldownSecondsRemaining ?? 0;
+                throw new BusinessRuleException("OTP_COOLDOWN", _localizer["OtpCooldown", pendingCooldown]);
+            }
+
+            if (pendingResult.Status == PendingOtpDispatchStatus.Expired)
+            {
+                throw new BusinessRuleException("INVALID_OTP", _localizer["InvalidOrExpiredOtp"]);
+            }
+
+            if (pendingResult.Status == PendingOtpDispatchStatus.NotFound)
+            {
+                throw new BusinessRuleException("USER_NOT_FOUND", _localizer["USER_NOT_FOUND", identifier]);
+            }
         }
 
         var otpResult = await _identityAccountService.ResendRegistrationOtpAsync(identifier, cancellationToken);
@@ -180,5 +199,16 @@ public class ResendOtpCommandHandler : IRequestHandler<ResendOtpCommand, AuthRes
         }
 
         await _otpService.SendOtpEmailAsync(email, otpCode, cancellationToken, validityMinutes: 15);
+    }
+
+    private static void EnsureIdentifierMatchesPending(string identifier, PendingRegistrationSnapshot pending)
+    {
+        var trimmed = identifier.Trim();
+        var emailMatch = string.Equals(pending.Email, trimmed, StringComparison.OrdinalIgnoreCase);
+        var phoneMatch = string.Equals(pending.PhoneNumber, trimmed, StringComparison.Ordinal);
+        if (!emailMatch && !phoneMatch)
+        {
+            throw new BusinessRuleException("USER_NOT_FOUND", "USER_NOT_FOUND");
+        }
     }
 }

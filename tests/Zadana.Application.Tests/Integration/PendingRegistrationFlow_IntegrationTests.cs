@@ -12,7 +12,7 @@ using Zadana.Infrastructure.Persistence;
 namespace Zadana.Application.Tests.Integration;
 
 /// <summary>
-/// End-to-end coverage for deferring AspNetUsers creation until OTP succeeds.
+/// End-to-end coverage for deferring AspNetUsers creation until OTP succeeds (signed registration token).
 /// </summary>
 public class PendingRegistrationFlow_IntegrationTests : IClassFixture<ZadanaWebFactory>
 {
@@ -44,16 +44,19 @@ public class PendingRegistrationFlow_IntegrationTests : IClassFixture<ZadanaWebF
         var registerContent = await registerResponse.Content.ReadAsStringAsync();
         registerResponse.StatusCode.Should().Be(HttpStatusCode.OK, registerContent);
 
+        using var registerDoc = JsonDocument.Parse(registerContent);
+        var registrationToken = registerDoc.RootElement.GetProperty("registrationToken").GetString();
+        registrationToken.Should().NotBeNullOrWhiteSpace();
+        registerDoc.RootElement.GetProperty("isVerified").GetBoolean().Should().BeFalse();
+
         using (var scope = _factory.Services.CreateScope())
         {
             var userManager = scope.ServiceProvider.GetRequiredService<UserManager<User>>();
-            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
             (await userManager.FindByEmailAsync(email)).Should().BeNull();
-            (await db.PendingRegistrations.AnyAsync(x => x.Email == email.ToLowerInvariant())).Should().BeTrue();
         }
 
         var wrongOtpResponse = await _client.PostAsJsonAsync("/api/customers/auth/verify-otp",
-            new { identifier = email, otpCode = "0000" });
+            new { identifier = email, otpCode = "0000", registrationToken });
         ((int)wrongOtpResponse.StatusCode).Should().BeGreaterThan(399);
 
         using (var scope = _factory.Services.CreateScope())
@@ -64,7 +67,7 @@ public class PendingRegistrationFlow_IntegrationTests : IClassFixture<ZadanaWebF
 
         var otpCode = _factory.OtpSink.EmailDispatches.Single(d => d.Recipient == email).OtpCode;
         var verifyResponse = await _client.PostAsJsonAsync("/api/customers/auth/verify-otp",
-            new { identifier = email, otpCode });
+            new { identifier = email, otpCode, registrationToken });
         var verifyContent = await verifyResponse.Content.ReadAsStringAsync();
         verifyResponse.StatusCode.Should().Be(HttpStatusCode.OK, verifyContent);
 
@@ -79,13 +82,12 @@ public class PendingRegistrationFlow_IntegrationTests : IClassFixture<ZadanaWebF
             var user = await userManager.FindByEmailAsync(email);
             user.Should().NotBeNull();
             user!.EmailConfirmed.Should().BeTrue();
-            (await db.PendingRegistrations.AnyAsync(x => x.Email == email.ToLowerInvariant())).Should().BeFalse();
             (await db.CustomerAddresses.AnyAsync(a => a.UserId == user.Id)).Should().BeTrue();
         }
     }
 
     [Fact]
-    public async Task CustomerResendOtp_WorksOnPendingRegistration()
+    public async Task CustomerResendOtp_RequiresRegistrationToken_AndEnforcesCooldown()
     {
         var email = $"resend_cust_{Guid.NewGuid():N}@test.com";
         var phone = "010" + Random.Shared.Next(10000000, 99999999);
@@ -98,35 +100,22 @@ public class PendingRegistrationFlow_IntegrationTests : IClassFixture<ZadanaWebF
             password = "P@ssword1234",
             addressLine = "Test Address"
         });
-        registerResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+        var registerContent = await registerResponse.Content.ReadAsStringAsync();
+        registerResponse.StatusCode.Should().Be(HttpStatusCode.OK, registerContent);
 
-        var firstCode = _factory.OtpSink.EmailDispatches.Single(d => d.Recipient == email).OtpCode;
-        _factory.OtpSink.Clear();
+        using var registerDoc = JsonDocument.Parse(registerContent);
+        var registrationToken = registerDoc.RootElement.GetProperty("registrationToken").GetString();
+        registrationToken.Should().NotBeNullOrWhiteSpace();
 
-        // Advance past cooldown by backdating LastOtpSentAtUtc.
-        using (var scope = _factory.Services.CreateScope())
-        {
-            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-            var pending = await db.PendingRegistrations.SingleAsync(x => x.Email == email.ToLowerInvariant());
-            db.Entry(pending).Property(nameof(PendingRegistration.LastOtpSentAtUtc))
-                .CurrentValue = DateTime.UtcNow.AddMinutes(-10);
-            await db.SaveChangesAsync();
-        }
-
-        var resendResponse = await _client.PostAsJsonAsync("/api/customers/auth/resend-otp",
+        var missingTokenResponse = await _client.PostAsJsonAsync("/api/customers/auth/resend-otp",
             new { identifier = email });
-        var resendContent = await resendResponse.Content.ReadAsStringAsync();
-        resendResponse.StatusCode.Should().Be(HttpStatusCode.OK, resendContent);
+        ((int)missingTokenResponse.StatusCode).Should().BeGreaterThan(399);
 
-        var resentCode = _factory.OtpSink.EmailDispatches.Should().ContainSingle(d => d.Recipient == email).Subject.OtpCode;
-        resentCode.Should().NotBeNullOrWhiteSpace();
-
-        var verifyResponse = await _client.PostAsJsonAsync("/api/customers/auth/verify-otp",
-            new { identifier = email, otpCode = resentCode });
-        verifyResponse.StatusCode.Should().Be(HttpStatusCode.OK);
-
-        // Old code from first dispatch must not create a second user after success.
-        firstCode.Should().NotBe(resentCode);
+        var cooldownResponse = await _client.PostAsJsonAsync("/api/customers/auth/resend-otp",
+            new { identifier = email, registrationToken });
+        var cooldownContent = await cooldownResponse.Content.ReadAsStringAsync();
+        ((int)cooldownResponse.StatusCode).Should().BeGreaterThan(399);
+        cooldownContent.Should().ContainEquivalentOf("OTP_COOLDOWN");
     }
 
     [Fact]
@@ -154,5 +143,36 @@ public class PendingRegistrationFlow_IntegrationTests : IClassFixture<ZadanaWebF
         ((int)response.StatusCode).Should().BeGreaterThan(399);
         var content = await response.Content.ReadAsStringAsync();
         content.Should().ContainEquivalentOf("USER_ALREADY_EXISTS");
+    }
+
+    [Fact]
+    public async Task CustomerLogin_BeforeOtp_TreatsAsAccountNotFound()
+    {
+        var email = $"ghost_cust_{Guid.NewGuid():N}@test.com";
+        var phone = "010" + Random.Shared.Next(10000000, 99999999);
+        var password = "P@ssword1234";
+
+        var registerResponse = await _client.PostAsJsonAsync("/api/customers/auth/register", new
+        {
+            fullName = "Ghost Customer",
+            email,
+            phone,
+            password,
+            addressLine = "Test Address"
+        });
+        registerResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var loginResponse = await _client.PostAsJsonAsync("/api/customers/auth/login", new
+        {
+            identifier = email,
+            password
+        });
+
+        ((int)loginResponse.StatusCode).Should().BeOneOf(401, 403, 404);
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var userManager = scope.ServiceProvider.GetRequiredService<UserManager<User>>();
+            (await userManager.FindByEmailAsync(email)).Should().BeNull();
+        }
     }
 }

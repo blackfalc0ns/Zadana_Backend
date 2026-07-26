@@ -83,7 +83,8 @@ public class RegisterDriverCommandHandler : IRequestHandler<RegisterDriverComman
 
         if (startResult.Status != PendingRegistrationStartStatus.Succeeded ||
             startResult.Pending is null ||
-            string.IsNullOrWhiteSpace(startResult.PlainOtpCode))
+            string.IsNullOrWhiteSpace(startResult.PlainOtpCode) ||
+            string.IsNullOrWhiteSpace(startResult.RegistrationToken))
         {
             var errors = string.Join(", ", startResult.Errors ?? []);
             throw new BusinessRuleException("CREATION_FAILED", $"{_localizer["CREATION_FAILED"]}: {errors}");
@@ -94,6 +95,8 @@ public class RegisterDriverCommandHandler : IRequestHandler<RegisterDriverComman
             startResult.PlainOtpCode,
             cancellationToken);
 
-        return _registrationWorkflow.BuildPendingAuthResponse(startResult.Pending);
+        return _registrationWorkflow.BuildPendingAuthResponse(
+            startResult.Pending,
+            startResult.RegistrationToken);
     }
 }
