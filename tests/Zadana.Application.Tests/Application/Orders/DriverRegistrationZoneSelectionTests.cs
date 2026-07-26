@@ -1,20 +1,16 @@
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Localization;
-using Microsoft.Extensions.Logging;
 using Moq;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Common.Localization;
 using Zadana.Application.Modules.Delivery.Commands.RegisterDriver;
-using Zadana.Application.Modules.Delivery.DTOs;
-using Zadana.Application.Modules.Delivery.Interfaces;
 using Zadana.Application.Modules.Identity.DTOs;
 using Zadana.Application.Modules.Identity.Interfaces;
 using Zadana.Domain.Modules.Delivery.Enums;
 using Zadana.Domain.Modules.Identity.Entities;
 using Zadana.Domain.Modules.Identity.Enums;
 using Zadana.Domain.Modules.Vendors.Entities;
-using Zadana.Infrastructure.Modules.Delivery.Repositories;
 using Zadana.Infrastructure.Persistence;
 using Zadana.Infrastructure.Persistence.Interceptors;
 using Zadana.SharedKernel.Exceptions;
@@ -48,18 +44,9 @@ public class DriverRegistrationRegionCityTests
     }
 
     [Fact]
-    public async Task Handle_WhenRegionIsValid_ShouldPersistDriverWithRegionCity()
+    public async Task Handle_WhenRegionIsValid_ShouldStartPendingWithoutCreatingDriver()
     {
         await using var dbContext = CreateDbContext();
-
-        // Seed geography
-        var region = new Domain.Modules.Geography.Entities.SaudiRegion(Guid.NewGuid(), "RIYADH", "الرياض", "Riyadh", 24.7, 46.7, 6, 1);
-        dbContext.SaudiRegions.Add(region);
-        await dbContext.SaveChangesAsync();
-
-        var city = new Domain.Modules.Geography.Entities.SaudiCity(Guid.NewGuid(), region.Id, "RIYADH", "الرياض", "Riyadh", 24.7, 46.7, 10, 1);
-        dbContext.SaudiCities.Add(city);
-        await dbContext.SaveChangesAsync();
 
         var operationalRegion = new Domain.Modules.Geography.Entities.SaudiRegion(Guid.NewGuid(), "EASTERN", "Eastern", "Eastern", 26.4, 50.0, 6, 1);
         dbContext.SaudiRegions.Add(operationalRegion);
@@ -70,62 +57,51 @@ public class DriverRegistrationRegionCityTests
         SeedActiveVendorInCity(dbContext, "EASTERN", "DAMMAM");
         await dbContext.SaveChangesAsync();
 
-        var userSnapshot = new IdentityAccountSnapshot(
+        var pending = new PendingRegistrationSnapshot(
             Guid.NewGuid(),
             "Ahmed Driver",
             "ahmed.driver@example.com",
             "+201001112233",
             UserRole.Driver,
-            0,
-            AccountStatus.Pending,
-            false,
-            null,
-            null,
-            true,
-            true,
-            false);
+            null);
+
+        var pendingRegistrationService = new Mock<IPendingRegistrationService>();
+        pendingRegistrationService
+            .Setup(service => service.StartAsync(It.IsAny<StartPendingRegistrationRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new PendingRegistrationStartResult(
+                PendingRegistrationStartStatus.Succeeded,
+                pending,
+                "1234"));
 
         var registrationWorkflow = new Mock<IRegistrationWorkflow>();
         registrationWorkflow
-            .Setup(workflow => workflow.RegisterAccountAsync(It.IsAny<CreateIdentityAccountRequest>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(userSnapshot);
-        registrationWorkflow
-            .Setup(workflow => workflow.GenerateRegistrationOtpAsync(userSnapshot, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new RegistrationOtpDispatch(userSnapshot, "123456"));
-        registrationWorkflow
-            .Setup(workflow => workflow.DispatchRegistrationOtpEmailAsync(
-                userSnapshot.Email!,
-                "123456",
-                It.IsAny<CancellationToken>()))
-            .Returns(Task.CompletedTask);
-        registrationWorkflow
-            .Setup(workflow => workflow.BuildAuthResponseAsync(
-                userSnapshot,
-                It.IsAny<DriverOperationalStatusDto>(),
-                It.IsAny<CancellationToken>()))
-            .ReturnsAsync((IdentityAccountSnapshot _, DriverOperationalStatusDto? driverStatus, CancellationToken _) =>
-                new AuthResponseDto(null, null, IsVerified: false, DriverStatus: driverStatus));
+            .Setup(workflow => workflow.BuildPendingAuthResponse(pending, null))
+            .Returns(new AuthResponseDto(null, null, IsVerified: false));
 
-        var unitOfWork = new Mock<IUnitOfWork>();
-        unitOfWork
-            .Setup(workflow => workflow.SaveChangesAsync(It.IsAny<CancellationToken>()))
-            .ReturnsAsync(1);
+        var otpService = new Mock<IOtpService>();
+        var localizer = CreateLocalizer();
 
         var handler = new RegisterDriverCommandHandler(
+            pendingRegistrationService.Object,
             registrationWorkflow.Object,
-            Mock.Of<IIdentityAccountService>(),
-            new DriverRepository(dbContext),
-            unitOfWork.Object,
             dbContext,
-            Mock.Of<IAdminAlertService>(),
-            Mock.Of<ILogger<RegisterDriverCommandHandler>>());
+            otpService.Object,
+            localizer.Object);
 
         var result = await handler.Handle(CreateCommand(), CancellationToken.None);
 
-        var persistedDriver = dbContext.Drivers.Local.Should().ContainSingle().Subject;
-        persistedDriver.Region.Should().Be("EASTERN");
-        persistedDriver.City.Should().Be("DAMMAM");
-        result.DriverStatus.Should().NotBeNull();
+        dbContext.Drivers.Local.Should().BeEmpty();
+        result.IsVerified.Should().BeFalse();
+        pendingRegistrationService.Verify(
+            service => service.StartAsync(
+                It.Is<StartPendingRegistrationRequest>(request =>
+                    request.Role == UserRole.Driver &&
+                    request.PayloadJson.Contains("DAMMAM")),
+                It.IsAny<CancellationToken>()),
+            Times.Once);
+        otpService.Verify(
+            service => service.SendOtpEmailAsync(pending.Email, "1234", It.IsAny<CancellationToken>(), It.IsAny<int>()),
+            Times.Once);
     }
 
     [Fact]
@@ -133,7 +109,6 @@ public class DriverRegistrationRegionCityTests
     {
         await using var dbContext = CreateDbContext();
 
-        // Seed geography — city belongs to a different region
         var region = new Domain.Modules.Geography.Entities.SaudiRegion(Guid.NewGuid(), "RIYADH", "الرياض", "Riyadh", 24.7, 46.7, 6, 1);
         var otherRegion = new Domain.Modules.Geography.Entities.SaudiRegion(Guid.NewGuid(), "MAKKAH", "مكة", "Makkah", 21.4, 39.8, 6, 2);
         dbContext.SaudiRegions.AddRange(
@@ -146,15 +121,14 @@ public class DriverRegistrationRegionCityTests
         dbContext.SaudiCities.Add(city);
         await dbContext.SaveChangesAsync();
 
+        var pendingRegistrationService = new Mock<IPendingRegistrationService>();
         var registrationWorkflow = new Mock<IRegistrationWorkflow>();
         var handler = new RegisterDriverCommandHandler(
+            pendingRegistrationService.Object,
             registrationWorkflow.Object,
-            Mock.Of<IIdentityAccountService>(),
-            new DriverRepository(dbContext),
-            Mock.Of<IUnitOfWork>(),
             dbContext,
-            Mock.Of<IAdminAlertService>(),
-            Mock.Of<ILogger<RegisterDriverCommandHandler>>());
+            Mock.Of<IOtpService>(),
+            CreateLocalizer().Object);
 
         var action = () => handler.Handle(
             CreateCommand(region: "EASTERN", city: "JEDDAH"),
@@ -162,8 +136,8 @@ public class DriverRegistrationRegionCityTests
 
         await action.Should().ThrowAsync<BusinessRuleException>()
             .Where(exception => exception.ErrorCode == "UNSUPPORTED_OPERATIONAL_CITY");
-        registrationWorkflow.Verify(
-            workflow => workflow.RegisterAccountAsync(It.IsAny<CreateIdentityAccountRequest>(), It.IsAny<CancellationToken>()),
+        pendingRegistrationService.Verify(
+            service => service.StartAsync(It.IsAny<StartPendingRegistrationRequest>(), It.IsAny<CancellationToken>()),
             Times.Never);
     }
 
@@ -245,7 +219,7 @@ public class DriverRegistrationRegionCityTests
     {
         var localizer = new Mock<IStringLocalizer<SharedResource>>();
         localizer
-            .Setup(localizer => localizer[It.IsAny<string>()])
+            .Setup(item => item[It.IsAny<string>()])
             .Returns((string key) => new LocalizedString(key, key));
 
         return localizer;

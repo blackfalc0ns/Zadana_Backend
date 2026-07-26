@@ -456,7 +456,15 @@ public class CatalogRequestWorkflowTests
         public Task<bool> ExistsByIdAsync(Guid userId, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<bool> ExistsByEmailOrPhoneAsync(string email, string phoneNumber, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<IdentityCreateResult> CreateAsync(CreateIdentityAccountRequest request, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task<IdentityCreateResult> CreateWithPasswordHashAsync(
+            CreateIdentityAccountRequest request,
+            string passwordHash,
+            bool emailConfirmed = false,
+            CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task<IdentityOperationResult> ConfirmEmailAsync(Guid userId, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<IdentityOperationResult> DeleteAsync(Guid userId, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task<bool> CheckPasswordAsync(Guid userId, string password, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task<IdentityOperationResult> AnonymizeClosedAccountAsync(Guid userId, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<CredentialValidationResult> ValidateCredentialsAsync(string identifier, string password, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<IdentityOperationResult> RecordLoginAsync(Guid userId, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<IdentityOperationResult> RecordActivityAsync(Guid userId, CancellationToken cancellationToken = default) => throw new NotImplementedException();

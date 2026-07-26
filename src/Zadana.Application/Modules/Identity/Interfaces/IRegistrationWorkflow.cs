@@ -30,4 +30,8 @@ public interface IRegistrationWorkflow
     Task CompensateAccountCreationFailureAsync(
         Guid userId,
         CancellationToken cancellationToken = default);
+
+    AuthResponseDto BuildPendingAuthResponse(
+        PendingRegistrationSnapshot pending,
+        string? message = null);
 }

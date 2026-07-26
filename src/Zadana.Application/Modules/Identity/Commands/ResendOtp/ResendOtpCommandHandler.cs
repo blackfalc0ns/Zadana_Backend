@@ -12,15 +12,18 @@ namespace Zadana.Application.Modules.Identity.Commands.ResendOtp;
 public class ResendOtpCommandHandler : IRequestHandler<ResendOtpCommand, AuthResponseDto>
 {
     private readonly IIdentityAccountService _identityAccountService;
+    private readonly IPendingRegistrationService _pendingRegistrationService;
     private readonly IOtpService _otpService;
     private readonly IStringLocalizer<SharedResource> _localizer;
 
     public ResendOtpCommandHandler(
         IIdentityAccountService identityAccountService,
+        IPendingRegistrationService pendingRegistrationService,
         IOtpService otpService,
         IStringLocalizer<SharedResource> localizer)
     {
         _identityAccountService = identityAccountService;
+        _pendingRegistrationService = pendingRegistrationService;
         _otpService = otpService;
         _localizer = localizer;
     }
@@ -49,6 +52,34 @@ public class ResendOtpCommandHandler : IRequestHandler<ResendOtpCommand, AuthRes
         string identifier,
         CancellationToken cancellationToken)
     {
+        var pendingResult = await _pendingRegistrationService.ResendOtpAsync(identifier, cancellationToken: cancellationToken);
+        if (pendingResult.Status == PendingOtpDispatchStatus.Succeeded &&
+            pendingResult.Pending is not null &&
+            !string.IsNullOrWhiteSpace(pendingResult.PlainOtpCode))
+        {
+            await SendRegistrationOtpEmailAsync(pendingResult.Pending.Email, pendingResult.PlainOtpCode, cancellationToken);
+            var pendingUserDto = new CurrentUserDto(
+                pendingResult.Pending.Id,
+                pendingResult.Pending.FullName,
+                pendingResult.Pending.Email,
+                pendingResult.Pending.PhoneNumber,
+                pendingResult.Pending.Role.ToString(),
+                MustChangePassword: false,
+                ProfilePhotoUrl: pendingResult.Pending.ProfilePhotoUrl);
+            return new AuthResponseDto(null, pendingUserDto, false, _localizer["OtpResentSuccessfully"]);
+        }
+
+        if (pendingResult.Status == PendingOtpDispatchStatus.CooldownActive)
+        {
+            var pendingCooldown = pendingResult.CooldownSecondsRemaining ?? 0;
+            throw new BusinessRuleException("OTP_COOLDOWN", _localizer["OtpCooldown", pendingCooldown]);
+        }
+
+        if (pendingResult.Status == PendingOtpDispatchStatus.Expired)
+        {
+            throw new BusinessRuleException("INVALID_OTP", _localizer["InvalidOrExpiredOtp"]);
+        }
+
         var otpResult = await _identityAccountService.ResendRegistrationOtpAsync(identifier, cancellationToken);
         if (otpResult.Status == OtpDispatchStatus.UserNotFound)
         {

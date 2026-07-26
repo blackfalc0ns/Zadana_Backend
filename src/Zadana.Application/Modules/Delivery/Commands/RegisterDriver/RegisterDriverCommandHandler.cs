@@ -1,50 +1,35 @@
 using MediatR;
-using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Localization;
 using Zadana.Application.Common.Interfaces;
-using Zadana.Application.Modules.Delivery.DTOs;
-using Zadana.Application.Modules.Delivery.Interfaces;
+using Zadana.Application.Common.Localization;
 using Zadana.Application.Modules.Geography.Support;
 using Zadana.Application.Modules.Identity.DTOs;
 using Zadana.Application.Modules.Identity.Interfaces;
-using Zadana.Application.Modules.Finances.Services;
-using Zadana.Domain.Modules.Identity.Entities;
 using Zadana.Domain.Modules.Identity.Enums;
-using Zadana.Domain.Modules.Delivery.Entities;
-using Zadana.Domain.Modules.Wallets.Enums;
 using Zadana.SharedKernel.Exceptions;
 
 namespace Zadana.Application.Modules.Delivery.Commands.RegisterDriver;
 
 public class RegisterDriverCommandHandler : IRequestHandler<RegisterDriverCommand, AuthResponseDto>
 {
+    private readonly IPendingRegistrationService _pendingRegistrationService;
     private readonly IRegistrationWorkflow _registrationWorkflow;
-    private readonly IIdentityAccountService _identityAccountService;
-    private readonly IDriverRepository _driverRepository;
-    private readonly IUnitOfWork _unitOfWork;
     private readonly IApplicationDbContext _context;
-    private readonly IAdminAlertService _adminAlertService;
-    private readonly ILogger<RegisterDriverCommandHandler> _logger;
-    private readonly ISettlementProcessingSettingsService? _settlementProcessingSettingsService;
+    private readonly IOtpService _otpService;
+    private readonly IStringLocalizer<SharedResource> _localizer;
 
     public RegisterDriverCommandHandler(
+        IPendingRegistrationService pendingRegistrationService,
         IRegistrationWorkflow registrationWorkflow,
-        IIdentityAccountService identityAccountService,
-        IDriverRepository driverRepository,
-        IUnitOfWork unitOfWork,
         IApplicationDbContext context,
-        IAdminAlertService adminAlertService,
-        ILogger<RegisterDriverCommandHandler> logger,
-        ISettlementProcessingSettingsService? settlementProcessingSettingsService = null)
+        IOtpService otpService,
+        IStringLocalizer<SharedResource> localizer)
     {
+        _pendingRegistrationService = pendingRegistrationService;
         _registrationWorkflow = registrationWorkflow;
-        _identityAccountService = identityAccountService;
-        _driverRepository = driverRepository;
-        _unitOfWork = unitOfWork;
         _context = context;
-        _adminAlertService = adminAlertService;
-        _logger = logger;
-        _settlementProcessingSettingsService = settlementProcessingSettingsService;
+        _otpService = otpService;
+        _localizer = localizer;
     }
 
     public async Task<AuthResponseDto> Handle(RegisterDriverCommand request, CancellationToken cancellationToken)
@@ -62,259 +47,53 @@ public class RegisterDriverCommandHandler : IRequestHandler<RegisterDriverComman
             request.City,
             cancellationToken);
 
-        var (user, isResume) = await RegisterOrResumeAccountAsync(request, cancellationToken);
-        try
-        {
-            Driver driver;
-            if (isResume)
-            {
-                driver = await _driverRepository.GetByUserIdWithReviewsAsync(user.Id, cancellationToken)
-                    ?? throw new NotFoundException("Driver", user.Id);
-            }
-            else
-            {
-                driver = new Driver(
-                    user.Id,
-                    request.VehicleType,
-                    request.NationalId,
-                    request.LicenseNumber,
-                    request.NationalIdExpiryDate,
-                    request.DriverLicenseExpiryDate,
-                    request.VehicleLicenseNumber,
-                    request.VehicleLicenseExpiryDate,
-                    request.Address,
-                    request.NationalIdFrontImageUrl,
-                    request.NationalIdBackImageUrl,
-                    request.LicenseImageUrl,
-                    request.VehicleImageUrl,
-                    request.PersonalPhotoUrl,
-                    request.Region,
-                    request.City);
+        var payloadJson = PendingRegistrationPayloadSerializer.Serialize(
+            new PendingDriverPayload(
+                request.VehicleType,
+                request.NationalId,
+                request.LicenseNumber,
+                request.NationalIdExpiryDate,
+                request.DriverLicenseExpiryDate,
+                request.VehicleLicenseNumber,
+                request.VehicleLicenseExpiryDate,
+                request.Address,
+                request.Region,
+                request.City,
+                request.NationalIdFrontImageUrl,
+                request.NationalIdBackImageUrl,
+                request.LicenseImageUrl,
+                request.VehicleImageUrl,
+                request.PersonalPhotoUrl));
 
-                if (_settlementProcessingSettingsService is not null)
-                {
-                    driver.UpdatePayoutDay(
-                        await _settlementProcessingSettingsService.ResolveConfiguredPayoutDayAsync(
-                            requestedPayoutDay: null,
-                            fallback: PayoutScheduleDay.Monday,
-                            cancellationToken: cancellationToken));
-                }
-
-                _driverRepository.Add(driver);
-                await _unitOfWork.SaveChangesAsync(cancellationToken);
-
-                user = await EnsureDriverAccessScopeAsync(user, driver.Id, cancellationToken);
-            }
-
-            var otpDispatch = await _registrationWorkflow.GenerateRegistrationOtpAsync(user, cancellationToken);
-            user = otpDispatch.Account;
-            await _unitOfWork.SaveChangesAsync(cancellationToken);
-
-            var authResponse = await _registrationWorkflow.BuildAuthResponseAsync(
-                user,
-                DriverOperationalStatusFactory.Create(driver),
-                cancellationToken);
-            await _unitOfWork.SaveChangesAsync(cancellationToken);
-
-            await _registrationWorkflow.DispatchRegistrationOtpEmailAsync(
-                user.Email!,
-                otpDispatch.OtpCode,
-                cancellationToken);
-
-            if (!isResume)
-            {
-                await TrySendNewDriverAdminAlertAsync(user, driver, request, cancellationToken);
-            }
-
-            return authResponse;
-        }
-        catch
-        {
-            if (!isResume)
-            {
-                await _registrationWorkflow.CompensateAccountCreationFailureAsync(user.Id, cancellationToken);
-            }
-
-            throw;
-        }
-    }
-
-    private async Task<(IdentityAccountSnapshot User, bool IsResume)> RegisterOrResumeAccountAsync(
-        RegisterDriverCommand request,
-        CancellationToken cancellationToken)
-    {
-        try
-        {
-            var user = await _registrationWorkflow.RegisterAccountAsync(
-                new CreateIdentityAccountRequest(
-                    request.FullName,
-                    request.Email,
-                    request.Phone,
-                    UserRole.Driver,
-                    request.Password),
-                cancellationToken);
-
-            return (user, false);
-        }
-        catch (BusinessRuleException ex) when (ex.ErrorCode == "USER_ALREADY_EXISTS")
-        {
-            var resumedUser = await TryResumePendingDriverRegistrationAsync(request, cancellationToken);
-            if (resumedUser is null)
-            {
-                throw;
-            }
-
-            _logger.LogInformation(
-                "Resuming pending driver registration for user {UserId} after duplicate submit.",
-                resumedUser.Id);
-
-            return (resumedUser, true);
-        }
-    }
-
-    private async Task<IdentityAccountSnapshot?> TryResumePendingDriverRegistrationAsync(
-        RegisterDriverCommand request,
-        CancellationToken cancellationToken)
-    {
-        var normalizedEmail = request.Email.Trim().ToLowerInvariant();
-        var normalizedPhone = request.Phone.Trim();
-
-        var existingByEmail = await _identityAccountService.FindByIdentifierAsync(normalizedEmail, cancellationToken);
-        var existingByPhone = await _identityAccountService.FindByIdentifierAsync(normalizedPhone, cancellationToken);
-
-        if (existingByEmail is not null &&
-            existingByPhone is not null &&
-            existingByEmail.Id != existingByPhone.Id)
-        {
-            return null;
-        }
-
-        var existing = existingByEmail ?? existingByPhone;
-        if (existing is null ||
-            existing.Role != UserRole.Driver ||
-            existing.EmailConfirmed ||
-            !string.Equals(existing.Email, normalizedEmail, StringComparison.OrdinalIgnoreCase) ||
-            !string.Equals(existing.PhoneNumber, normalizedPhone, StringComparison.Ordinal))
-        {
-            return null;
-        }
-
-        var credentialResult = await _identityAccountService.ValidateCredentialsAsync(
-            normalizedEmail,
-            request.Password,
+        var startResult = await _pendingRegistrationService.StartAsync(
+            new StartPendingRegistrationRequest(
+                request.FullName,
+                request.Email,
+                request.Phone,
+                request.Password,
+                UserRole.Driver,
+                payloadJson,
+                request.PersonalPhotoUrl),
             cancellationToken);
 
-        if (credentialResult.Status != CredentialValidationStatus.Succeeded || credentialResult.Account is null)
+        if (startResult.Status == PendingRegistrationStartStatus.DuplicateEmailOrPhone)
         {
-            return null;
+            throw new BusinessRuleException("USER_ALREADY_EXISTS", _localizer["USER_ALREADY_EXISTS"]);
         }
 
-        var driverExists = await _driverRepository.GetByUserIdAsync(existing.Id, cancellationToken) is not null;
-        return driverExists ? credentialResult.Account : null;
-    }
-
-    private async Task TrySendNewDriverAdminAlertAsync(
-        IdentityAccountSnapshot user,
-        Driver driver,
-        RegisterDriverCommand request,
-        CancellationToken cancellationToken)
-    {
-        try
+        if (startResult.Status != PendingRegistrationStartStatus.Succeeded ||
+            startResult.Pending is null ||
+            string.IsNullOrWhiteSpace(startResult.PlainOtpCode))
         {
-            await _adminAlertService.SendAsync(
-                new AdminAlertRequest(
-                    AdminAlertTypes.DriverApprovalRequested,
-                    AdminAlertCategories.Drivers,
-                    AdminAlertPriorities.High,
-                    "مندوب جديد يحتاج مراجعة",
-                    "New driver requires review",
-                    $"قام المندوب {user.FullName} بإرسال طلب الانضمام وبانتظار مراجعة الإدارة.",
-                    $"Driver {user.FullName} submitted an onboarding request.",
-                    driver.Id,
-                    $"/drivers/{driver.Id}?tab=verification&focus=approval",
-                    new
-                    {
-                        driverId = driver.Id,
-                        driverUserId = driver.UserId,
-                        fullName = user.FullName,
-                        region = request.Region,
-                        city = request.City,
-                        vehicleType = request.VehicleType
-                    }),
-                cancellationToken);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(
-                ex,
-                "Admin alert dispatch failed for new driver {DriverId}. Registration still succeeded.",
-                driver.Id);
-        }
-    }
-
-    private async Task<IdentityAccountSnapshot> EnsureDriverAccessScopeAsync(
-        IdentityAccountSnapshot account,
-        Guid driverId,
-        CancellationToken cancellationToken)
-    {
-        var driverRole = await _context.RoleDefinitions
-            .AsNoTracking()
-            .Where(role => role.Code == "driver_account" && role.IsActive)
-            .Select(role => new { role.Id })
-            .FirstOrDefaultAsync(cancellationToken);
-
-        if (driverRole is null)
-        {
-            return account;
+            var errors = string.Join(", ", startResult.Errors ?? []);
+            throw new BusinessRuleException("CREATION_FAILED", $"{_localizer["CREATION_FAILED"]}: {errors}");
         }
 
-        var existingScope = await _context.UserAccessScopes
-            .FirstOrDefaultAsync(scope => scope.UserId == account.Id && scope.IsActive, cancellationToken);
+        await _otpService.SendOtpEmailAsync(
+            startResult.Pending.Email,
+            startResult.PlainOtpCode,
+            cancellationToken);
 
-        var userEntity = await _context.Users.FirstOrDefaultAsync(user => user.Id == account.Id, cancellationToken)
-            ?? throw new NotFoundException("User", account.Id);
-
-        if (existingScope is null)
-        {
-            _context.UserAccessScopes.Add(new UserAccessScope(
-                account.Id,
-                driverRole.Id,
-                PanelScope.DriverApp,
-                AccessScopeType.DriverSelf,
-                driverId));
-
-            userEntity.IncrementPermissionVersion();
-            await _unitOfWork.SaveChangesAsync(cancellationToken);
-        }
-        else if (existingScope.RoleDefinitionId != driverRole.Id ||
-                 existingScope.PanelScope != PanelScope.DriverApp ||
-                 existingScope.ScopeType != AccessScopeType.DriverSelf ||
-                 existingScope.ScopeEntityId != driverId)
-        {
-            existingScope.Update(
-                driverRole.Id,
-                PanelScope.DriverApp,
-                AccessScopeType.DriverSelf,
-                driverId,
-                null);
-
-            userEntity.IncrementPermissionVersion();
-            await _unitOfWork.SaveChangesAsync(cancellationToken);
-        }
-
-        return new IdentityAccountSnapshot(
-            userEntity.Id,
-            userEntity.FullName,
-            userEntity.Email,
-            userEntity.PhoneNumber,
-            userEntity.Role,
-            userEntity.PermissionVersion,
-            userEntity.AccountStatus,
-            userEntity.IsLoginLocked,
-            userEntity.LockedAtUtc,
-            userEntity.ArchivedAtUtc,
-            userEntity.EmailConfirmed,
-            userEntity.PhoneNumberConfirmed,
-            userEntity.MustChangePassword);
+        return _registrationWorkflow.BuildPendingAuthResponse(startResult.Pending);
     }
 }

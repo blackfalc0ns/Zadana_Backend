@@ -30,7 +30,7 @@ public class CustomerAuth_IntegrationTests : IClassFixture<ZadanaWebFactory>
     // ─── Register ─────────────────────────────────────────────────────────
 
     [Fact]
-    public async Task Register_WithValidData_Returns200AndTokens()
+    public async Task Register_WithValidData_Returns200WithoutTokens()
     {
         var body = new
         {
@@ -50,7 +50,8 @@ public class CustomerAuth_IntegrationTests : IClassFixture<ZadanaWebFactory>
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
         var content = await response.Content.ReadAsStringAsync();
-        content.Should().Contain("accessToken", "registration must return a token");
+        content.Should().Contain("\"isVerified\":false");
+        content.Should().Contain("\"tokens\":null");
     }
 
     [Fact]
@@ -104,8 +105,8 @@ public class CustomerAuth_IntegrationTests : IClassFixture<ZadanaWebFactory>
         await _client.PostAsJsonAsync("/api/customers/auth/register", body1);
         var response = await _client.PostAsJsonAsync("/api/customers/auth/register", body2);
 
-        response.StatusCode.Should().Be(HttpStatusCode.BadRequest,
-            "duplicate email should return 400 Bad Request via BusinessRuleException");
+        response.StatusCode.Should().Be(HttpStatusCode.Conflict,
+            "duplicate email should return 409 Conflict via BusinessRuleException");
     }
 
     // ─── Login ─────────────────────────────────────────────────────────────
@@ -113,13 +114,17 @@ public class CustomerAuth_IntegrationTests : IClassFixture<ZadanaWebFactory>
     [Fact]
     public async Task Login_WithValidCredentials_ReturnsAccessToken()
     {
-        // First register a user
+        // First register + verify OTP (user is created only after OTP)
         var email = $"login_{Guid.NewGuid():N}@test.com";
         var phone = "015" + new Random().Next(10000000, 99999999).ToString();
         var password = "P@ssword1234";
 
         await _client.PostAsJsonAsync("/api/customers/auth/register",
             new { fullName = "Login Test", email, phone, password, addressLine = "Login Address" });
+
+        var otpCode = _factory.OtpSink.EmailDispatches.Single(d => d.Recipient == email).OtpCode;
+        await _client.PostAsJsonAsync("/api/customers/auth/verify-otp",
+            new { identifier = email, otpCode });
 
         // Then login
         var loginBody = new { identifier = email, password };
@@ -136,8 +141,15 @@ public class CustomerAuth_IntegrationTests : IClassFixture<ZadanaWebFactory>
         var email = $"wrong_{Guid.NewGuid():N}@test.com";
         var phone = "016" + new Random().Next(10000000, 99999999).ToString();
 
-        await _client.PostAsJsonAsync("/api/customers/auth/register",
-            new { fullName = "Test User", email, phone, password = "CorrectPass1!" });
+        var registerResponse = await _client.PostAsJsonAsync("/api/customers/auth/register",
+            new { fullName = "Test User", email, phone, password = "CorrectPass1!", addressLine = "Wrong Password Address" });
+        var registerContent = await registerResponse.Content.ReadAsStringAsync();
+        registerResponse.StatusCode.Should().Be(HttpStatusCode.OK, registerContent);
+
+        var otpCode = _factory.OtpSink.EmailDispatches.Single(d => d.Recipient == email).OtpCode;
+        var verifyResponse = await _client.PostAsJsonAsync("/api/customers/auth/verify-otp",
+            new { identifier = email, otpCode });
+        verifyResponse.StatusCode.Should().Be(HttpStatusCode.OK, await verifyResponse.Content.ReadAsStringAsync());
 
         var loginBody = new { identifier = email, password = "WrongPassword123" };
         var response = await _client.PostAsJsonAsync("/api/customers/auth/login", loginBody);
@@ -159,13 +171,17 @@ public class CustomerAuth_IntegrationTests : IClassFixture<ZadanaWebFactory>
     [Fact]
     public async Task GetMe_WithValidToken_Returns200AndUserData()
     {
-        // Register and login to get a token
+        // Register, verify OTP, then login to get a token
         var email = $"me_{Guid.NewGuid():N}@test.com";
         var phone = "017" + new Random().Next(10000000, 99999999).ToString();
         var password = "P@ssword1234";
 
         await _client.PostAsJsonAsync("/api/customers/auth/register",
             new { fullName = "Profile User", email, phone, password, addressLine = "Profile Address" });
+
+        var otpCode = _factory.OtpSink.EmailDispatches.Single(d => d.Recipient == email).OtpCode;
+        await _client.PostAsJsonAsync("/api/customers/auth/verify-otp",
+            new { identifier = email, otpCode });
 
         var loginResp = await _client.PostAsJsonAsync("/api/customers/auth/login",
             new { identifier = email, password });
@@ -184,9 +200,9 @@ public class CustomerAuth_IntegrationTests : IClassFixture<ZadanaWebFactory>
             new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
 
         var response = await _client.GetAsync("/api/customers/auth/me");
-
-        response.StatusCode.Should().Be(HttpStatusCode.OK);
         var content = await response.Content.ReadAsStringAsync();
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK, content);
         content.Should().Contain(email);
 
         // Clean up auth header for subsequent tests
@@ -255,6 +271,9 @@ public class CustomerAuth_IntegrationTests : IClassFixture<ZadanaWebFactory>
 
         await _client.PostAsJsonAsync("/api/customers/auth/register",
             new { fullName = "Forgot Test", email, phone, password, addressLine = "Forgot Address" });
+        var otpCode = _factory.OtpSink.EmailDispatches.Single(d => d.Recipient == email).OtpCode;
+        await _client.PostAsJsonAsync("/api/customers/auth/verify-otp",
+            new { identifier = email, otpCode });
 
         var body = new { identifier = email };
         var response = await _client.PostAsJsonAsync("/api/customers/auth/forgot-password", body);

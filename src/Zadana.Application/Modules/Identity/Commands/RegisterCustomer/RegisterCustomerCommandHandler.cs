@@ -1,34 +1,30 @@
 using MediatR;
+using Microsoft.Extensions.Localization;
 using Zadana.Application.Common.Interfaces;
+using Zadana.Application.Common.Localization;
 using Zadana.Application.Modules.Identity.DTOs;
 using Zadana.Application.Modules.Identity.Interfaces;
-using Zadana.Domain.Modules.Identity.Entities;
 using Zadana.Domain.Modules.Identity.Enums;
 using Zadana.SharedKernel.Exceptions;
-using Microsoft.Extensions.Localization;
-using Zadana.Application.Common.Localization;
 
 namespace Zadana.Application.Modules.Identity.Commands.RegisterCustomer;
 
 public class RegisterCustomerCommandHandler : IRequestHandler<RegisterCustomerCommand, AuthResponseDto>
 {
-    private readonly IIdentityAccountService _identityAccountService;
+    private readonly IPendingRegistrationService _pendingRegistrationService;
     private readonly IRegistrationWorkflow _registrationWorkflow;
-    private readonly IUnitOfWork _unitOfWork;
-    private readonly IApplicationDbContext _context;
+    private readonly IOtpService _otpService;
     private readonly IStringLocalizer<SharedResource> _localizer;
 
     public RegisterCustomerCommandHandler(
-        IIdentityAccountService identityAccountService,
+        IPendingRegistrationService pendingRegistrationService,
         IRegistrationWorkflow registrationWorkflow,
-        IUnitOfWork unitOfWork,
-        IApplicationDbContext context,
+        IOtpService otpService,
         IStringLocalizer<SharedResource> localizer)
     {
-        _identityAccountService = identityAccountService;
+        _pendingRegistrationService = pendingRegistrationService;
         _registrationWorkflow = registrationWorkflow;
-        _unitOfWork = unitOfWork;
-        _context = context;
+        _otpService = otpService;
         _localizer = localizer;
     }
 
@@ -39,63 +35,47 @@ public class RegisterCustomerCommandHandler : IRequestHandler<RegisterCustomerCo
             throw new BusinessRuleException("EMAIL_REQUIRED", _localizer["RequiredField", _localizer["Email"].Value]);
         }
 
-        var createResult = await _identityAccountService.CreateAsync(
-            new CreateIdentityAccountRequest(
+        var payloadJson = PendingRegistrationPayloadSerializer.Serialize(
+            new PendingCustomerPayload(
+                request.AddressLine,
+                request.Label,
+                request.BuildingNo,
+                request.FloorNo,
+                request.ApartmentNo,
+                request.City,
+                request.Area,
+                request.Latitude,
+                request.Longitude));
+
+        var startResult = await _pendingRegistrationService.StartAsync(
+            new StartPendingRegistrationRequest(
                 request.FullName,
                 request.Email,
                 request.Phone,
-                UserRole.Customer,
                 request.Password,
+                UserRole.Customer,
+                payloadJson,
                 request.ProfilePhotoUrl),
             cancellationToken);
 
-        if (createResult.Status == IdentityCreateStatus.DuplicateEmailOrPhone)
+        if (startResult.Status == PendingRegistrationStartStatus.DuplicateEmailOrPhone)
         {
             throw new BusinessRuleException("USER_ALREADY_EXISTS", _localizer["USER_ALREADY_EXISTS"]);
         }
 
-        if (createResult.Status != IdentityCreateStatus.Succeeded || createResult.Account == null)
+        if (startResult.Status != PendingRegistrationStartStatus.Succeeded ||
+            startResult.Pending is null ||
+            string.IsNullOrWhiteSpace(startResult.PlainOtpCode))
         {
-            var errors = string.Join(", ", createResult.Errors ?? []);
+            var errors = string.Join(", ", startResult.Errors ?? []);
             throw new BusinessRuleException("CREATION_FAILED", $"{_localizer["CREATION_FAILED"]}: {errors}");
         }
 
-        var user = createResult.Account;
-        try
-        {
-            AddressLabel? parsedLabel = null;
-            if (!string.IsNullOrWhiteSpace(request.Label) && Enum.TryParse<AddressLabel>(request.Label, true, out var l))
-            {
-                parsedLabel = l;
-            }
+        await _otpService.SendOtpEmailAsync(
+            startResult.Pending.Email,
+            startResult.PlainOtpCode,
+            cancellationToken);
 
-            var address = new CustomerAddress(
-                userId: user.Id,
-                contactName: user.FullName,
-                contactPhone: user.PhoneNumber ?? request.Phone,
-                addressLine: request.AddressLine,
-                label: parsedLabel,
-                buildingNo: request.BuildingNo,
-                floorNo: request.FloorNo,
-                apartmentNo: request.ApartmentNo,
-                city: request.City,
-                area: request.Area,
-                latitude: request.Latitude,
-                longitude: request.Longitude
-            );
-            address.SetAsDefault();
-
-            _context.CustomerAddresses.Add(address);
-            user = await _registrationWorkflow.SendRegistrationOtpAsync(user, cancellationToken);
-            var authResponse = await _registrationWorkflow.BuildAuthResponseAsync(user, cancellationToken: cancellationToken);
-            await _unitOfWork.SaveChangesAsync(cancellationToken);
-
-            return authResponse;
-        }
-        catch
-        {
-            await _registrationWorkflow.CompensateAccountCreationFailureAsync(user.Id, cancellationToken);
-            throw;
-        }
+        return _registrationWorkflow.BuildPendingAuthResponse(startResult.Pending);
     }
 }

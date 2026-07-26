@@ -17,6 +17,7 @@ public interface IApplicationDbContext
 {
     // Identity
     DbSet<User> Users { get; }
+    DbSet<PendingRegistration> PendingRegistrations { get; }
     DbSet<PermissionDefinition> PermissionDefinitions { get; }
     DbSet<RoleDefinition> RoleDefinitions { get; }
     DbSet<RolePermission> RolePermissions { get; }

@@ -93,7 +93,8 @@ public class OrderStatusChangedHandlerTests
                 "payment_gateway",
                 "placed",
                 It.Is<string>(url => url.Contains("/orders/")),
-                It.IsAny<CancellationToken>()),
+                It.IsAny<CancellationToken>(),
+                It.IsAny<string?>()),
             Times.Once);
 
         pushServiceMock.Verify(
@@ -182,7 +183,8 @@ public class OrderStatusChangedHandlerTests
                 "customer",
                 "cancelled",
                 It.Is<string>(url => url.Contains("/orders/")),
-                It.IsAny<CancellationToken>()),
+                It.IsAny<CancellationToken>(),
+                It.IsAny<string?>()),
             Times.Once);
 
         pushServiceMock.Verify(
@@ -271,7 +273,8 @@ public class OrderStatusChangedHandlerTests
                 "payment_gateway",
                 "placed",
                 It.Is<string>(url => url.Contains("/orders/")),
-                It.IsAny<CancellationToken>()),
+                It.IsAny<CancellationToken>(),
+                It.IsAny<string?>()),
             Times.Once);
 
         pushServiceMock.Verify(
@@ -546,7 +549,8 @@ public class OrderStatusChangedHandlerTests
                 "vendor",
                 "status_changed",
                 It.Is<string>(url => url.Contains("/orders/")),
-                It.IsAny<CancellationToken>()),
+                It.IsAny<CancellationToken>(),
+                It.IsAny<string?>()),
             Times.Once);
     }
 

@@ -16,6 +16,7 @@ namespace Zadana.Application.Modules.Vendors.Commands.RegisterVendor;
 public class RegisterVendorCommandHandler : IRequestHandler<RegisterVendorCommand, AuthResponseDto>
 {
     private readonly IRegistrationWorkflow _registrationWorkflow;
+    private readonly IPendingRegistrationService _pendingRegistrationService;
     private readonly IVendorRepository _vendorRepository;
     private readonly IUnitOfWork _unitOfWork;
     private readonly IAdminAlertService _adminAlertService;
@@ -24,9 +25,11 @@ public class RegisterVendorCommandHandler : IRequestHandler<RegisterVendorComman
     private readonly ISettlementProcessingSettingsService _settlementProcessingSettingsService;
     private readonly IGoogleIdTokenVerifier _googleIdTokenVerifier;
     private readonly IIdentityAccountService _identityAccountService;
+    private readonly IOtpService _otpService;
 
     public RegisterVendorCommandHandler(
         IRegistrationWorkflow registrationWorkflow,
+        IPendingRegistrationService pendingRegistrationService,
         IVendorRepository vendorRepository,
         IUnitOfWork unitOfWork,
         IAdminAlertService adminAlertService,
@@ -34,9 +37,11 @@ public class RegisterVendorCommandHandler : IRequestHandler<RegisterVendorComman
         ILogger<RegisterVendorCommandHandler> logger,
         ISettlementProcessingSettingsService settlementProcessingSettingsService,
         IGoogleIdTokenVerifier googleIdTokenVerifier,
-        IIdentityAccountService identityAccountService)
+        IIdentityAccountService identityAccountService,
+        IOtpService otpService)
     {
         _registrationWorkflow = registrationWorkflow;
+        _pendingRegistrationService = pendingRegistrationService;
         _vendorRepository = vendorRepository;
         _unitOfWork = unitOfWork;
         _adminAlertService = adminAlertService;
@@ -45,6 +50,7 @@ public class RegisterVendorCommandHandler : IRequestHandler<RegisterVendorComman
         _settlementProcessingSettingsService = settlementProcessingSettingsService;
         _googleIdTokenVerifier = googleIdTokenVerifier;
         _identityAccountService = identityAccountService;
+        _otpService = otpService;
     }
 
     public async Task<AuthResponseDto> Handle(RegisterVendorCommand request, CancellationToken cancellationToken)
@@ -58,17 +64,57 @@ public class RegisterVendorCommandHandler : IRequestHandler<RegisterVendorComman
         var isGoogleSignup = !string.IsNullOrWhiteSpace(request.GoogleIdToken);
         if (isGoogleSignup)
         {
-            var googleProfile = await _googleIdTokenVerifier.VerifyAsync(request.GoogleIdToken!, cancellationToken);
-            if (!string.Equals(googleProfile.Email, request.Email.Trim(), StringComparison.OrdinalIgnoreCase))
-            {
-                throw new BusinessRuleException("GOOGLE_EMAIL_MISMATCH", "Google email does not match registration email.");
-            }
+            return await HandleGoogleSignupAsync(request, cancellationToken);
         }
 
-        var password = isGoogleSignup
-            ? GenerateSecurePassword()
-            : request.Password!;
+        if (string.IsNullOrWhiteSpace(request.Password))
+        {
+            throw new BusinessRuleException("PASSWORD_REQUIRED", "Password is required.");
+        }
 
+        var payloadJson = PendingRegistrationPayloadSerializer.Serialize(BuildVendorPayload(request));
+        var startResult = await _pendingRegistrationService.StartAsync(
+            new StartPendingRegistrationRequest(
+                request.FullName,
+                request.Email,
+                request.Phone,
+                request.Password!,
+                UserRole.Vendor,
+                payloadJson),
+            cancellationToken);
+
+        if (startResult.Status == PendingRegistrationStartStatus.DuplicateEmailOrPhone)
+        {
+            throw new BusinessRuleException("USER_ALREADY_EXISTS", "User already exists.");
+        }
+
+        if (startResult.Status != PendingRegistrationStartStatus.Succeeded ||
+            startResult.Pending is null ||
+            string.IsNullOrWhiteSpace(startResult.PlainOtpCode))
+        {
+            var errors = string.Join(", ", startResult.Errors ?? []);
+            throw new BusinessRuleException("CREATION_FAILED", errors);
+        }
+
+        await _otpService.SendOtpEmailAsync(
+            startResult.Pending.Email,
+            startResult.PlainOtpCode,
+            cancellationToken);
+
+        return _registrationWorkflow.BuildPendingAuthResponse(startResult.Pending);
+    }
+
+    private async Task<AuthResponseDto> HandleGoogleSignupAsync(
+        RegisterVendorCommand request,
+        CancellationToken cancellationToken)
+    {
+        var googleProfile = await _googleIdTokenVerifier.VerifyAsync(request.GoogleIdToken!, cancellationToken);
+        if (!string.Equals(googleProfile.Email, request.Email.Trim(), StringComparison.OrdinalIgnoreCase))
+        {
+            throw new BusinessRuleException("GOOGLE_EMAIL_MISMATCH", "Google email does not match registration email.");
+        }
+
+        var password = GenerateSecurePassword();
         var user = await _registrationWorkflow.RegisterAccountAsync(
             new CreateIdentityAccountRequest(
                 request.FullName,
@@ -78,18 +124,14 @@ public class RegisterVendorCommandHandler : IRequestHandler<RegisterVendorComman
                 password),
             cancellationToken);
 
-        if (isGoogleSignup)
+        var confirmResult = await _identityAccountService.ConfirmEmailAsync(user.Id, cancellationToken);
+        if (!confirmResult.Succeeded || confirmResult.Account is null)
         {
-            var confirmResult = await _identityAccountService.ConfirmEmailAsync(user.Id, cancellationToken);
-            if (!confirmResult.Succeeded || confirmResult.Account is null)
-            {
-                await _registrationWorkflow.CompensateAccountCreationFailureAsync(user.Id, cancellationToken);
-                throw new BusinessRuleException("IDENTITY_OPERATION_FAILED", "Unable to confirm Google email.");
-            }
-
-            user = confirmResult.Account;
+            await _registrationWorkflow.CompensateAccountCreationFailureAsync(user.Id, cancellationToken);
+            throw new BusinessRuleException("IDENTITY_OPERATION_FAILED", "Unable to confirm Google email.");
         }
 
+        user = confirmResult.Account;
         Vendor? vendor = null;
         AuthResponseDto authResponse;
 
@@ -162,11 +204,6 @@ public class RegisterVendorCommandHandler : IRequestHandler<RegisterVendorComman
             bankAccount.MarkAsPreferredForSetup();
             _vendorRepository.AddBankAccount(bankAccount);
 
-            if (!isGoogleSignup)
-            {
-                user = await _registrationWorkflow.SendRegistrationOtpAsync(user, cancellationToken);
-            }
-
             authResponse = await _registrationWorkflow.BuildAuthResponseAsync(
                 user,
                 cancellationToken: cancellationToken);
@@ -183,9 +220,46 @@ public class RegisterVendorCommandHandler : IRequestHandler<RegisterVendorComman
         return authResponse;
     }
 
+    private static PendingVendorPayload BuildVendorPayload(RegisterVendorCommand request) =>
+        new(
+            request.BusinessNameAr,
+            request.BusinessNameEn,
+            request.BusinessType,
+            request.CommercialRegistrationNumber,
+            request.CommercialRegistrationExpiryDate,
+            request.ContactEmail,
+            request.ContactPhone,
+            request.DescriptionAr,
+            request.DescriptionEn,
+            request.OwnerName,
+            request.OwnerEmail,
+            request.OwnerPhone,
+            request.IdNumber,
+            request.Nationality,
+            request.Region,
+            request.City,
+            request.NationalAddress,
+            request.TaxId,
+            request.LicenseNumber,
+            request.BankName,
+            request.AccountHolderName,
+            request.Iban,
+            request.SwiftCode,
+            request.PayoutCycle,
+            request.LogoUrl,
+            request.CommercialRegisterDocumentUrl,
+            request.TaxDocumentUrl,
+            request.LicenseDocumentUrl,
+            request.BranchName,
+            request.BranchAddressLine,
+            request.BranchLatitude,
+            request.BranchLongitude,
+            request.BranchContactPhone,
+            request.BranchDeliveryRadiusKm,
+            request.PayoutDay);
+
     private static string GenerateSecurePassword()
     {
-        // Identity password policies typically require mixed character classes.
         const string alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz0123456789!@#$%^&*";
         var bytes = new byte[32];
         System.Security.Cryptography.RandomNumberGenerator.Fill(bytes);

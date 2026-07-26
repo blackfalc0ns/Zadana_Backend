@@ -73,6 +73,8 @@ public class RoleRegistrationOtpDispatch_IntegrationTests : IClassFixture<Zadana
 
         var content = await response.Content.ReadAsStringAsync();
         response.StatusCode.Should().Be(HttpStatusCode.OK, content);
+        content.Should().Contain("\"isVerified\":false");
+        content.Should().Contain("\"tokens\":null");
         _factory.OtpSink.EmailDispatches.Should().ContainSingle(dispatch => dispatch.Recipient == email);
         _factory.OtpSink.SmsDispatches.Should().BeEmpty();
     }
@@ -110,6 +112,8 @@ public class RoleRegistrationOtpDispatch_IntegrationTests : IClassFixture<Zadana
 
         var content = await response.Content.ReadAsStringAsync();
         response.StatusCode.Should().Be(HttpStatusCode.OK, content);
+        content.Should().Contain("\"isVerified\":false");
+        content.Should().Contain("\"tokens\":null");
         _factory.OtpSink.EmailDispatches.Should().ContainSingle(dispatch => dispatch.Recipient == email);
         _factory.OtpSink.SmsDispatches.Should().BeEmpty();
     }

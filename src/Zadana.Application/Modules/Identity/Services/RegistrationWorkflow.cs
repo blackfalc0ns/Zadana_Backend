@@ -137,6 +137,27 @@ public class RegistrationWorkflow : IRegistrationWorkflow
         }
     }
 
+    public AuthResponseDto BuildPendingAuthResponse(
+        PendingRegistrationSnapshot pending,
+        string? message = null)
+    {
+        var pendingUserDto = new CurrentUserDto(
+            pending.Id,
+            pending.FullName,
+            pending.Email,
+            pending.PhoneNumber,
+            pending.Role.ToString(),
+            MustChangePassword: false,
+            Access: null,
+            ProfilePhotoUrl: pending.ProfilePhotoUrl);
+
+        return new AuthResponseDto(
+            Tokens: null,
+            User: pendingUserDto,
+            IsVerified: false,
+            Message: message ?? _localizer["AccountEmailNotVerified"]);
+    }
+
     private async Task<RegistrationOtpDispatch> GenerateRegistrationOtpInternalAsync(
         IdentityAccountSnapshot account,
         CancellationToken cancellationToken)

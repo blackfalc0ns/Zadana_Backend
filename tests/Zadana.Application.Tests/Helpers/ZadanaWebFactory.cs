@@ -1,3 +1,5 @@
+using System.Text;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -5,6 +7,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.IdentityModel.Tokens;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Domain.Modules.Geography.Entities;
 using Zadana.Domain.Modules.Identity.Entities;
@@ -22,6 +25,10 @@ namespace Zadana.Application.Tests.Helpers;
 /// </summary>
 public class ZadanaWebFactory : WebApplicationFactory<Program>
 {
+    internal const string TestJwtSecret = "TestSecretKey_For_Integration_Tests_Only_32chars!";
+    internal const string TestJwtIssuer = "ZadanaTest";
+    internal const string TestJwtAudience = "ZadanaTestClient";
+
     private readonly string _dbName = Guid.NewGuid().ToString();
     private readonly object _seedSync = new();
     private bool _seeded;
@@ -38,14 +45,22 @@ public class ZadanaWebFactory : WebApplicationFactory<Program>
     {
         builder.UseEnvironment("Testing");
 
+        // Apply early so Program.cs can capture the same JWT values used for signing.
+        builder.UseSetting("JwtSettings:Secret", TestJwtSecret);
+        builder.UseSetting("JwtSettings:Issuer", TestJwtIssuer);
+        builder.UseSetting("JwtSettings:Audience", TestJwtAudience);
+        builder.UseSetting("JwtSettings:ExpiryMinutes", "60");
+        builder.UseSetting("Realtime:WebSocketsEnabled", "false");
+        builder.UseSetting("Realtime:ServerSentEventsEnabled", "false");
+
         // Inject test-only JWT config
         builder.ConfigureAppConfiguration((_, config) =>
         {
             config.AddInMemoryCollection(new Dictionary<string, string?>
             {
-                ["JwtSettings:Secret"] = "TestSecretKey_For_Integration_Tests_Only_32chars!",
-                ["JwtSettings:Issuer"] = "ZadanaTest",
-                ["JwtSettings:Audience"] = "ZadanaTestClient",
+                ["JwtSettings:Secret"] = TestJwtSecret,
+                ["JwtSettings:Issuer"] = TestJwtIssuer,
+                ["JwtSettings:Audience"] = TestJwtAudience,
                 ["JwtSettings:ExpiryMinutes"] = "60",
                 ["Realtime:WebSocketsEnabled"] = "false",
                 ["Realtime:ServerSentEventsEnabled"] = "false"
@@ -69,6 +84,15 @@ public class ZadanaWebFactory : WebApplicationFactory<Program>
             services.RemoveAll<IOtpService>();
             services.AddSingleton(OtpSink);
             services.AddTransient<IOtpService, MockTestOtpService>();
+
+            // Keep bearer validation aligned with the test signing key/issuer/audience.
+            services.PostConfigure<JwtBearerOptions>(JwtBearerDefaults.AuthenticationScheme, options =>
+            {
+                options.TokenValidationParameters.ValidIssuer = TestJwtIssuer;
+                options.TokenValidationParameters.ValidAudience = TestJwtAudience;
+                options.TokenValidationParameters.IssuerSigningKey =
+                    new SymmetricSecurityKey(Encoding.UTF8.GetBytes(TestJwtSecret));
+            });
         });
     }
 

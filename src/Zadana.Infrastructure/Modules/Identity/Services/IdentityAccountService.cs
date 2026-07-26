@@ -76,6 +76,64 @@ public class IdentityAccountService : IIdentityAccountService
         return new IdentityCreateResult(IdentityCreateStatus.Succeeded, Map(user));
     }
 
+    public async Task<IdentityCreateResult> CreateWithPasswordHashAsync(
+        CreateIdentityAccountRequest request,
+        string passwordHash,
+        bool emailConfirmed = false,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(passwordHash))
+        {
+            return new IdentityCreateResult(IdentityCreateStatus.Failed, Errors: ["PASSWORD_HASH_REQUIRED"]);
+        }
+
+        if (await ExistsByEmailOrPhoneAsync(request.Email, request.PhoneNumber, cancellationToken))
+        {
+            return new IdentityCreateResult(IdentityCreateStatus.DuplicateEmailOrPhone);
+        }
+
+        var user = new User(
+            request.FullName,
+            request.Email,
+            request.PhoneNumber,
+            request.Role,
+            request.ProfilePhotoUrl);
+
+        var result = await _userManager.CreateAsync(user);
+        if (!result.Succeeded)
+        {
+            return new IdentityCreateResult(
+                IdentityCreateStatus.Failed,
+                Errors: result.Errors.Select(error => error.Description).ToArray());
+        }
+
+        user.PasswordHash = passwordHash;
+        if (emailConfirmed)
+        {
+            user.VerifyEmail();
+        }
+
+        var updateResult = await _userManager.UpdateAsync(user);
+        if (!updateResult.Succeeded)
+        {
+            await _userManager.DeleteAsync(user);
+            return new IdentityCreateResult(
+                IdentityCreateStatus.Failed,
+                Errors: updateResult.Errors.Select(error => error.Description).ToArray());
+        }
+
+        var roleResult = await _userManager.AddToRoleAsync(user, request.Role.ToString());
+        if (!roleResult.Succeeded)
+        {
+            await _userManager.DeleteAsync(user);
+            return new IdentityCreateResult(
+                IdentityCreateStatus.Failed,
+                Errors: roleResult.Errors.Select(error => error.Description).ToArray());
+        }
+
+        return new IdentityCreateResult(IdentityCreateStatus.Succeeded, Map(user));
+    }
+
     public async Task<IdentityOperationResult> ConfirmEmailAsync(Guid userId, CancellationToken cancellationToken = default)
     {
         var user = await _userManager.FindByIdAsync(userId.ToString());

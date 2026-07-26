@@ -1,168 +1,99 @@
 using FluentAssertions;
+using Microsoft.Extensions.Localization;
 using Moq;
 using Zadana.Application.Common.Interfaces;
+using Zadana.Application.Common.Localization;
 using Zadana.Application.Modules.Identity.Commands.RegisterCustomer;
 using Zadana.Application.Modules.Identity.DTOs;
-using Zadana.Domain.Modules.Identity.Entities;
-using Zadana.Domain.Modules.Identity.Interfaces;
+using Zadana.Application.Modules.Identity.Interfaces;
+using Zadana.Domain.Modules.Identity.Enums;
 using Zadana.SharedKernel.Exceptions;
 
 namespace Zadana.Application.Tests.Application.Identity;
 
-/// <summary>
-/// Unit tests for RegisterCustomerCommandHandler.
-/// Dependencies are mocked so tests are fast and isolated.
-/// </summary>
 public class RegisterCustomerCommandHandlerTests
 {
-    private readonly Mock<IUserRepository> _userRepositoryMock = new();
-    private readonly Mock<IUnitOfWork> _unitOfWorkMock = new();
-    private readonly Mock<IPasswordHasher> _passwordHasherMock = new();
-    private readonly Mock<IJwtTokenService> _jwtTokenServiceMock = new();
-    private readonly Mock<IOtpService> _otpServiceMock = new();
-    private readonly Mock<IApplicationDbContext> _dbContextMock = new();
+    private readonly Mock<IPendingRegistrationService> _pendingRegistrationService = new();
+    private readonly Mock<IRegistrationWorkflow> _registrationWorkflow = new();
+    private readonly Mock<IOtpService> _otpService = new();
+    private readonly Mock<IStringLocalizer<SharedResource>> _localizer = new();
 
-    private RegisterCustomerCommandHandler CreateHandler() =>
-        new(
-            _userRepositoryMock.Object,
-            _unitOfWorkMock.Object,
-            _passwordHasherMock.Object,
-            _jwtTokenServiceMock.Object,
-            _otpServiceMock.Object,
-            _dbContextMock.Object
-        );
-
-    private void SetupTokenService()
+    private RegisterCustomerCommandHandler CreateHandler()
     {
-        var tokens = new TokenPairDto("access_token_xyz", "refresh_token_abc");
-        _jwtTokenServiceMock
-            .Setup(x => x.GenerateTokenPairAsync(It.IsAny<User>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(tokens);
+        _localizer
+            .Setup(x => x[It.IsAny<string>()])
+            .Returns((string key) => new LocalizedString(key, key));
+        _localizer
+            .Setup(x => x[It.IsAny<string>(), It.IsAny<object[]>()])
+            .Returns((string key, object[] args) => new LocalizedString(key, key));
+
+        return new RegisterCustomerCommandHandler(
+            _pendingRegistrationService.Object,
+            _registrationWorkflow.Object,
+            _otpService.Object,
+            _localizer.Object);
     }
 
-    // ─── Duplicate User Tests ──────────────────────────────────────────────
+    private static RegisterCustomerCommand CreateCommand(string email = "ahmed@test.com") =>
+        new("Ahmed Ali", email, "01011122233", "P@ssword1", null, "Address Line", "Home", "123", "1", "1A", "City", "Area", 30.0m, 31.0m);
 
     [Fact]
     public async Task Handle_WhenEmailAlreadyExists_ShouldThrowBusinessRuleException()
     {
-        // Arrange
-        var existingUser = new User("Existing User", "taken@mail.com", "01099999999", "hash", Zadana.Domain.Modules.Identity.Enums.UserRole.Customer);
-        _userRepositoryMock
-            .Setup(r => r.GetByIdentifierAsync("taken@mail.com", It.IsAny<CancellationToken>()))
-            .ReturnsAsync(existingUser);
-
-        var command = new RegisterCustomerCommand(
-            "New User", "taken@mail.com", "01011111111", "P@ssword1", null, "Address Line", "Home", "123", "1", "1A", "City", "Area", 30.0m, 31.0m);
+        _pendingRegistrationService
+            .Setup(x => x.StartAsync(It.IsAny<StartPendingRegistrationRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new PendingRegistrationStartResult(PendingRegistrationStartStatus.DuplicateEmailOrPhone));
 
         var handler = CreateHandler();
+        var act = () => handler.Handle(CreateCommand("taken@mail.com"), CancellationToken.None);
 
-        // Act
-        var act = () => handler.Handle(command, CancellationToken.None);
-
-        // Assert
         await act.Should()
             .ThrowAsync<BusinessRuleException>()
-            .Where(e => e.ErrorCode == "USER_ALREADY_EXISTS",
-                "the exception should carry the correct business error code");
-    }
-
-    // ─── Successful Registration Tests ─────────────────────────────────────
-
-    [Fact]
-    public async Task Handle_WithValidData_ShouldAddUserToRepository()
-    {
-        // Arrange
-        _userRepositoryMock
-            .Setup(r => r.GetByIdentifierAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync((User?)null);
-
-        _passwordHasherMock
-            .Setup(p => p.HashPassword(It.IsAny<string>()))
-            .Returns("hashed_password");
-
-        SetupTokenService();
-
-        var command = new RegisterCustomerCommand(
-            "Ahmed Ali", "ahmed@test.com", "01011122233", "P@ssword1", null, "Address Line", "Home", "123", "1", "1A", "City", "Area", 30.0m, 31.0m);
-        
-        var addresses = new Mock<Microsoft.EntityFrameworkCore.DbSet<CustomerAddress>>();
-        _dbContextMock.Setup(x => x.CustomerAddresses).Returns(addresses.Object);
-
-        var handler = CreateHandler();
-
-        // Act
-        await handler.Handle(command, CancellationToken.None);
-
-        // Assert
-        _userRepositoryMock.Verify(r => r.Add(It.IsAny<User>()), Times.Once,
-            "Repository.Add should be called exactly once");
+            .Where(e => e.ErrorCode == "USER_ALREADY_EXISTS");
     }
 
     [Fact]
-    public async Task Handle_WithValidData_ShouldSendOtpEmail()
+    public async Task Handle_WithValidData_ShouldCreatePendingAndSendOtpWithoutAspNetUser()
     {
-        // Arrange
-        _userRepositoryMock
-            .Setup(r => r.GetByIdentifierAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync((User?)null);
+        var pendingId = Guid.NewGuid();
+        var pending = new PendingRegistrationSnapshot(
+            pendingId,
+            "Ahmed Ali",
+            "ahmed@test.com",
+            "01011122233",
+            UserRole.Customer,
+            null);
 
-        _passwordHasherMock
-            .Setup(p => p.HashPassword(It.IsAny<string>()))
-            .Returns("hashed_password");
+        _pendingRegistrationService
+            .Setup(x => x.StartAsync(It.IsAny<StartPendingRegistrationRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new PendingRegistrationStartResult(
+                PendingRegistrationStartStatus.Succeeded,
+                pending,
+                "1234"));
 
-        SetupTokenService();
-
-        var command = new RegisterCustomerCommand(
-            "Sara Salem", "sara@test.com", "01099988877", "P@ssword1", null, "Address Line", "Home", "123", "1", "1A", "City", "Area", 30.0m, 31.0m);
-
-        var addresses = new Mock<Microsoft.EntityFrameworkCore.DbSet<CustomerAddress>>();
-        _dbContextMock.Setup(x => x.CustomerAddresses).Returns(addresses.Object);
+        _registrationWorkflow
+            .Setup(x => x.BuildPendingAuthResponse(pending, null))
+            .Returns(new AuthResponseDto(null, new CurrentUserDto(pendingId, "Ahmed Ali", "ahmed@test.com", "01011122233", "Customer", false), false));
 
         var handler = CreateHandler();
+        var result = await handler.Handle(CreateCommand(), CancellationToken.None);
 
-        // Act
-        await handler.Handle(command, CancellationToken.None);
+        result.IsVerified.Should().BeFalse();
+        result.Tokens.Should().BeNull();
+        result.User!.Email.Should().Be("ahmed@test.com");
+        result.User.Id.Should().Be(pendingId);
 
-        // Assert
-        _otpServiceMock.Verify(
-            o => o.SendOtpEmailAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()),
-            Times.Once,
-            "OTP email should be sent exactly once upon registration");
-        _otpServiceMock.Verify(
-            o => o.SendOtpSmsAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()),
-            Times.Never);
-    }
+        _otpService.Verify(
+            o => o.SendOtpEmailAsync("ahmed@test.com", "1234", It.IsAny<CancellationToken>(), It.IsAny<int>()),
+            Times.Once);
 
-    [Fact]
-    public async Task Handle_WithValidData_ShouldReturnAuthResponseWithUser()
-    {
-        // Arrange
-        _userRepositoryMock
-            .Setup(r => r.GetByIdentifierAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync((User?)null);
-
-        _passwordHasherMock
-            .Setup(p => p.HashPassword(It.IsAny<string>()))
-            .Returns("hashed_pw");
-
-        SetupTokenService();
-
-        var command = new RegisterCustomerCommand(
-            "Omar Tarek", "omar@test.com", "01011112222", "P@ssword1", null, "Address Line", "Home", "123", "1", "1A", "City", "Area", 30.0m, 31.0m);
-
-        var addresses = new Mock<Microsoft.EntityFrameworkCore.DbSet<CustomerAddress>>();
-        _dbContextMock.Setup(x => x.CustomerAddresses).Returns(addresses.Object);
-
-        var handler = CreateHandler();
-
-        // Act
-        var result = await handler.Handle(command, CancellationToken.None);
-
-        // Assert
-        result.Should().NotBeNull();
-        result.User.Should().NotBeNull();
-        result.User.Email.Should().Be("omar@test.com");
-        result.Tokens.Should().NotBeNull();
-        result.Tokens.AccessToken.Should().Be("access_token_xyz");
+        _pendingRegistrationService.Verify(
+            x => x.StartAsync(
+                It.Is<StartPendingRegistrationRequest>(r =>
+                    r.Email == "ahmed@test.com" &&
+                    r.Role == UserRole.Customer &&
+                    !string.IsNullOrWhiteSpace(r.PayloadJson)),
+                It.IsAny<CancellationToken>()),
+            Times.Once);
     }
 }

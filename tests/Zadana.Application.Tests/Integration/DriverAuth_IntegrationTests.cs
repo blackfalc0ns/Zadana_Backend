@@ -1,5 +1,4 @@
 using System.Net;
-using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
 using FluentAssertions;
@@ -24,32 +23,28 @@ public class DriverAuth_IntegrationTests : IClassFixture<ZadanaWebFactory>
     public DriverAuth_IntegrationTests(ZadanaWebFactory factory)
     {
         _factory = factory;
+        _factory.OtpSink.Clear();
         _client = factory.CreateClient();
     }
 
     [Fact]
-    public async Task RegisterDriver_WithValidData_Returns200()
+    public async Task RegisterDriver_WithValidData_Returns200WithoutTokens()
     {
-        var body = new
-        {
-            fullName = "Test Driver",
-            email = $"driver_{Guid.NewGuid():N}@test.com",
-            phone = "019" + new Random().Next(10000000, 99999999).ToString(),
-            password = "P@ssword1234",
-            vehicleType = "Motorcycle",
-            nationalId = "2900101" + new Random().Next(1000000, 9999999).ToString(),
-            licenseNumber = "LIC-" + Guid.NewGuid().ToString("N")[..6].ToUpper(),
-            nationalIdImageUrl = "http://test.com/img1.jpg",
-            licenseImageUrl = "http://test.com/img2.jpg",
-            vehicleImageUrl = "http://test.com/img3.jpg",
-            personalPhotoUrl = "http://test.com/img4.jpg"
-        };
+        var email = $"driver_{Guid.NewGuid():N}@test.com";
+        var body = BuildDriverRegisterBody(email);
 
         var response = await _client.PostAsJsonAsync("/api/drivers/register", body);
 
-        response.StatusCode.Should().Be(HttpStatusCode.OK);
         var content = await response.Content.ReadAsStringAsync();
-        content.Should().Contain("accessToken", "driver registration must return tokens");
+        response.StatusCode.Should().Be(HttpStatusCode.OK, content);
+        using var doc = JsonDocument.Parse(content);
+        doc.RootElement.GetProperty("isVerified").GetBoolean().Should().BeFalse();
+        doc.RootElement.TryGetProperty("tokens", out var tokens).Should().BeTrue();
+        tokens.ValueKind.Should().Be(JsonValueKind.Null);
+
+        using var scope = _factory.Services.CreateScope();
+        var userManager = scope.ServiceProvider.GetRequiredService<UserManager<User>>();
+        (await userManager.FindByEmailAsync(email)).Should().BeNull();
     }
 
     [Fact]
@@ -60,7 +55,6 @@ public class DriverAuth_IntegrationTests : IClassFixture<ZadanaWebFactory>
             fullName = "Incomplete Driver",
             email = "noPhone@test.com",
             password = "P@ssword1234"
-            // phone missing
         };
 
         var response = await _client.PostAsJsonAsync("/api/drivers/register", body);
@@ -71,27 +65,25 @@ public class DriverAuth_IntegrationTests : IClassFixture<ZadanaWebFactory>
     [Fact]
     public async Task DriverLogin_WithValidCredentials_ReturnsToken()
     {
-        // First register
         var email = $"dlogin_{Guid.NewGuid():N}@test.com";
-        var phone = "0111" + new Random().Next(1000000, 9999999).ToString();
         var password = "P@ssword1234";
 
-        await _client.PostAsJsonAsync("/api/drivers/register", new
-        {
-            fullName = "Login Driver",
-            email,
-            phone,
-            password,
-            vehicleType = "Car",
-            nationalId = "2900101" + new Random().Next(1000000, 9999999).ToString(),
-            licenseNumber = "LIC-" + Guid.NewGuid().ToString("N")[..6].ToUpper(),
-            nationalIdImageUrl = "http://test.com/img1.jpg",
-            licenseImageUrl = "http://test.com/img2.jpg",
-            vehicleImageUrl = "http://test.com/img3.jpg",
-            personalPhotoUrl = "http://test.com/img4.jpg"
-        });
+        var registerResponse = await _client.PostAsJsonAsync(
+            "/api/drivers/register",
+            BuildDriverRegisterBody(email, password));
+        var registerContent = await registerResponse.Content.ReadAsStringAsync();
+        registerResponse.StatusCode.Should().Be(HttpStatusCode.OK, registerContent);
 
-        // Then login
+        var otpCode = _factory.OtpSink.EmailDispatches
+            .Single(dispatch => dispatch.Recipient == email)
+            .OtpCode;
+
+        var verifyResponse = await _client.PostAsJsonAsync(
+            "/api/drivers/auth/verify-otp",
+            new { identifier = email, otpCode });
+        var verifyContent = await verifyResponse.Content.ReadAsStringAsync();
+        verifyResponse.StatusCode.Should().Be(HttpStatusCode.OK, verifyContent);
+
         var response = await _client.PostAsJsonAsync("/api/drivers/auth/login",
             new { identifier = email, password });
 
@@ -108,53 +100,43 @@ public class DriverAuth_IntegrationTests : IClassFixture<ZadanaWebFactory>
     }
 
     [Fact]
-    public async Task GetDriverStatus_AfterRegistration_ReturnsOperationalWorkflowState()
+    public async Task GetDriverStatus_AfterOtpVerification_ReturnsOperationalWorkflowState()
     {
-        var registerResponse = await _client.PostAsJsonAsync("/api/drivers/register", new
-        {
-            fullName = "Workflow Driver",
-            email = $"driver_status_{Guid.NewGuid():N}@test.com",
-            phone = "012" + new Random().Next(10000000, 99999999).ToString(),
-            password = "P@ssword1234",
-            vehicleType = "Motorcycle",
-            nationalId = "2900101" + new Random().Next(1000000, 9999999).ToString(),
-            licenseNumber = "LIC-" + Guid.NewGuid().ToString("N")[..6].ToUpper(),
-            nationalIdImageUrl = "http://test.com/img1.jpg",
-            licenseImageUrl = "http://test.com/img2.jpg",
-            vehicleImageUrl = "http://test.com/img3.jpg",
-            personalPhotoUrl = "http://test.com/img4.jpg"
-        });
+        var email = $"driver_status_{Guid.NewGuid():N}@test.com";
+        var registerResponse = await _client.PostAsJsonAsync(
+            "/api/drivers/register",
+            BuildDriverRegisterBody(email));
 
-        registerResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+        var registerContent = await registerResponse.Content.ReadAsStringAsync();
+        registerResponse.StatusCode.Should().Be(HttpStatusCode.OK, registerContent);
 
-        using var authDocument = JsonDocument.Parse(await registerResponse.Content.ReadAsStringAsync());
-        var accessToken = authDocument.RootElement
-            .GetProperty("tokens")
-            .GetProperty("accessToken")
-            .GetString();
+        var otpCode = _factory.OtpSink.EmailDispatches
+            .Single(dispatch => dispatch.Recipient == email)
+            .OtpCode;
 
-        accessToken.Should().NotBeNullOrWhiteSpace();
+        var verifyResponse = await _client.PostAsJsonAsync(
+            "/api/drivers/auth/verify-otp",
+            new { identifier = email, otpCode });
+        var verifyContent = await verifyResponse.Content.ReadAsStringAsync();
+        verifyResponse.StatusCode.Should().Be(HttpStatusCode.OK, verifyContent);
 
-        using var request = new HttpRequestMessage(HttpMethod.Get, "/api/drivers/me/status");
-        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+        using var authDocument = JsonDocument.Parse(verifyContent);
+        authDocument.RootElement.GetProperty("tokens").GetProperty("accessToken").GetString()
+            .Should().NotBeNullOrWhiteSpace();
 
-        var statusResponse = await _client.SendAsync(request);
-
-        statusResponse.StatusCode.Should().Be(HttpStatusCode.OK);
-
-        using var statusDocument = JsonDocument.Parse(await statusResponse.Content.ReadAsStringAsync());
-        statusDocument.RootElement.GetProperty("isOperational").GetBoolean().Should().BeFalse();
-        statusDocument.RootElement.GetProperty("canReceiveOrders").GetBoolean().Should().BeFalse();
-        statusDocument.RootElement.GetProperty("canGoAvailable").GetBoolean().Should().BeFalse();
-        statusDocument.RootElement.GetProperty("verificationStatus").GetString().Should().Be("UnderReview");
-        statusDocument.RootElement.GetProperty("accountStatus").GetString().Should().Be("Pending");
+        var driverStatus = authDocument.RootElement.GetProperty("driverStatus");
+        driverStatus.GetProperty("isOperational").GetBoolean().Should().BeFalse();
+        driverStatus.GetProperty("canReceiveOrders").GetBoolean().Should().BeFalse();
+        driverStatus.GetProperty("canGoAvailable").GetBoolean().Should().BeFalse();
+        driverStatus.GetProperty("verificationStatus").GetString().Should().Be("UnderReview");
+        driverStatus.GetProperty("accountStatus").GetString().Should().Be("Pending");
     }
 
     [Fact]
     public async Task ResetPassword_WithValidOtp_UpdatesDriverPasswordAndAllowsLogin()
     {
         var email = $"driver_reset_{Guid.NewGuid():N}@test.com";
-        var phone = "016" + new Random().Next(10000000, 99999999).ToString();
+        var phone = "016" + Random.Shared.Next(10000000, 99999999);
         const string originalPassword = "P@ssword1234";
         const string newPassword = "Yahya123!";
 
@@ -181,7 +163,7 @@ public class DriverAuth_IntegrationTests : IClassFixture<ZadanaWebFactory>
         var verifyContent = await verifyResponse.Content.ReadAsStringAsync();
         verifyResponse.StatusCode.Should().Be(HttpStatusCode.OK, verifyContent);
 
-        using var verifyDocument = System.Text.Json.JsonDocument.Parse(verifyContent);
+        using var verifyDocument = JsonDocument.Parse(verifyContent);
         var resetToken = verifyDocument.RootElement.GetProperty("resetToken").GetString();
         resetToken.Should().NotBeNullOrWhiteSpace();
 
@@ -209,5 +191,32 @@ public class DriverAuth_IntegrationTests : IClassFixture<ZadanaWebFactory>
         });
         var loginContent = await newLoginResponse.Content.ReadAsStringAsync();
         newLoginResponse.StatusCode.Should().Be(HttpStatusCode.OK, loginContent);
+    }
+
+    private static object BuildDriverRegisterBody(string email, string password = "P@ssword1234")
+    {
+        var unique = Guid.NewGuid().ToString("N");
+        return new
+        {
+            fullName = "Test Driver",
+            email,
+            phone = "019" + Random.Shared.Next(10000000, 99999999),
+            password,
+            vehicleType = "Motorcycle",
+            nationalId = "2900101" + Random.Shared.Next(1000000, 9999999),
+            licenseNumber = "LIC-" + unique[..6].ToUpperInvariant(),
+            nationalIdExpiryDate = DateTime.UtcNow.AddYears(1),
+            driverLicenseExpiryDate = DateTime.UtcNow.AddYears(1),
+            vehicleLicenseNumber = "VL-" + unique[..6].ToUpperInvariant(),
+            vehicleLicenseExpiryDate = DateTime.UtcNow.AddYears(1),
+            address = "Dammam driver address",
+            region = "EASTERN",
+            city = "DAMMAM",
+            nationalIdFrontImageUrl = "https://example.com/nid-front.png",
+            nationalIdBackImageUrl = "https://example.com/nid-back.png",
+            licenseImageUrl = "https://example.com/license.png",
+            vehicleImageUrl = "https://example.com/vehicle.png",
+            personalPhotoUrl = "https://example.com/photo.png"
+        };
     }
 }

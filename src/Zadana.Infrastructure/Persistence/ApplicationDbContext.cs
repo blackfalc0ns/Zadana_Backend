@@ -71,6 +71,7 @@ public class ApplicationDbContext : IdentityDbContext<User, IdentityRole<Guid>, 
 
     // Identity
     public new DbSet<User> Users => Set<User>();
+    public DbSet<PendingRegistration> PendingRegistrations => Set<PendingRegistration>();
     public DbSet<PermissionDefinition> PermissionDefinitions => Set<PermissionDefinition>();
     public DbSet<RoleDefinition> RoleDefinitions => Set<RoleDefinition>();
     public DbSet<RolePermission> RolePermissions => Set<RolePermission>();

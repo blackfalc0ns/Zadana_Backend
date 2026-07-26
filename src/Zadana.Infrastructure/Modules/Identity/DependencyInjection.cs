@@ -103,6 +103,7 @@ public static class DependencyInjection
 
         // Repositories
         services.AddScoped<IIdentityAccountService, IdentityAccountService>();
+        services.AddScoped<IPendingRegistrationService, PendingRegistrationService>();
         services.AddScoped<IGoogleIdTokenVerifier, GoogleIdTokenVerifier>();
         services.AddScoped<IRefreshTokenStore, RefreshTokenRepository>();
         services.AddScoped<IAccessControlService, AccessControlService>();
