@@ -188,7 +188,8 @@ public class GetCheckoutSummaryQueryHandler : IRequestHandler<GetCheckoutSummary
             shippingCost: 0m,
             discount,
             request.PaymentMethod,
-            cancellationToken);
+            cancellationToken,
+            FulfillmentType.Pickup);
         var preparationTimeMinutes = await _context.Vendors
             .AsNoTracking()
             .Where(v => v.Id == pricing.VendorId)

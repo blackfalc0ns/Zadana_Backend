@@ -539,7 +539,8 @@ internal static class CheckoutSupport
         decimal shippingCost,
         decimal discount,
         string? paymentMethodCode,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        FulfillmentType fulfillment = FulfillmentType.Delivery)
     {
         var settings = await ResolveZoneFinanceSettingsAsync(context, address, cancellationToken);
         var normalizedPaymentMethod = NormalizePaymentMethodCode(paymentMethodCode);
@@ -549,7 +550,10 @@ internal static class CheckoutSupport
             ? decimal.Round(taxableBase * settings.VatPercent / 100m, 2, MidpointRounding.AwayFromZero)
             : 0m;
 
-        var codFee = normalizedPaymentMethod == "cash" && settings.IsCodFeeActive
+        // COD fee is delivery-only. Store pickup cash must never include "cash on delivery" fees.
+        var codFee = fulfillment != FulfillmentType.Pickup
+            && normalizedPaymentMethod == "cash"
+            && settings.IsCodFeeActive
             ? CalculateCodFee(settings, taxableBase)
             : 0m;
 
@@ -567,7 +571,8 @@ internal static class CheckoutSupport
         decimal shippingCost,
         decimal discount,
         string? paymentMethodCode,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        FulfillmentType fulfillment = FulfillmentType.Delivery)
     {
         var settings = await ResolveZoneOrCityFinanceSettingsAsync(context, address, cancellationToken);
         var normalizedPaymentMethod = NormalizePaymentMethodCode(paymentMethodCode);
@@ -577,7 +582,10 @@ internal static class CheckoutSupport
             ? decimal.Round(taxableBase * settings.VatPercent / 100m, 2, MidpointRounding.AwayFromZero)
             : 0m;
 
-        var codFee = normalizedPaymentMethod == "cash" && settings.IsCodFeeActive
+        // COD fee is delivery-only. Store pickup cash must never include "cash on delivery" fees.
+        var codFee = fulfillment != FulfillmentType.Pickup
+            && normalizedPaymentMethod == "cash"
+            && settings.IsCodFeeActive
             ? CalculateCodFee(settings, taxableBase)
             : 0m;
 

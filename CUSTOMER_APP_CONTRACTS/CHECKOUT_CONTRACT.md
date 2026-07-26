@@ -366,6 +366,7 @@ Suggested mapping:
 - Selecting cash while cash-on-pickup is disabled → `PICKUP_CASH_DISABLED`
 - Selecting bank transfer (or any other unsupported method) → `PICKUP_ONLY_ONLINE_PAYMENT`
 - For cash pickup: payment is collected by the merchant at handoff (OTP verify); no online gateway session
+- **`cod_fee` is always `0` for pickup** (including cash-on-pickup). Cash-on-delivery fees apply to delivery fulfillment only. Do not show a COD fee line on pickup checkout.
 
 ## Important Mobile Notes
 

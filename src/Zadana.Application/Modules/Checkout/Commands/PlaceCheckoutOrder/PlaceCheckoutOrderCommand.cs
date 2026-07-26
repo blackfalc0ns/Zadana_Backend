@@ -193,7 +193,8 @@ public class PlaceCheckoutOrderCommandHandler : IRequestHandler<PlaceCheckoutOrd
                 shippingCost: 0m,
                 pickupDiscount,
                 paymentMethodCode,
-                cancellationToken);
+                cancellationToken,
+                FulfillmentType.Pickup);
 
             var pickupPreparationMinutes = await _context.Vendors
                 .AsNoTracking()
@@ -395,7 +396,7 @@ public class PlaceCheckoutOrderCommandHandler : IRequestHandler<PlaceCheckoutOrd
                 DeliveryQuoteVersion: deliveryQuote.QuoteVersion,
                 HasDeliveryAnomalyWarning: deliveryQuote.HasAnomalyWarning,
                 VatAmount: financeBreakdown.VatAmount,
-                CodFee: fulfillment == FulfillmentType.Pickup ? 0m : financeBreakdown.CodFee,
+                CodFee: financeBreakdown.CodFee,
                 ClearCartAfterPlacement: shouldClearCartAfterPlacement,
                 Fulfillment: fulfillment,
                 CommissionOverride: commissionOverride),
