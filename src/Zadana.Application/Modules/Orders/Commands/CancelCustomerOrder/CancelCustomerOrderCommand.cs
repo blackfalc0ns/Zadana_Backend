@@ -183,7 +183,8 @@ public class CancelCustomerOrderCommandHandler : IRequestHandler<CancelCustomerO
                 order.OrderNumber,
                 oldStatus,
                 OrderStatus.Cancelled,
-                NotifyCustomer: true,
+                // Customer initiated the cancel — do not spam them with "order cancelled" again.
+                NotifyCustomer: false,
                 NotifyVendor: true,
                 ActorRole: "customer"),
             cancellationToken);

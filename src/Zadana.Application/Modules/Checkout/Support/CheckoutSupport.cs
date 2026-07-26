@@ -5,6 +5,7 @@ using Zadana.Application.Modules.Catalog.DTOs;
 using Zadana.Application.Modules.Checkout.DTOs;
 using Zadana.Application.Modules.Delivery.Interfaces;
 using Zadana.Application.Modules.Delivery.Support;
+using Zadana.Application.Modules.Geography;
 using Zadana.Application.Modules.Orders.Support;
 using Zadana.Application.Modules.Vendors.Support;
 using Zadana.Domain.Modules.Catalog.Enums;
@@ -1714,14 +1715,17 @@ internal static class CheckoutSupport
             return null;
         }
 
-        var address = string.Join(", ", new[] { branch.AddressLine, branch.City, branch.Region }
-            .Where(value => !string.IsNullOrWhiteSpace(value)));
+        var localizedCity = SaudiGeographyDisplay.LocalizeCity(branch.City);
+        var address = SaudiGeographyDisplay.FormatBranchAddress(
+            branch.AddressLine,
+            branch.City,
+            branch.Region);
 
         return new CheckoutPickupBranchDto(
             branch.Id,
             branch.Name,
             branch.AddressLine,
-            branch.City,
+            localizedCity,
             address,
             BranchOperatingHoursSupport.BuildHoursTodayLabel(
                 branch.OperatingHours?.ToList() ?? [],

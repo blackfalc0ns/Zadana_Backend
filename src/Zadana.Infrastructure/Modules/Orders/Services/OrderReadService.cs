@@ -6,6 +6,7 @@ using Zadana.Application.Common.Models;
 using Zadana.Application.Modules.Catalog.DTOs;
 using Zadana.Application.Modules.Delivery.DTOs;
 using Zadana.Application.Modules.Delivery.Interfaces;
+using Zadana.Application.Modules.Geography;
 using Zadana.Application.Modules.Orders.DTOs;
 using Zadana.Application.Modules.Orders.Interfaces;
 using Zadana.Application.Modules.Orders.Support;
@@ -1237,8 +1238,10 @@ public class OrderReadService : IOrderReadService
             return null;
         }
 
-        var address = string.Join(", ", new[] { branch.AddressLine, branch.City, branch.Region }
-            .Where(value => !string.IsNullOrWhiteSpace(value)));
+        var address = SaudiGeographyDisplay.FormatBranchAddress(
+            branch.AddressLine,
+            branch.City,
+            branch.Region);
 
         return new PickupBranchDto(
             branch.Name,

@@ -7,6 +7,7 @@ using Zadana.Application.Common.Settings;
 using Zadana.Application.Modules.Delivery.DTOs;
 using Zadana.Application.Modules.Delivery.Interfaces;
 using Zadana.Application.Modules.Delivery.Support;
+using Zadana.Application.Modules.Geography;
 using Zadana.Domain.Modules.Delivery.Entities;
 using Zadana.Domain.Modules.Delivery.Enums;
 using Zadana.Domain.Modules.Identity.Entities;
@@ -185,7 +186,7 @@ public class DriverReadService : IDriverReadService
                 LastName: string.Join(' ', d.User.FullName.Split(' ').Skip(1)),
                 PhoneNumber: d.User.PhoneNumber ?? "",
                 ImageUrl: d.PersonalPhotoUrl,
-                City: d.City ?? "",
+                City: SaudiGeographyDisplay.LocalizeCity(d.City),
                 Status: MapDriverStatus(d, activeTasks),
                 VerificationStatus: d.VerificationStatus.ToString(),
                 ActiveTasks: activeTasks,
@@ -565,17 +566,19 @@ public class DriverReadService : IDriverReadService
             driver.User.IsLoginLocked);
 
         var workflow = BuildAdminWorkflowSection(workflowState);
+        var displayRegion = LocalizeDriverRegion(effectiveProfile.Region);
+        var displayCity = SaudiGeographyDisplay.LocalizeCity(effectiveProfile.City);
         var overview = new AdminDriverOverviewSectionDto(
             driver.Address,
-            effectiveProfile.Region,
-            effectiveProfile.City,
+            displayRegion,
+            displayCity,
             effectiveProfile.LicenseNumber,
             Math.Round(completionRate, 0),
             commitmentSummary.CommitmentScore,
             ResolveCollectionPaymentStatus(codOwedBalance, codBlockThreshold));
         var operations = new AdminDriverOperationsSectionDto(
-            effectiveProfile.Region,
-            effectiveProfile.City,
+            displayRegion,
+            displayCity,
             lastLocation?.Latitude,
             lastLocation?.Longitude,
             lastLocation?.AccuracyMeters,
@@ -680,7 +683,7 @@ public class DriverReadService : IDriverReadService
             PhoneNumber: driver.User.PhoneNumber ?? "",
             Email: driver.User.Email ?? "",
             ImageUrl: driver.PersonalPhotoUrl,
-            City: effectiveProfile.City ?? "",
+            City: displayCity,
             Status: MapDriverStatus(driver, activeTasks),
             VerificationStatus: driver.VerificationStatus.ToString(),
             VehicleType: effectiveProfile.VehicleType,
@@ -2477,5 +2480,26 @@ public class DriverReadService : IDriverReadService
 
     private static string L(string ar, string en) =>
         CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "ar" ? ar : en;
+
+    private static string LocalizeDriverRegion(string? region)
+    {
+        if (string.IsNullOrWhiteSpace(region))
+        {
+            return string.Empty;
+        }
+
+        var localized = SaudiGeographyDisplay.LocalizeRegion(region);
+        // Some driver profiles incorrectly store a city code in Region.
+        if (string.Equals(localized, region.Trim(), StringComparison.OrdinalIgnoreCase))
+        {
+            var asCity = SaudiGeographyDisplay.LocalizeCity(region);
+            if (!string.Equals(asCity, region.Trim(), StringComparison.OrdinalIgnoreCase))
+            {
+                return asCity;
+            }
+        }
+
+        return localized;
+    }
 
 }

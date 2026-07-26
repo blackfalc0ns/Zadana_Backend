@@ -491,7 +491,8 @@ public class PlaceCheckoutOrderCommandHandler : IRequestHandler<PlaceCheckoutOrd
         else if (paymentMethodCode == "cash")
         {
             payment.MarkAsPending("CashOnDelivery", $"COD-{order.OrderNumber}");
-            order.ChangeStatus(OrderStatus.Placed, null, "Cash on delivery selected");
+            // Jump straight to awaiting vendor acceptance — avoids an intermediate Placed
+            // status that can surface as a generic "order update" on the customer app.
             order.ChangeStatus(OrderStatus.PendingVendorAcceptance, null, "Awaiting vendor response");
             OrderStatusHistoryTracking.TrackNewEntries(_context, order);
         }

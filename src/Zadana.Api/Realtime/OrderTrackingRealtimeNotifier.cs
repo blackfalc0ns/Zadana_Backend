@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using Zadana.Api.Realtime.Contracts;
 using Zadana.Application.Common.Interfaces;
+using Zadana.Application.Modules.Geography;
 using Zadana.Application.Modules.Orders.Support;
 using Zadana.Application.Modules.Vendors.Support;
 using Zadana.Domain.Modules.Orders.Enums;
@@ -100,6 +101,9 @@ public sealed class OrderTrackingRealtimeNotifier : IOrderTrackingRealtimeNotifi
                 .SendAsync(OrderTrackingHub.ReceiveOrderStatusChangedMethod, sharedPayload, cancellationToken);
 
             // Customer apps join user groups on NotificationHub — not OrderTrackingHub.
+            // Keep this event silent: customer popups/push copy are owned by
+            // OrderStatusNotificationDispatcher (correct action + localized titles).
+            // Sending showPopup=true here duplicated a generic "order update" popup on place.
             if (customerUserId != Guid.Empty)
             {
                 var customerPayload = BuildPayload(
@@ -113,7 +117,8 @@ public sealed class OrderTrackingRealtimeNotifier : IOrderTrackingRealtimeNotifi
                     targetUrl,
                     changedAtUtc,
                     pickupContext,
-                    includeCustomerPickupSecrets: pickupContext.IncludeCustomerPickupSecrets);
+                    includeCustomerPickupSecrets: pickupContext.IncludeCustomerPickupSecrets,
+                    showPopup: false);
 
                 await _notificationHubContext.Clients
                     .Group(NotificationHub.GetUserGroup(customerUserId))
@@ -195,8 +200,10 @@ public sealed class OrderTrackingRealtimeNotifier : IOrderTrackingRealtimeNotifi
 
             if (branch is not null)
             {
-                var address = string.Join(", ", new[] { branch.AddressLine, branch.City, branch.Region }
-                    .Where(value => !string.IsNullOrWhiteSpace(value)));
+                var address = SaudiGeographyDisplay.FormatBranchAddress(
+                    branch.AddressLine,
+                    branch.City,
+                    branch.Region);
 
                 branchPayload = new OrderPickupBranchRealtimePayload(
                     branch.Name,
@@ -228,7 +235,8 @@ public sealed class OrderTrackingRealtimeNotifier : IOrderTrackingRealtimeNotifi
         string targetUrl,
         DateTime changedAtUtc,
         PickupBroadcastContext pickupContext,
-        bool includeCustomerPickupSecrets)
+        bool includeCustomerPickupSecrets,
+        bool showPopup = true)
     {
         var fulfillment = string.Equals(pickupContext.FulfillmentType, nameof(FulfillmentType.Pickup), StringComparison.OrdinalIgnoreCase)
             ? FulfillmentType.Pickup
@@ -252,9 +260,9 @@ public sealed class OrderTrackingRealtimeNotifier : IOrderTrackingRealtimeNotifi
             action,
             targetUrl,
             changedAtUtc,
-            Presentation: "popup",
+            Presentation: showPopup ? "popup" : "silent",
             PopupType: popupType,
-            ShowPopup: true,
+            ShowPopup: showPopup,
             OldStatusRaw: oldStatus.ToString(),
             NewStatusRaw: newStatus.ToString(),
             FulfillmentType: normalizedFulfillment,
@@ -267,6 +275,8 @@ public sealed class OrderTrackingRealtimeNotifier : IOrderTrackingRealtimeNotifi
     private static string ResolveAction(OrderStatus status) =>
         status switch
         {
+            OrderStatus.PendingVendorAcceptance => "placed",
+            OrderStatus.OnTheWay => "on_the_way",
             OrderStatus.Cancelled => "cancelled",
             OrderStatus.Refunded => "refunded",
             _ => "status_changed"
