@@ -18,6 +18,7 @@ using Zadana.Application.Modules.Finances.Commands.UpdateDeliveryPricingDefaults
 using Zadana.Application.Modules.Finances.Commands.UpdateRegionDeliveryPricingSettings;
 using Zadana.Application.Modules.Finances.Commands.UpdateZoneFinanceSettings;
 using Zadana.Domain.Modules.Finances.Enums;
+using Zadana.Domain.Modules.Orders.Enums;
 using Zadana.Domain.Modules.Wallets.Enums;
 
 namespace Zadana.Api.Modules.Finances.Controllers;
@@ -60,16 +61,24 @@ public class AdminFinancesController(
             return NotFound();
         }
 
+        var isPickup = order.Fulfillment == Domain.Modules.Orders.Enums.FulfillmentType.Pickup;
         var vendorCommission = order.VendorCommissionAmount > 0
             ? order.VendorCommissionAmount
             : order.CommissionAmount;
-        var driverCommission = order.DriverCommissionAmount;
-        var driverPayout = Math.Max(0m, order.DeliveryFee - driverCommission);
+        var driverCommission = isPickup ? 0m : order.DriverCommissionAmount;
+        // Pickup has no courier; delivery fee is always 0 so payout must stay 0.
+        var driverPayout = isPickup
+            ? 0m
+            : Math.Max(0m, order.DeliveryFee - driverCommission);
         var productNet = order.ProductNet > 0 ? order.ProductNet : Math.Max(0m, order.Subtotal - order.DiscountTotal);
         var vendorEarnings = Math.Max(0m, productNet - vendorCommission);
-        var platformRevenue = Math.Round(vendorCommission + driverCommission + order.CodFee, 2);
+        var platformRevenue = Math.Round(
+            vendorCommission + driverCommission + (isPickup ? 0m : order.CodFee),
+            2);
         var total = order.TotalAmount;
-        var netMargin = Math.Round(platformRevenue - order.VatAmount, 2);
+        // Customer VAT is collected on the order total — it is not a platform cost.
+        // Net margin is platform take (commission / fees), not revenue minus VAT.
+        var netMargin = platformRevenue;
         var marginPercent = total > 0 ? Math.Round((netMargin / total) * 100m, 2) : 0m;
 
         return Ok(new AdminOrderFinancialBreakdownDto(
@@ -78,9 +87,9 @@ public class AdminFinancesController(
             order.Subtotal,
             order.DiscountTotal,
             order.DiscountTotal,
-            order.DeliveryFee,
+            isPickup ? 0m : order.DeliveryFee,
             0m,
-            order.CodFee,
+            isPickup ? 0m : order.CodFee,
             order.VatAmount,
             total,
             vendorEarnings,
