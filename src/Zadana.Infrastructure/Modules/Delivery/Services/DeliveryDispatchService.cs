@@ -458,15 +458,15 @@ public class DeliveryDispatchService : IDeliveryDispatchService
         {
             var driverName = assignment.Driver?.User.FullName ?? "Assigned driver";
             var driverPhone = assignment.Driver?.User.PhoneNumber ?? string.Empty;
-            var vehicleType = assignment.Driver?.VehicleType?.ToString() ?? "Unknown";
+            var (vehicleTypeAr, vehicleTypeEn) = DriverVehicleTypeDisplay.LocalizePair(assignment.Driver?.VehicleType);
             var plateNumber = assignment.Driver?.LicenseNumber ?? "N/A";
 
             await _notificationService.SendToUserAsync(
                 assignment.Order.Vendor.UserId,
                 "عيّنا المندوب للطلب",
                 "Driver assigned to the order",
-                $"عيّنا {driverName} ({vehicleType} - {plateNumber}) لطلب {assignment.Order.OrderNumber}. افتح تفاصيل الطلب لعرض رمز الاستلام المؤمّن.",
-                $"{driverName} ({vehicleType} - {plateNumber}) has been assigned to order #{assignment.Order.OrderNumber}. Open the order details to view the secure pickup code.",
+                $"عيّنا {driverName} ({vehicleTypeAr} - {plateNumber}) لطلب {assignment.Order.OrderNumber}. افتح تفاصيل الطلب لعرض رمز الاستلام المؤمّن.",
+                $"{driverName} ({vehicleTypeEn} - {plateNumber}) has been assigned to order #{assignment.Order.OrderNumber}. Open the order details to view the secure pickup code.",
                 "vendor-driver-assigned",
                 assignment.OrderId,
                 $"assignmentId={assignment.Id};driverPhone={driverPhone};otpType=pickup",

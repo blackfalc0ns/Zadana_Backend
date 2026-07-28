@@ -3,6 +3,7 @@ using MediatR;
 using Microsoft.EntityFrameworkCore;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Modules.Delivery.Interfaces;
+using Zadana.Application.Modules.Delivery.Support;
 using Zadana.Domain.Modules.Delivery.Enums;
 using Zadana.Domain.Modules.Social.Enums;
 using Zadana.SharedKernel.Exceptions;
@@ -86,15 +87,15 @@ public class ResendAssignmentOtpCommandHandler : IRequestHandler<ResendAssignmen
             {
                 var driverName = assignment.Driver?.User.FullName ?? "Assigned driver";
                 var driverPhone = assignment.Driver?.User.PhoneNumber ?? string.Empty;
-                var vehicleType = assignment.Driver?.VehicleType?.ToString() ?? "Unknown";
+                var (vehicleTypeAr, vehicleTypeEn) = DriverVehicleTypeDisplay.LocalizePair(assignment.Driver?.VehicleType);
                 var plateNumber = assignment.Driver?.LicenseNumber ?? "N/A";
 
                 await _notificationService.SendToUserAsync(
                     assignment.Order.Vendor.UserId,
                     "إعادة إرسال رمز الاستلام",
                     "Pickup OTP Resent",
-                    $"المندوب {driverName} ({vehicleType} - {plateNumber}) متواجد لاستلام طلب {assignment.Order.OrderNumber}. افتح تفاصيل الطلب لعرض رمز الاستلام المؤمّن.",
-                    $"Driver {driverName} ({vehicleType} - {plateNumber}) is ready to pickup order #{assignment.Order.OrderNumber}. Open the order details to view the secure pickup code.",
+                    $"المندوب {driverName} ({vehicleTypeAr} - {plateNumber}) متواجد لاستلام طلب {assignment.Order.OrderNumber}. افتح تفاصيل الطلب لعرض رمز الاستلام المؤمّن.",
+                    $"Driver {driverName} ({vehicleTypeEn} - {plateNumber}) is ready to pickup order #{assignment.Order.OrderNumber}. Open the order details to view the secure pickup code.",
                     "vendor-pickup-otp-resent",
                     assignment.OrderId,
                     $"assignmentId={assignment.Id};driverPhone={driverPhone};otpType=pickup",
