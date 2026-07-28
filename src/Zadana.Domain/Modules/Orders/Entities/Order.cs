@@ -289,10 +289,15 @@ public class Order : BaseEntity
         PaymentStatus = newStatus;
         if (newStatus == PaymentStatus.Paid && Status == OrderStatus.PendingPayment)
         {
+            var nextStatus = PaymentMethod.IsOnlineGatewayMethod()
+                ? OrderStatus.PendingVendorAcceptance
+                : OrderStatus.Placed;
             ChangeStatus(
-                PaymentMethod == PaymentMethodType.Card ? OrderStatus.PendingVendorAcceptance : OrderStatus.Placed,
+                nextStatus,
                 null,
-                PaymentMethod == PaymentMethodType.Card ? "Online payment confirmed and awaiting vendor response" : "Payment confirmed");
+                nextStatus == OrderStatus.PendingVendorAcceptance
+                    ? "Online payment confirmed and awaiting vendor response"
+                    : "Payment confirmed");
         }
     }
 

@@ -36,7 +36,9 @@ internal static class CartCleanupSupport
             .ThenInclude(order => order.Items)
             .Where(x =>
                 x.Order.UserId == userId &&
-                x.Method == Domain.Modules.Payments.Enums.PaymentMethodType.Card &&
+                (x.Method == Domain.Modules.Payments.Enums.PaymentMethodType.Card
+                 || x.Method == Domain.Modules.Payments.Enums.PaymentMethodType.ApplePay
+                 || x.Method == Domain.Modules.Payments.Enums.PaymentMethodType.Mada) &&
                 x.Status == PaymentStatus.Paid)
             .OrderByDescending(x => x.PaidAtUtc ?? x.UpdatedAtUtc)
             .ThenByDescending(x => x.CreatedAtUtc)

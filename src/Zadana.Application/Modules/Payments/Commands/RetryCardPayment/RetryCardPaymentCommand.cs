@@ -59,11 +59,11 @@ public class RetryCardPaymentCommandHandler : IRequestHandler<RetryCardPaymentCo
             .FirstOrDefaultAsync(x => x.Id == request.OrderId && x.UserId == request.UserId, cancellationToken)
             ?? throw new NotFoundException("Order", request.OrderId);
 
-        if (order.PaymentMethod != PaymentMethodType.Card || order.Status != OrderStatus.PendingPayment)
+        if (!order.PaymentMethod.IsOnlineGatewayMethod() || order.Status != OrderStatus.PendingPayment)
         {
             throw new BusinessRuleException(
                 "ORDER_PAYMENT_RETRY_NOT_ALLOWED",
-                "Payment retry is only allowed for card orders awaiting payment confirmation.");
+                "Payment retry is only allowed for online gateway orders awaiting payment confirmation.");
         }
 
         if (order.PaymentStatus == PaymentStatus.Paid)
@@ -75,7 +75,7 @@ public class RetryCardPaymentCommandHandler : IRequestHandler<RetryCardPaymentCo
 
         var latestPayment = await _context.Payments
             .Include(x => x.Order)
-            .Where(x => x.OrderId == order.Id && x.Method == PaymentMethodType.Card)
+            .Where(x => x.OrderId == order.Id && x.Method == order.PaymentMethod)
             .OrderByDescending(x => x.CreatedAtUtc)
             .FirstOrDefaultAsync(cancellationToken)
             ?? throw new NotFoundException("Payment", order.Id);
@@ -102,18 +102,24 @@ public class RetryCardPaymentCommandHandler : IRequestHandler<RetryCardPaymentCo
             latestPayment.MarkAsFailed("Payment attempt superseded by retry.");
         }
 
-        var retryPayment = new Payment(order.Id, PaymentMethodType.Card, order.TotalAmount);
+        var retryPayment = new Payment(order.Id, order.PaymentMethod, order.TotalAmount);
         _context.Payments.Add(retryPayment);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
         try
         {
+            var channel = order.PaymentMethod switch
+            {
+                PaymentMethodType.ApplePay => PaymentMethodChannel.ApplePay,
+                _ => PaymentMethodChannel.Card
+            };
+            var providerMethod = channel == PaymentMethodChannel.ApplePay ? "applepay" : "creditcard";
             var idempotencyKey = $"payment-create:{order.Id:N}:{retryPayment.Id:N}";
             var session = await gateway.CreateSessionAsync(
                 new CreatePaymentSessionCommand(
                     OrderId: order.Id,
                     PaymentId: retryPayment.Id,
-                    Channel: PaymentMethodChannel.Card,
+                    Channel: channel,
                     Amount: order.TotalAmount,
                     Currency: order.Currency,
                     Description: $"Order {order.OrderNumber}",
@@ -133,7 +139,7 @@ public class RetryCardPaymentCommandHandler : IRequestHandler<RetryCardPaymentCo
 
             retryPayment.ApplyProviderSession(
                 providerName: session.ProviderName,
-                providerMethod: "creditcard",
+                providerMethod: providerMethod,
                 providerPaymentId: session.ProviderPaymentId,
                 providerInvoiceId: session.ProviderInvoiceId,
                 idempotencyKey: idempotencyKey,

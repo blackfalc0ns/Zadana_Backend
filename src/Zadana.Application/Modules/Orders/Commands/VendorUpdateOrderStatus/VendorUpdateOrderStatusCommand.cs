@@ -298,7 +298,7 @@ public class VendorUpdateOrderStatusCommandHandler : IRequestHandler<VendorUpdat
 
     private static void EnsureVendorCanActOnPayment(PaymentMethodType paymentMethod, PaymentStatus paymentStatus)
     {
-        if (paymentMethod is (PaymentMethodType.Card or PaymentMethodType.BankTransfer) &&
+        if (paymentMethod is (PaymentMethodType.Card or PaymentMethodType.ApplePay or PaymentMethodType.Mada or PaymentMethodType.BankTransfer) &&
             paymentStatus != PaymentStatus.Paid)
         {
             throw new BusinessRuleException(

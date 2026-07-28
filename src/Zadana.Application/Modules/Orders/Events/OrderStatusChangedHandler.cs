@@ -494,7 +494,7 @@ public class OrderStatusChangedHandler : INotificationHandler<OrderStatusChanged
             .FirstOrDefaultAsync(cancellationToken);
 
         return order is null ||
-               order.PaymentMethod is not (PaymentMethodType.Card or PaymentMethodType.BankTransfer) ||
+               order.PaymentMethod is not (PaymentMethodType.Card or PaymentMethodType.ApplePay or PaymentMethodType.Mada or PaymentMethodType.BankTransfer) ||
                order.PaymentStatus == PaymentStatus.Paid ||
                order.PaymentStatus == PaymentStatus.Refunded ||
                order.PaymentStatus == PaymentStatus.PartiallyRefunded;
@@ -509,7 +509,7 @@ public class OrderStatusChangedHandler : INotificationHandler<OrderStatusChanged
         };
 
     private static bool IsCustomerConfirmationEmailAllowed(PaymentMethodType paymentMethod, PaymentStatus paymentStatus) =>
-        paymentMethod is not (PaymentMethodType.Card or PaymentMethodType.BankTransfer) || paymentStatus == PaymentStatus.Paid;
+        paymentMethod is not (PaymentMethodType.Card or PaymentMethodType.ApplePay or PaymentMethodType.Mada or PaymentMethodType.BankTransfer) || paymentStatus == PaymentStatus.Paid;
 
     private static string BuildCustomerImportantUpdateMessage(OrderStatus status, string orderNumber) =>
         status switch

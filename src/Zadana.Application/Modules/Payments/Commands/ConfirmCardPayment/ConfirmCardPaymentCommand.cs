@@ -371,7 +371,9 @@ public class ConfirmCardPaymentCommandHandler : IRequestHandler<ConfirmCardPayme
                 .Where(x =>
                     x.OrderId == orderId &&
                     x.ProviderName == providerName &&
-                    x.Method == PaymentMethodType.Card)
+                    (x.Method == PaymentMethodType.Card
+                     || x.Method == PaymentMethodType.ApplePay
+                     || x.Method == PaymentMethodType.Mada))
                 .OrderByDescending(x => x.CreatedAtUtc)
                 .FirstOrDefaultAsync(cancellationToken);
         }
@@ -453,10 +455,15 @@ public class ConfirmCardPaymentCommandHandler : IRequestHandler<ConfirmCardPayme
     {
         if (order.Status is OrderStatus.PendingPayment or OrderStatus.Placed)
         {
+            var nextStatus = order.PaymentMethod.IsOnlineGatewayMethod()
+                ? OrderStatus.PendingVendorAcceptance
+                : OrderStatus.Placed;
             order.ChangeStatus(
-                order.PaymentMethod == PaymentMethodType.Card ? OrderStatus.PendingVendorAcceptance : OrderStatus.Placed,
+                nextStatus,
                 null,
-                "Online payment confirmed and awaiting vendor response");
+                nextStatus == OrderStatus.PendingVendorAcceptance
+                    ? "Online payment confirmed and awaiting vendor response"
+                    : "Payment confirmed");
         }
     }
 

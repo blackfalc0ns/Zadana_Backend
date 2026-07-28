@@ -140,9 +140,13 @@ public class PendingPaymentExpirationWorker : BackgroundService
         var candidatePayments = await context.Payments
             .Include(payment => payment.Order)
             .Where(payment =>
-                payment.Method == PaymentMethodType.Card &&
+                (payment.Method == PaymentMethodType.Card
+                 || payment.Method == PaymentMethodType.ApplePay
+                 || payment.Method == PaymentMethodType.Mada) &&
                 payment.CreatedAtUtc <= cutoff &&
-                payment.Order.PaymentMethod == PaymentMethodType.Card &&
+                (payment.Order.PaymentMethod == PaymentMethodType.Card
+                 || payment.Order.PaymentMethod == PaymentMethodType.ApplePay
+                 || payment.Order.PaymentMethod == PaymentMethodType.Mada) &&
                 payment.Order.Status == OrderStatus.PendingPayment &&
                 payment.Order.PaymentStatus != PaymentStatus.Paid &&
                 payment.Status != PaymentStatus.Paid)
@@ -153,7 +157,7 @@ public class PendingPaymentExpirationWorker : BackgroundService
         var latestPayments = await LoadLatestPaymentsForCandidateOrdersAsync(
             context,
             candidatePayments,
-            PaymentMethodType.Card,
+            method => method.IsOnlineGatewayMethod(),
             cancellationToken);
 
         var expiredOrders = new List<ExpiredPaymentOrder>();
@@ -210,7 +214,7 @@ public class PendingPaymentExpirationWorker : BackgroundService
         var latestPayments = await LoadLatestPaymentsForCandidateOrdersAsync(
             context,
             candidatePayments,
-            PaymentMethodType.BankTransfer,
+            method => method == PaymentMethodType.BankTransfer,
             cancellationToken);
 
         var expiredOrders = new List<ExpiredPaymentOrder>();
@@ -247,7 +251,7 @@ public class PendingPaymentExpirationWorker : BackgroundService
     private static async Task<List<Payment>> LoadLatestPaymentsForCandidateOrdersAsync(
         IApplicationDbContext context,
         IReadOnlyCollection<Payment> candidatePayments,
-        PaymentMethodType method,
+        Func<PaymentMethodType, bool> methodPredicate,
         CancellationToken cancellationToken)
     {
         var orderIds = candidatePayments
@@ -262,10 +266,11 @@ public class PendingPaymentExpirationWorker : BackgroundService
 
         var payments = await context.Payments
             .Include(payment => payment.Order)
-            .Where(payment => payment.Method == method && orderIds.Contains(payment.OrderId))
+            .Where(payment => orderIds.Contains(payment.OrderId))
             .ToListAsync(cancellationToken);
 
         return payments
+            .Where(payment => methodPredicate(payment.Method))
             .GroupBy(payment => payment.OrderId)
             .Select(group => group
                 .OrderByDescending(payment => payment.CreatedAtUtc)

@@ -455,6 +455,8 @@ public class OrderReadService : IOrderReadService
                 order.VendorId == vendorId &&
                 order.Status != OrderStatus.PendingPayment &&
                 ((order.PaymentMethod != PaymentMethodType.Card &&
+                  order.PaymentMethod != PaymentMethodType.ApplePay &&
+                  order.PaymentMethod != PaymentMethodType.Mada &&
                   order.PaymentMethod != PaymentMethodType.BankTransfer) ||
                  order.PaymentStatus == PaymentStatus.Paid ||
                  order.PaymentStatus == PaymentStatus.Refunded ||
@@ -525,6 +527,8 @@ public class OrderReadService : IOrderReadService
                 (!branchId.HasValue || item.VendorBranchId == branchId.Value) &&
                 item.Status != OrderStatus.PendingPayment &&
                 ((item.PaymentMethod != PaymentMethodType.Card &&
+                  item.PaymentMethod != PaymentMethodType.ApplePay &&
+                  item.PaymentMethod != PaymentMethodType.Mada &&
                   item.PaymentMethod != PaymentMethodType.BankTransfer) ||
                  item.PaymentStatus == PaymentStatus.Paid ||
                  item.PaymentStatus == PaymentStatus.Refunded ||
@@ -1911,7 +1915,7 @@ public class OrderReadService : IOrderReadService
             OrderStatus.Preparing;
 
     private static bool CanRetryPayment(Order order) =>
-        order.PaymentMethod == PaymentMethodType.Card &&
+        order.PaymentMethod.IsOnlineGatewayMethod() &&
         order.Status == OrderStatus.PendingPayment &&
         order.PaymentStatus is PaymentStatus.Initiated or PaymentStatus.Pending or PaymentStatus.Failed;
 
@@ -1931,6 +1935,7 @@ public class OrderReadService : IOrderReadService
         paymentMethod switch
         {
             PaymentMethodType.Card => "card",
+            PaymentMethodType.ApplePay => "apple_pay",
             PaymentMethodType.BankTransfer => "bank",
             _ => "cash"
         };
