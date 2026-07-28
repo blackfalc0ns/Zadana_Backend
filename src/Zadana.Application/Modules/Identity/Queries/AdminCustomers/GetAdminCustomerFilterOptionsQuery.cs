@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Modules.Identity.DTOs;
 using Zadana.Application.Modules.Identity.Support;
+using Zadana.Domain.Modules.Identity.Enums;
 
 namespace Zadana.Application.Modules.Identity.Queries.AdminCustomers;
 
@@ -26,12 +27,28 @@ public class GetAdminCustomerFilterOptionsQueryHandler
         GetAdminCustomerFilterOptionsQuery request,
         CancellationToken cancellationToken)
     {
-        var rawCities = await _context.CustomerAddresses
-            .AsNoTracking()
-            .Where(address => address.City != null && address.City != string.Empty)
-            .Select(address => address.City!)
-            .Distinct()
-            .ToListAsync(cancellationToken);
+        var addressRows = await (
+            from address in _context.CustomerAddresses.AsNoTracking()
+            join user in _context.Users.AsNoTracking() on address.UserId equals user.Id
+            where user.Role == UserRole.Customer
+                  && address.City != null
+                  && address.City != string.Empty
+            select new
+            {
+                address.UserId,
+                address.City,
+                address.IsDefault
+            }).ToListAsync(cancellationToken);
+
+        var rawCities = addressRows
+            .GroupBy(row => row.UserId)
+            .Select(group => group
+                .OrderByDescending(row => row.IsDefault)
+                .ThenBy(row => row.City, StringComparer.OrdinalIgnoreCase)
+                .First()
+                .City!)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
 
         var cityOptions = new Dictionary<string, AdminCustomerFilterOptionDto>(StringComparer.OrdinalIgnoreCase);
 
