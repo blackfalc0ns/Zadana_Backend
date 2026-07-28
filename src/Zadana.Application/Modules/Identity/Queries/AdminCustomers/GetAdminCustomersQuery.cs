@@ -165,7 +165,8 @@ public class GetAdminCustomersQueryHandler : IRequestHandler<GetAdminCustomersQu
                 user.CreatedAtUtc,
                 user.LastLoginAtUtc,
                 user.LastSeenAtUtc,
-                user.PreferredLocale
+                user.PreferredLocale,
+                user.ProfilePhotoUrl
             })
             .ToListAsync(cancellationToken);
 
@@ -256,7 +257,8 @@ public class GetAdminCustomersQueryHandler : IRequestHandler<GetAdminCustomersQu
                 stats?.LastOrderValue ?? 0m,
                 stats?.RefundedOrdersCount ?? 0,
                 favoritesCount,
-                customer.PreferredLocale);
+                customer.PreferredLocale,
+                customer.ProfilePhotoUrl);
         }).ToList();
 
         return new PaginatedList<AdminCustomerListItemDto>(items, totalCount, page, pageSize);

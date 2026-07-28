@@ -93,6 +93,14 @@ public class GetMasterProductsQueryHandler : IRequestHandler<GetMasterProductsQu
         {
             query = query.Where(product => product.VendorBranchId == vendorBranchId.Value);
         }
+        else
+        {
+            // Main/store-wide catalog: only treat as already added when present on main/primary.
+            // Products that exist only on secondary branches must still be addable to main.
+            query = query.Where(product =>
+                product.VendorBranchId == null ||
+                (product.VendorBranch != null && product.VendorBranch.IsPrimary));
+        }
 
         return await query
             .Select(product => product.MasterProductId)

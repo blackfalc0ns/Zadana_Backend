@@ -1,7 +1,10 @@
 using MediatR;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Localization;
 using Zadana.Application.Common.Caching;
 using Zadana.Application.Common.Interfaces;
+using Zadana.Application.Common.Localization;
+using Zadana.Application.Modules.Catalog.Common;
 using Zadana.Domain.Modules.Catalog.Entities;
 using Zadana.SharedKernel.Exceptions;
 
@@ -11,11 +14,16 @@ public class UpdateVendorProductCommandHandler : IRequestHandler<UpdateVendorPro
 {
     private readonly IApplicationDbContext _context;
     private readonly ICacheInvalidator _cacheInvalidator;
+    private readonly IStringLocalizer<SharedResource> _localizer;
 
-    public UpdateVendorProductCommandHandler(IApplicationDbContext context, ICacheInvalidator cacheInvalidator)
+    public UpdateVendorProductCommandHandler(
+        IApplicationDbContext context,
+        ICacheInvalidator cacheInvalidator,
+        IStringLocalizer<SharedResource> localizer)
     {
         _context = context;
         _cacheInvalidator = cacheInvalidator;
+        _localizer = localizer;
     }
 
     public async Task Handle(UpdateVendorProductCommand request, CancellationToken cancellationToken)
@@ -32,7 +40,7 @@ public class UpdateVendorProductCommandHandler : IRequestHandler<UpdateVendorPro
             throw new NotFoundException(nameof(VendorProduct), request.Id);
 
         if (!request.TradePrice.HasValue)
-            throw new BusinessRuleException("TRADE_PRICE_REQUIRED", "Trade price is required.");
+            throw new BusinessRuleException("TRADE_PRICE_REQUIRED", _localizer["TRADE_PRICE_REQUIRED"]);
 
         var productRows = await _context.VendorProducts
             .Where(vp =>
@@ -40,8 +48,32 @@ public class UpdateVendorProductCommandHandler : IRequestHandler<UpdateVendorPro
                 vp.MasterProductId == vendorProduct.MasterProductId)
             .ToListAsync(cancellationToken);
 
-        var canUpdateCanonicalPricing = vendorProduct.VendorBranchId is null ||
-            vendorProduct.VendorBranch?.IsPrimary == true;
+        var originBranchId = productRows
+            .OrderBy(row => row.CreatedAtUtc)
+            .Select(row => row.VendorBranchId)
+            .FirstOrDefault();
+
+        var canUpdateCanonicalPricing = VendorProductPricingAuthority.CanEditPrice(
+            vendorProduct.VendorBranchId,
+            vendorProduct.VendorBranch?.IsPrimary == true,
+            originBranchId);
+
+        var priceChanged = VendorProductPricingAuthority.PricesDiffer(
+            vendorProduct.SellingPrice,
+            vendorProduct.CompareAtPrice,
+            vendorProduct.CostPrice,
+            vendorProduct.TradePrice,
+            request.SellingPrice,
+            request.CompareAtPrice,
+            request.CostPrice,
+            request.TradePrice);
+
+        if (priceChanged && !canUpdateCanonicalPricing)
+        {
+            throw new BusinessRuleException(
+                "VENDOR_PRODUCT_PRICE_LOCKED",
+                _localizer["VENDOR_PRODUCT_PRICE_LOCKED"]);
+        }
 
         if (canUpdateCanonicalPricing)
         {

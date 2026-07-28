@@ -2,6 +2,7 @@ using MediatR;
 using Microsoft.EntityFrameworkCore;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Modules.Finances.DTOs;
+using Zadana.Application.Modules.Geography.Support;
 
 namespace Zadana.Application.Modules.Finances.Queries.GetRegionDeliveryPricingSettings;
 
@@ -12,6 +13,7 @@ internal sealed class GetRegionDeliveryPricingSettingsQueryHandler(IApplicationD
     {
         var regions = await dbContext.SaudiRegions
             .AsNoTracking()
+            .Where(item => item.Code == OperationalGeographyScope.EasternRegionCode)
             .OrderBy(item => item.SortOrder)
             .ThenBy(item => item.NameEn)
             .ToListAsync(cancellationToken);

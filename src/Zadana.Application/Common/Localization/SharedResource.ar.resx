@@ -1247,6 +1247,9 @@
   <data name="VENDOR_PRODUCT_ALREADY_EXISTS" xml:space="preserve">
     <value>التاجر مستخدم أو معالج مسبقًا.</value>
   </data>
+  <data name="VENDOR_PRODUCT_PRICE_LOCKED" xml:space="preserve">
+    <value>تعديل السعر متاح للفرع الرئيسي أو الفرع اللي أضاف المنتج أول مرة فقط.</value>
+  </data>
   <data name="PRODUCT_HAS_VENDOR_LISTINGS" xml:space="preserve">
     <value>ما تقدر تحذف المنتج لأنه مدرج عند تجار. أزل إدراجات التجار أولًا.</value>
   </data>

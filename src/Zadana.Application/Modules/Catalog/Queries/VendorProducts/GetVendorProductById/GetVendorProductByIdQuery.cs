@@ -1,6 +1,7 @@
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 using Zadana.Application.Common.Interfaces;
+using Zadana.Application.Modules.Catalog.Common;
 using Zadana.Application.Modules.Catalog.DTOs;
 using Zadana.SharedKernel.Exceptions;
 
@@ -40,6 +41,20 @@ public class GetVendorProductByIdQueryHandler : IRequestHandler<GetVendorProduct
         if (vp == null)
             throw new NotFoundException("VendorProduct", request.ProductId);
 
+        var originBranchId = await _context.VendorProducts
+            .AsNoTracking()
+            .Where(product =>
+                product.VendorId == request.VendorId &&
+                product.MasterProductId == vp.MasterProductId)
+            .OrderBy(product => product.CreatedAtUtc)
+            .Select(product => product.VendorBranchId)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        var canEditPrice = VendorProductPricingAuthority.CanEditPrice(
+            vp.VendorBranchId,
+            vp.VendorBranch?.IsPrimary == true,
+            originBranchId);
+
         return new VendorProductDto(
             vp.Id,
             vp.VendorId,
@@ -54,7 +69,6 @@ public class GetVendorProductByIdQueryHandler : IRequestHandler<GetVendorProduct
             vp.Status.ToString(),
             MasterProductDisplayDto.ToDto(vp.MasterProduct, true),
             vp.VendorBranchId,
-            vp.VendorBranchId is null || vp.VendorBranch != null && vp.VendorBranch.IsPrimary
-        );
+            canEditPrice);
     }
 }

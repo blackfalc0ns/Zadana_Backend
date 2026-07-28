@@ -2,6 +2,7 @@ using MediatR;
 using Microsoft.EntityFrameworkCore;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Common.Models;
+using Zadana.Application.Modules.Catalog.Common;
 using Zadana.Application.Modules.Catalog.DTOs;
 
 namespace Zadana.Application.Modules.Catalog.Queries.GetVendorProducts;
@@ -84,30 +85,62 @@ public class GetVendorProductsQueryHandler : IRequestHandler<GetVendorProductsQu
         }
 
         var totalCount = await query.CountAsync(cancellationToken);
-        
+
         var products = await query
             .OrderBy(vp => vp.Id)
             .Skip((request.PageNumber - 1) * request.PageSize)
             .Take(request.PageSize)
             .ToListAsync(cancellationToken);
 
-        var items = products.Select(vp => new VendorProductDto(
-            vp.Id,
-            vp.VendorId,
-            vp.MasterProductId,
-            vp.CostPrice,
-            vp.TradePrice,
-            vp.SellingPrice,
-            vp.CompareAtPrice,
-            vp.Vendor.CommissionRate,
-            vp.StockQuantity,
-            vp.IsAvailable,
-            vp.Status.ToString(),
-            MasterProductDisplayDto.ToDto(vp.MasterProduct, true),
-            vp.VendorBranchId,
-            vp.VendorBranchId is null || vp.VendorBranch != null && vp.VendorBranch.IsPrimary
-        )).ToList();
-        
+        var masterProductIds = products
+            .Select(product => product.MasterProductId)
+            .Distinct()
+            .ToArray();
+
+        var originBranchByMasterProductId = masterProductIds.Length == 0
+            ? new Dictionary<Guid, Guid?>()
+            : (await _context.VendorProducts
+                .AsNoTracking()
+                .Where(product =>
+                    product.VendorId == request.VendorId &&
+                    masterProductIds.Contains(product.MasterProductId))
+                .Select(product => new
+                {
+                    product.MasterProductId,
+                    product.VendorBranchId,
+                    product.CreatedAtUtc
+                })
+                .ToListAsync(cancellationToken))
+            .GroupBy(product => product.MasterProductId)
+            .ToDictionary(
+                group => group.Key,
+                group => group.OrderBy(item => item.CreatedAtUtc).Select(item => item.VendorBranchId).First());
+
+        var items = products.Select(vp =>
+        {
+            originBranchByMasterProductId.TryGetValue(vp.MasterProductId, out var originBranchId);
+            var canEditPrice = VendorProductPricingAuthority.CanEditPrice(
+                vp.VendorBranchId,
+                vp.VendorBranch?.IsPrimary == true,
+                originBranchId);
+
+            return new VendorProductDto(
+                vp.Id,
+                vp.VendorId,
+                vp.MasterProductId,
+                vp.CostPrice,
+                vp.TradePrice,
+                vp.SellingPrice,
+                vp.CompareAtPrice,
+                vp.Vendor.CommissionRate,
+                vp.StockQuantity,
+                vp.IsAvailable,
+                vp.Status.ToString(),
+                MasterProductDisplayDto.ToDto(vp.MasterProduct, true),
+                vp.VendorBranchId,
+                canEditPrice);
+        }).ToList();
+
         return new PaginatedList<VendorProductDto>(items, totalCount, request.PageNumber, request.PageSize);
     }
 }

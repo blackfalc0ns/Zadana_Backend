@@ -2,6 +2,7 @@ using MediatR;
 using Microsoft.EntityFrameworkCore;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Modules.Finances.DTOs;
+using Zadana.Application.Modules.Geography.Support;
 
 namespace Zadana.Application.Modules.Finances.Queries.GetZoneFinanceSettings;
 
@@ -17,6 +18,7 @@ internal sealed class GetZoneFinanceSettingsQueryHandler(IApplicationDbContext d
         var cities = await dbContext.SaudiCities
             .AsNoTracking()
             .Include(item => item.Region)
+            .Where(item => item.Region.Code == OperationalGeographyScope.EasternRegionCode)
             .ToListAsync(cancellationToken);
 
         var pricingRules = await dbContext.DeliveryPricingRules
@@ -32,22 +34,28 @@ internal sealed class GetZoneFinanceSettingsQueryHandler(IApplicationDbContext d
 
         foreach (var zone in zones)
         {
-            pricingRules.TryGetValue(zone.Id, out var rule);
-            financeSettings.TryGetValue(zone.Id, out var settings);
             var matchedCity = cities.FirstOrDefault(item =>
                 string.Equals(item.Code, zone.City, StringComparison.OrdinalIgnoreCase) ||
                 string.Equals(NormalizeText(item.NameAr), NormalizeText(zone.City), StringComparison.OrdinalIgnoreCase) ||
                 string.Equals(NormalizeText(item.NameEn), NormalizeText(zone.City), StringComparison.OrdinalIgnoreCase));
+
+            if (matchedCity is null)
+            {
+                continue;
+            }
+
+            pricingRules.TryGetValue(zone.Id, out var rule);
+            financeSettings.TryGetValue(zone.Id, out var settings);
 
             result.Add(new ZoneFinanceSettingsDto
             {
                 ZoneId = zone.Id,
                 ZoneName = zone.Name,
                 City = zone.City,
-                RegionId = matchedCity?.RegionId,
-                RegionCode = matchedCity?.Region.Code,
-                RegionNameAr = matchedCity?.Region.NameAr,
-                RegionNameEn = matchedCity?.Region.NameEn,
+                RegionId = matchedCity.RegionId,
+                RegionCode = matchedCity.Region.Code,
+                RegionNameAr = matchedCity.Region.NameAr,
+                RegionNameEn = matchedCity.Region.NameEn,
                 
                 BaseDeliveryFee = rule?.BaseFee ?? 0,
                 IncludedKm = rule?.IncludedKm ?? 0,
@@ -56,7 +64,7 @@ internal sealed class GetZoneFinanceSettingsQueryHandler(IApplicationDbContext d
                 MaxDeliveryFee = rule?.MaxFee ?? 0,
                 IsPricingActive = rule?.IsActive ?? false,
                 
-                VatPercent = settings?.VatPercent ?? 15m, // Default VAT
+                VatPercent = settings?.VatPercent ?? 15m,
                 CodFeeType = settings?.CodFeeType ?? "flat",
                 CodFlatFee = settings?.CodFlatFee ?? 10m,
                 CodPercent = settings?.CodPercent ?? 0m,

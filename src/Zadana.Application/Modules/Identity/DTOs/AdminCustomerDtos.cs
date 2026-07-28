@@ -25,7 +25,8 @@ public record AdminCustomerListItemDto(
     decimal LastOrderValue,
     int RefundedOrdersCount,
     int FavoritesCount,
-    string? PreferredLocale);
+    string? PreferredLocale,
+    string? ProfilePhotoUrl);
 
 public record AdminCustomerRecentOrderDto(
     Guid Id,
