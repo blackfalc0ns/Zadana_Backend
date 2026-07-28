@@ -108,6 +108,55 @@ public sealed class AdminFinanceAdjustmentsController(
         return Ok(new AdminFinancialAdjustmentListDto(items, page, pageSize, totalCount));
     }
 
+    [HttpGet("stats")]
+    [RequireAccess(PermissionKeys.Admin.FinancesView)]
+    [ProducesResponseType(typeof(AdminFinancialAdjustmentStatsDto), StatusCodes.Status200OK)]
+    public async Task<ActionResult<AdminFinancialAdjustmentStatsDto>> GetStats(
+        [FromQuery] string? ownerType = null,
+        [FromQuery] Guid? ownerId = null,
+        CancellationToken cancellationToken = default)
+    {
+        var query = context.WalletTransactions
+            .AsNoTracking()
+            .Where(txn => txn.TxnType == WalletTxnType.Adjustment);
+
+        if (!string.IsNullOrWhiteSpace(ownerType) || ownerId.HasValue)
+        {
+            var walletOwnerType = string.IsNullOrWhiteSpace(ownerType)
+                ? (WalletOwnerType?)null
+                : Enum.TryParse<WalletOwnerType>(ownerType, true, out var parsed)
+                    ? parsed
+                    : null;
+
+            query = query.Include(txn => txn.Wallet);
+
+            if (walletOwnerType.HasValue)
+            {
+                query = query.Where(txn => txn.Wallet.OwnerType == walletOwnerType.Value);
+            }
+
+            if (ownerId.HasValue)
+            {
+                query = query.Where(txn => txn.Wallet.OwnerId == ownerId.Value);
+            }
+        }
+
+        var totalCount = await query.CountAsync(cancellationToken);
+        var totalCredits = await query
+            .Where(txn => txn.Direction == "IN")
+            .SumAsync(txn => txn.Amount, cancellationToken);
+        var totalDebits = await query
+            .Where(txn => txn.Direction == "OUT")
+            .SumAsync(txn => txn.Amount, cancellationToken);
+
+        return Ok(new AdminFinancialAdjustmentStatsDto(
+            totalCount,
+            totalCredits,
+            totalDebits,
+            totalCredits - totalDebits,
+            0));
+    }
+
     [HttpPost]
     [RequireAccess(PermissionKeys.Admin.FinancesEdit)]
     [ProducesResponseType(typeof(AdminFinancialAdjustmentDto), StatusCodes.Status200OK)]

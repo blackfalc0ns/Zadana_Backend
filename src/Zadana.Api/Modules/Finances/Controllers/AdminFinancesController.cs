@@ -590,6 +590,39 @@ public class AdminFinancesController(
         return Ok(enrichedEntries.First());
     }
 
+    [HttpGet("audit-log/stats")]
+    [ProducesResponseType(typeof(AdminFinanceAuditLogStatsDto), StatusCodes.Status200OK)]
+    public async Task<ActionResult<AdminFinanceAuditLogStatsDto>> GetAuditLogStats(
+        [FromQuery] string? entityType = null,
+        [FromQuery] string? entityId = null,
+        [FromQuery] string? orderId = null,
+        [FromQuery] string? actionCategory = null,
+        CancellationToken cancellationToken = default)
+    {
+        var filteredEntries = await BuildFilteredAuditEntriesAsync(
+            entityType,
+            entityId,
+            orderId,
+            actionCategory,
+            sourceFetchLimit: 5000,
+            cancellationToken);
+
+        var systemEntries = filteredEntries.Count(entry =>
+            entry.AdminId == "finance-system" ||
+            string.Equals(entry.AdminName, "FINANCES.AUDIT.ADMINS.FINANCE_SYSTEM", StringComparison.Ordinal));
+
+        var affectedEntities = filteredEntries
+            .Select(entry => $"{entry.EntityType}:{entry.EntityId ?? entry.OrderId ?? entry.Id}")
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Count();
+
+        return Ok(new AdminFinanceAuditLogStatsDto(
+            filteredEntries.Count,
+            systemEntries,
+            Math.Max(filteredEntries.Count - systemEntries, 0),
+            affectedEntities));
+    }
+
     [HttpGet("audit-log")]
     [ProducesResponseType(typeof(AdminFinanceAuditLogListDto), StatusCodes.Status200OK)]
     public async Task<ActionResult<AdminFinanceAuditLogListDto>> GetAuditLog(
@@ -604,76 +637,13 @@ public class AdminFinancesController(
         page = Math.Max(page, 1);
         pageSize = Math.Clamp(pageSize, 1, 200);
 
-        var journalEntries = await context.JournalEntries
-            .AsNoTracking()
-            .Include(entry => entry.FinancialEvent)
-            .Include(entry => entry.Lines)
-            .OrderByDescending(entry => entry.PostedAtUtc)
-            .Take(pageSize)
-            .ToListAsync(cancellationToken);
-
-        var settlements = await context.Settlements
-            .AsNoTracking()
-            .OrderByDescending(settlement => settlement.ProcessedAtUtc ?? settlement.PeriodTo)
-            .Take(pageSize)
-            .ToListAsync(cancellationToken);
-
-        var codWallets = await context.Wallets
-            .AsNoTracking()
-            .Where(wallet =>
-                wallet.OwnerType == Zadana.Domain.Modules.Wallets.Enums.WalletOwnerType.Driver &&
-                wallet.CodOwedBalance != 0)
-            .OrderByDescending(wallet => wallet.CodOwedBalance)
-            .Take(pageSize)
-            .ToListAsync(cancellationToken);
-
-        var codDriverIds = codWallets.Select(wallet => wallet.OwnerId).ToList();
-        var codDrivers = codDriverIds.Count == 0
-            ? new Dictionary<Guid, string>()
-            : await context.Drivers
-                .AsNoTracking()
-                .Include(driver => driver.User)
-                .Where(driver => codDriverIds.Contains(driver.Id))
-                .ToDictionaryAsync(driver => driver.Id, driver => driver.User.FullName, cancellationToken);
-
-        var latestCodLines = codDriverIds.Count == 0
-            ? []
-            : await context.JournalLines
-                .AsNoTracking()
-                .Where(line =>
-                    line.AccountCode == FinancialAccountCode.DriverCodReceivable &&
-                    line.OwnerType == FinancialOwnerType.Driver &&
-                    line.OwnerId.HasValue &&
-                    codDriverIds.Contains(line.OwnerId.Value))
-                .OrderByDescending(line => line.CreatedAtUtc)
-                .Select(line => new
-                {
-                    line.OwnerId,
-                    line.OrderId,
-                    line.DebitAmount,
-                    line.CreditAmount,
-                    line.Memo,
-                    line.CreatedAtUtc
-                })
-                .ToListAsync(cancellationToken);
-
-        var latestCodLineByDriver = latestCodLines
-            .Where(line => line.OwnerId.HasValue)
-            .GroupBy(line => line.OwnerId!.Value)
-            .ToDictionary(group => group.Key, group => group.First());
-
-        var filteredEntries = journalEntries
-            .Select(ToAuditDto)
-            .Concat(settlements.Select(ToAuditDto))
-            .Concat(codWallets.Select(wallet =>
-            {
-                latestCodLineByDriver.TryGetValue(wallet.OwnerId, out var latestLine);
-                codDrivers.TryGetValue(wallet.OwnerId, out var driverName);
-                return ToCodAuditDto(wallet.OwnerId, driverName, wallet.CodOwedBalance, wallet.LastJournalSequence, latestLine?.OrderId, latestLine?.CreatedAtUtc, latestLine?.Memo);
-            }))
-            .Where(entry => MatchesAuditFilter(entry, entityType, entityId, orderId, actionCategory))
-            .OrderByDescending(entry => entry.TimestampUtc)
-            .ToList();
+        var filteredEntries = await BuildFilteredAuditEntriesAsync(
+            entityType,
+            entityId,
+            orderId,
+            actionCategory,
+            sourceFetchLimit: pageSize,
+            cancellationToken);
 
         var entries = filteredEntries
             .Skip((page - 1) * pageSize)
@@ -1160,11 +1130,106 @@ public class AdminFinancesController(
     private static string BuildAuditEntityName(SettlementOwnerType ownerType, Guid ownerId) =>
         $"{ownerType} {ownerId.ToString("N")[..8].ToUpperInvariant()}";
 
+    private async Task<List<AdminFinanceAuditLogEntryDto>> BuildFilteredAuditEntriesAsync(
+        string? entityType,
+        string? entityId,
+        string? orderId,
+        string? actionCategory,
+        int sourceFetchLimit,
+        CancellationToken cancellationToken)
+    {
+        sourceFetchLimit = Math.Clamp(sourceFetchLimit, 1, 5000);
+
+        var journalEntries = await context.JournalEntries
+            .AsNoTracking()
+            .Include(entry => entry.FinancialEvent)
+            .Include(entry => entry.Lines)
+            .OrderByDescending(entry => entry.PostedAtUtc)
+            .Take(sourceFetchLimit)
+            .ToListAsync(cancellationToken);
+
+        var settlements = await context.Settlements
+            .AsNoTracking()
+            .OrderByDescending(settlement => settlement.ProcessedAtUtc ?? settlement.PeriodTo)
+            .Take(sourceFetchLimit)
+            .ToListAsync(cancellationToken);
+
+        var codWallets = await context.Wallets
+            .AsNoTracking()
+            .Where(wallet =>
+                wallet.OwnerType == WalletOwnerType.Driver &&
+                wallet.CodOwedBalance != 0)
+            .OrderByDescending(wallet => wallet.CodOwedBalance)
+            .Take(sourceFetchLimit)
+            .ToListAsync(cancellationToken);
+
+        var codDriverIds = codWallets.Select(wallet => wallet.OwnerId).ToList();
+        var codDrivers = codDriverIds.Count == 0
+            ? new Dictionary<Guid, string>()
+            : await context.Drivers
+                .AsNoTracking()
+                .Include(driver => driver.User)
+                .Where(driver => codDriverIds.Contains(driver.Id))
+                .ToDictionaryAsync(driver => driver.Id, driver => driver.User.FullName, cancellationToken);
+
+        var latestCodLines = codDriverIds.Count == 0
+            ? []
+            : await context.JournalLines
+                .AsNoTracking()
+                .Where(line =>
+                    line.AccountCode == FinancialAccountCode.DriverCodReceivable &&
+                    line.OwnerType == FinancialOwnerType.Driver &&
+                    line.OwnerId.HasValue &&
+                    codDriverIds.Contains(line.OwnerId.Value))
+                .OrderByDescending(line => line.CreatedAtUtc)
+                .Select(line => new
+                {
+                    line.OwnerId,
+                    line.OrderId,
+                    line.DebitAmount,
+                    line.CreditAmount,
+                    line.Memo,
+                    line.CreatedAtUtc
+                })
+                .ToListAsync(cancellationToken);
+
+        var latestCodLineByDriver = latestCodLines
+            .Where(line => line.OwnerId.HasValue)
+            .GroupBy(line => line.OwnerId!.Value)
+            .ToDictionary(group => group.Key, group => group.First());
+
+        return journalEntries
+            .Select(ToAuditDto)
+            .Concat(settlements.Select(ToAuditDto))
+            .Concat(codWallets.Select(wallet =>
+            {
+                latestCodLineByDriver.TryGetValue(wallet.OwnerId, out var latestLine);
+                codDrivers.TryGetValue(wallet.OwnerId, out var driverName);
+                return ToCodAuditDto(
+                    wallet.OwnerId,
+                    driverName,
+                    wallet.CodOwedBalance,
+                    wallet.LastJournalSequence,
+                    latestLine?.OrderId,
+                    latestLine?.CreatedAtUtc,
+                    latestLine?.Memo);
+            }))
+            .Where(entry => MatchesAuditFilter(entry, entityType, entityId, orderId, actionCategory))
+            .OrderByDescending(entry => entry.TimestampUtc)
+            .ToList();
+    }
+
 }
 
 public sealed record AdminFinanceAuditLogListDto(
     IReadOnlyList<AdminFinanceAuditLogEntryDto> Items,
     int TotalCount);
+
+public sealed record AdminFinanceAuditLogStatsDto(
+    int TotalEntries,
+    int SystemEntries,
+    int ManualActions,
+    int AffectedEntities);
 
 public sealed record AdminFinanceAuditLogEntryDto(
     string Id,

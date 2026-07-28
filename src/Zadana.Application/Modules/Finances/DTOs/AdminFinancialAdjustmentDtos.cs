@@ -6,6 +6,13 @@ public sealed record AdminFinancialAdjustmentListDto(
     int PageSize,
     int TotalCount);
 
+public sealed record AdminFinancialAdjustmentStatsDto(
+    int TotalCount,
+    decimal TotalCredits,
+    decimal TotalDebits,
+    decimal NetImpact,
+    int PendingCount);
+
 public sealed record AdminFinancialAdjustmentDto(
     Guid Id,
     string OwnerType,
