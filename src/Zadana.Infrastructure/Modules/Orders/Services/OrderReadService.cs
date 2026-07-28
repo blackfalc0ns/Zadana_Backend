@@ -439,6 +439,48 @@ public class OrderReadService : IOrderReadService
         return PaginatedList<AdminVendorOrderListItemDto>.CreateAsync(projected, page, pageSize, cancellationToken);
     }
 
+    public async Task<AdminVendorOrderStatsDto> GetVendorOrderStatsAsync(
+        Guid vendorId,
+        CancellationToken cancellationToken = default)
+    {
+        var orders = await _dbContext.Orders
+            .AsNoTracking()
+            .Where(order => order.VendorId == vendorId)
+            .Select(order => new
+            {
+                order.Status,
+                order.PaymentStatus,
+                order.TotalAmount
+            })
+            .ToListAsync(cancellationToken);
+
+        var closedStatuses = new HashSet<OrderStatus>
+        {
+            OrderStatus.Delivered,
+            OrderStatus.Cancelled,
+            OrderStatus.VendorRejected,
+            OrderStatus.DeliveryFailed
+        };
+
+        var totalOrders = orders.Count;
+        var completedOrders = orders.Count(order => order.Status == OrderStatus.Delivered);
+        var cancelledOrders = orders.Count(order =>
+            order.Status is OrderStatus.Cancelled or OrderStatus.VendorRejected or OrderStatus.DeliveryFailed);
+        var openOrders = orders.Count(order => !closedStatuses.Contains(order.Status));
+        var paidOrders = orders.Count(order => order.PaymentStatus == PaymentStatus.Paid);
+        var totalSalesValue = orders.Sum(order => order.TotalAmount);
+        var averageOrderValue = totalOrders > 0 ? Math.Round(totalSalesValue / totalOrders, 2) : 0m;
+
+        return new AdminVendorOrderStatsDto(
+            totalOrders,
+            openOrders,
+            completedOrders,
+            cancelledOrders,
+            paidOrders,
+            totalSalesValue,
+            averageOrderValue);
+    }
+
     public Task<PaginatedList<VendorOrderListItemDto>> GetVendorWorkspaceOrdersAsync(
         Guid vendorId,
         Guid? branchId,
@@ -763,27 +805,22 @@ public class OrderReadService : IOrderReadService
 
         if (!string.IsNullOrWhiteSpace(status) && !string.Equals(status, "ALL", StringComparison.OrdinalIgnoreCase))
         {
-            if (Enum.TryParse<OrderStatus>(status, true, out var ps))
-                query = query.Where(order => order.Status == ps);
+            query = AdminOrderQueryFilters.ApplyStatusFilter(query, status);
         }
 
         if (!string.IsNullOrWhiteSpace(paymentStatus) && !string.Equals(paymentStatus, "ALL", StringComparison.OrdinalIgnoreCase))
         {
-            if (Enum.TryParse<PaymentStatus>(paymentStatus, true, out var pps))
-                query = query.Where(order => order.PaymentStatus == pps);
+            query = AdminOrderQueryFilters.ApplyPaymentStatusFilter(query, _dbContext, paymentStatus);
+        }
+
+        if (!string.IsNullOrWhiteSpace(fulfillmentStatus) && !string.Equals(fulfillmentStatus, "ALL", StringComparison.OrdinalIgnoreCase))
+        {
+            query = AdminOrderQueryFilters.ApplyFulfillmentStatusFilter(query, _dbContext, fulfillmentStatus);
         }
 
         if (!string.IsNullOrWhiteSpace(queueView) && !string.Equals(queueView, "ALL", StringComparison.OrdinalIgnoreCase))
         {
-            var cutoff = DateTime.UtcNow.AddMinutes(-45);
-            query = queueView.ToUpperInvariant() switch
-            {
-                "ACTIVE" => query.Where(o => o.Status != OrderStatus.Cancelled && o.Status != OrderStatus.Delivered),
-                "LATE" => query.Where(o => o.PlacedAtUtc < cutoff && o.Status != OrderStatus.Cancelled && o.Status != OrderStatus.Delivered),
-                "PAYMENT_ISSUES" => query.Where(o => o.PaymentStatus == PaymentStatus.Failed || o.PaymentStatus == PaymentStatus.Pending || o.PaymentStatus == PaymentStatus.PendingCollection),
-                "REFUNDS" => query.Where(o => o.PaymentStatus == PaymentStatus.Refunded || o.PaymentStatus == PaymentStatus.PartiallyRefunded),
-                _ => query
-            };
+            query = AdminOrderQueryFilters.ApplyQueueViewFilter(query, _dbContext, queueView);
         }
 
         // 2. Count + KPI summary. The KPI scans the full Orders table, which
@@ -3511,8 +3548,8 @@ public class OrderReadService : IOrderReadService
         // If there's an active operational case, we can append it as a step at the end
         if (operationalCase is not null)
         {
-            var caseTitle = OrderStatusNoteCatalog.LocalizeNote(operationalCase.Title);
-            var caseSubtitle = OrderStatusNoteCatalog.LocalizeNote(operationalCase.QueueLabel);
+            var caseTitle = ResolveOperationalCaseTimelineTitle(operationalCase);
+            var caseSubtitle = ResolveOperationalCaseTimelineQueue(operationalCase);
 
             steps.Add(new AdminOrderTimelineItemDto(
                 caseTitle.Ar,
@@ -3526,6 +3563,41 @@ public class OrderReadService : IOrderReadService
         }
 
         return steps;
+    }
+
+    private static LocalizedText ResolveOperationalCaseTimelineTitle(AdminOrderOperationalCaseDto operationalCase)
+    {
+        if (operationalCase.Type == "REFUND")
+        {
+            var normalized = operationalCase.Title.Trim();
+            if (normalized.Contains("Full refund", StringComparison.OrdinalIgnoreCase) ||
+                normalized.Contains("استرجاع كامل", StringComparison.Ordinal))
+            {
+                return new("مراجعة استرجاع كامل", "Full refund review");
+            }
+
+            if (normalized.Contains("Partial refund", StringComparison.OrdinalIgnoreCase) ||
+                normalized.Contains("استرجاع جزئي", StringComparison.Ordinal))
+            {
+                return new("مراجعة استرجاع جزئي", "Partial refund review");
+            }
+        }
+
+        return OrderStatusNoteCatalog.LocalizeNote(operationalCase.Title);
+    }
+
+    private static LocalizedText ResolveOperationalCaseTimelineQueue(AdminOrderOperationalCaseDto operationalCase)
+    {
+        var label = operationalCase.QueueLabel.Trim();
+        return label switch
+        {
+            "Finance" or "المالية" => new("المالية", "Finance"),
+            "Operations" or "العمليات" => new("العمليات", "Operations"),
+            "Risk" or "المخاطر" => new("المخاطر", "Risk"),
+            "Legal" or "القانونية" => new("القانونية", "Legal"),
+            "Support" or "الدعم" => new("الدعم", "Support"),
+            _ => new(label, label)
+        };
     }
 
     private static string TranslateOrderStatus(OrderStatus status) => status switch

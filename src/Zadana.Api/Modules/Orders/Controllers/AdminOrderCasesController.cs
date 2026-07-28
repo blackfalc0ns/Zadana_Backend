@@ -382,18 +382,29 @@ public class AdminOrderCasesController : ApiControllerBase
     }
 
     [HttpGet("stats")]
-    public async Task<ActionResult<AdminOrderCaseStatsResponse>> GetStats(CancellationToken cancellationToken = default)
+    public async Task<ActionResult<AdminOrderCaseStatsResponse>> GetStats(
+        [FromQuery] Guid? vendorId,
+        CancellationToken cancellationToken = default)
     {
         var now = DateTime.UtcNow;
 
-        var activeCasesQuery = _dbContext.OrderSupportCases
+        var casesQuery = _dbContext.OrderSupportCases
             .AsNoTracking()
+            .Where(c => true);
+
+        if (vendorId.HasValue)
+        {
+            casesQuery = casesQuery.Where(c =>
+                c.Order != null && c.Order.VendorId == vendorId.Value);
+        }
+
+        var activeCasesQuery = casesQuery
             .Where(c => c.Status != OrderSupportCaseStatus.Rejected && c.Status != OrderSupportCaseStatus.Resolved);
 
         var totalOpen = await activeCasesQuery.CountAsync(cancellationToken);
 
         var byStatus = await MapEnumGroupCountsAsync(
-            _dbContext.OrderSupportCases.AsNoTracking(),
+            casesQuery,
             entity => entity.Status,
             cancellationToken);
 
@@ -416,8 +427,7 @@ public class AdminOrderCasesController : ApiControllerBase
             .Where(c => c.SlaDueAtUtc != null && c.SlaDueAtUtc < now)
             .CountAsync(cancellationToken);
 
-        var closedCases = await _dbContext.OrderSupportCases
-            .AsNoTracking()
+        var closedCases = await casesQuery
             .Where(c => c.ClosedAtUtc != null)
             .Select(c => new { c.CreatedAtUtc, ClosedAtUtc = c.ClosedAtUtc!.Value })
             .ToListAsync(cancellationToken);
@@ -426,10 +436,19 @@ public class AdminOrderCasesController : ApiControllerBase
             ? 0
             : closedCases.Average(item => (item.ClosedAtUtc - item.CreatedAtUtc).TotalHours);
 
+        var totalExposureAmount = await activeCasesQuery
+            .SumAsync(c => c.RequestedRefundAmount ?? 0m, cancellationToken);
+
+        var driverInitiatedCount = await activeCasesQuery
+            .Where(c => c.InitiatorRole == "driver")
+            .CountAsync(cancellationToken);
+
         return Ok(new AdminOrderCaseStatsResponse(
             totalOpen,
             slaBreachedCount,
             Math.Round(avgResolutionHours, 1),
+            totalExposureAmount,
+            driverInitiatedCount,
             byStatus,
             byPriority,
             byQueue,
@@ -501,6 +520,8 @@ public sealed record AdminOrderCaseStatsResponse(
     int TotalOpen,
     int SlaBreachedCount,
     double AvgResolutionHours,
+    decimal TotalExposureAmount,
+    int DriverInitiatedCount,
     List<AdminCaseCountByLabel> ByStatus,
     List<AdminCaseCountByLabel> ByPriority,
     List<AdminCaseCountByLabel> ByQueue,

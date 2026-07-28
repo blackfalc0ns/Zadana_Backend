@@ -37,6 +37,24 @@ public class AdminVendorSupportTicketsController : ApiControllerBase
         _logger = logger;
     }
 
+    [HttpGet("stats")]
+    public async Task<ActionResult<AdminVendorSupportTicketStatsResponse>> GetStats(
+        CancellationToken cancellationToken = default)
+    {
+        var tickets = _dbContext.VendorSupportTickets.AsNoTracking();
+
+        var totalOpen = await tickets
+            .CountAsync(ticket => ticket.Status != Domain.Modules.Vendors.Enums.VendorSupportTicketStatus.Resolved, cancellationToken);
+
+        var waitingVendor = await tickets
+            .CountAsync(ticket => ticket.Status == Domain.Modules.Vendors.Enums.VendorSupportTicketStatus.WaitingVendor, cancellationToken);
+
+        var resolved = await tickets
+            .CountAsync(ticket => ticket.Status == Domain.Modules.Vendors.Enums.VendorSupportTicketStatus.Resolved, cancellationToken);
+
+        return Ok(new AdminVendorSupportTicketStatsResponse(totalOpen, waitingVendor, resolved));
+    }
+
     [HttpGet]
     public async Task<ActionResult<VendorSupportTicketsListResponse>> GetTickets(
         [FromQuery] string? status,
@@ -384,3 +402,8 @@ public class AdminVendorSupportTicketsController : ApiControllerBase
             _ => "normal"
         };
 }
+
+public sealed record AdminVendorSupportTicketStatsResponse(
+    int TotalOpen,
+    int WaitingVendor,
+    int Resolved);

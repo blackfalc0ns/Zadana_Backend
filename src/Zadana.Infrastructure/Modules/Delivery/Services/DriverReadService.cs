@@ -52,6 +52,7 @@ public class DriverReadService : IDriverReadService
     private readonly IDriverCommitmentPolicyService _driverCommitmentPolicyService;
     private readonly INotificationService _notificationService;
     private readonly IOneSignalPushService _oneSignalPushService;
+    private readonly IGeographyCityResolver _geographyCityResolver;
     private readonly FinancialSettingsOptions _financialSettings;
 
     public DriverReadService(
@@ -59,12 +60,14 @@ public class DriverReadService : IDriverReadService
         IDriverCommitmentPolicyService driverCommitmentPolicyService,
         INotificationService notificationService,
         IOneSignalPushService oneSignalPushService,
+        IGeographyCityResolver geographyCityResolver,
         IOptions<FinancialSettingsOptions>? financialSettings = null)
     {
         _context = context;
         _driverCommitmentPolicyService = driverCommitmentPolicyService;
         _notificationService = notificationService;
         _oneSignalPushService = oneSignalPushService;
+        _geographyCityResolver = geographyCityResolver;
         _financialSettings = financialSettings?.Value ?? new FinancialSettingsOptions();
     }
 
@@ -97,7 +100,25 @@ public class DriverReadService : IDriverReadService
         }
 
         if (!string.IsNullOrWhiteSpace(city))
-            query = query.Where(d => d.City == city);
+        {
+            var cityFilter = city.Trim();
+            var resolvedFilter = _geographyCityResolver.Resolve(cityFilter);
+            if (resolvedFilter.IsKnown)
+            {
+                var cityCode = resolvedFilter.CityCode!;
+                query = query.Where(d =>
+                    d.City != null &&
+                    (d.City.ToUpper() == cityCode.ToUpper() ||
+                     d.City == resolvedFilter.CityNameAr ||
+                     d.City == resolvedFilter.CityNameEn));
+            }
+            else
+            {
+                query = query.Where(d =>
+                    d.City != null &&
+                    EF.Functions.Like(d.City, $"%{cityFilter}%"));
+            }
+        }
 
         if (!string.IsNullOrWhiteSpace(verificationStatus) && Enum.TryParse<DriverVerificationStatus>(verificationStatus, true, out var verEnum))
             query = query.Where(d => d.VerificationStatus == verEnum);

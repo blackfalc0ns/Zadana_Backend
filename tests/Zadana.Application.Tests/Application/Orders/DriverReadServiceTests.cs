@@ -249,7 +249,8 @@ public class DriverReadServiceTests
             dbContext,
             new DriverCommitmentPolicyService(dbContext, dbContext),
             Mock.Of<INotificationService>(),
-            Mock.Of<IOneSignalPushService>());
+            Mock.Of<IOneSignalPushService>(),
+            Mock.Of<IGeographyCityResolver>());
         var result = await service.GetDriverProfileAsync(user.Id);
 
         result.Should().NotBeNull();
@@ -762,7 +763,8 @@ public class DriverReadServiceTests
             dbContext,
             commitmentPolicy.Object,
             Mock.Of<INotificationService>(),
-            Mock.Of<IOneSignalPushService>());
+            Mock.Of<IOneSignalPushService>(),
+            Mock.Of<IGeographyCityResolver>());
     }
 
     private static ApplicationDbContext CreateDbContext()

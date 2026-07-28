@@ -9,6 +9,14 @@ public interface IVendorReadService
     Task<PaginatedList<VendorListItemDto>> GetAllAsync(
         VendorStatus? status,
         string? search,
+        string? city,
+        string? region,
+        bool? isLoginLocked,
+        string? riskLevel,
+        string? verificationStatus,
+        string? documentsStatus,
+        string? payoutStatus,
+        string? onboardingStage,
         int page,
         int pageSize,
         CancellationToken cancellationToken = default);
@@ -30,4 +38,6 @@ public interface IVendorReadService
     Task<VendorWorkspaceDto?> GetWorkspaceByVendorIdAsync(Guid vendorId, CancellationToken cancellationToken = default);
 
     Task<Guid?> GetVendorIdByUserIdAsync(Guid userId, CancellationToken cancellationToken = default);
+
+    Task<AdminVendorStatsDto> GetStatsAsync(CancellationToken cancellationToken = default);
 }

@@ -191,12 +191,17 @@ public class AdminFinancesController(
         [FromQuery] Guid? orderId = null,
         [FromQuery] Guid? settlementId = null,
         [FromQuery] Guid? payoutId = null,
+        [FromQuery] string? ownerType = null,
+        [FromQuery] Guid? ownerId = null,
+        [FromQuery] string? search = null,
+        [FromQuery] DateTime? dateFrom = null,
+        [FromQuery] DateTime? dateTo = null,
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 50,
         CancellationToken cancellationToken = default)
     {
         page = Math.Max(page, 1);
-        pageSize = Math.Clamp(pageSize, 1, 200);
+        pageSize = Math.Clamp(pageSize, 1, 500);
 
         var query = context.JournalEntries
             .AsNoTracking()
@@ -217,6 +222,40 @@ public class AdminFinancesController(
         if (payoutId is not null)
         {
             query = query.Where(entry => entry.FinancialEvent.PayoutId == payoutId || entry.Lines.Any(line => line.PayoutId == payoutId));
+        }
+
+        if (!string.IsNullOrWhiteSpace(ownerType) &&
+            Enum.TryParse<FinancialOwnerType>(ownerType, true, out var parsedOwnerType))
+        {
+            query = query.Where(entry => entry.Lines.Any(line => line.OwnerType == parsedOwnerType));
+        }
+
+        if (ownerId is not null)
+        {
+            query = query.Where(entry => entry.Lines.Any(line => line.OwnerId == ownerId));
+        }
+
+        if (dateFrom is not null)
+        {
+            query = query.Where(entry => entry.PostedAtUtc >= dateFrom.Value);
+        }
+
+        if (dateTo is not null)
+        {
+            query = query.Where(entry => entry.PostedAtUtc <= dateTo.Value);
+        }
+
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var normalizedSearch = search.Trim();
+            var pattern = $"%{normalizedSearch}%";
+            var correlationGuid = Guid.TryParse(normalizedSearch, out var parsedGuid) ? parsedGuid : (Guid?)null;
+
+            query = query.Where(entry =>
+                EF.Functions.Like(entry.Memo, pattern) ||
+                EF.Functions.Like(entry.FinancialEvent.EventType.ToString(), pattern) ||
+                entry.Lines.Any(line => line.Memo != null && EF.Functions.Like(line.Memo, pattern)) ||
+                (correlationGuid.HasValue && entry.FinancialEvent.CorrelationId == correlationGuid.Value));
         }
 
         var totalCount = await query.CountAsync(cancellationToken);

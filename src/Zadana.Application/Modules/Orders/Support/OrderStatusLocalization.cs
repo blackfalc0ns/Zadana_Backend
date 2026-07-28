@@ -7,6 +7,7 @@ public static class OrderStatusLocalization
     public static LocalizedText Localize(OrderStatus status) => status switch
     {
         OrderStatus.PendingPayment => new("بانتظار الدفع", "Pending Payment"),
+        OrderStatus.PendingBankConfirmation => new("بانتظار تأكيد التحويل البنكي", "Pending Bank Confirmation"),
         OrderStatus.Placed => new("مُرسل", "Placed"),
         OrderStatus.PendingVendorAcceptance => new("بانتظار قبول المتجر", "Pending Vendor Acceptance"),
         OrderStatus.Accepted => new("مقبول", "Accepted"),

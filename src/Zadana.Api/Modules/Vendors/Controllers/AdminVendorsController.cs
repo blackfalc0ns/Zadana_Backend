@@ -11,6 +11,8 @@ using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Common.Localization;
 using Zadana.Application.Modules.Catalog.Queries.GetVendorProducts;
 using Zadana.Application.Modules.Orders.Queries.GetVendorOrders;
+using Zadana.Application.Modules.Orders.Queries.GetVendorOrderStats;
+using Zadana.Application.Modules.Vendors.Queries.GetAllVendors;
 using Zadana.Application.Modules.Vendors.Commands.AdminResetVendorPassword;
 using Zadana.Application.Modules.Vendors.Commands.AddVendorReviewNote;
 using Zadana.Application.Modules.Vendors.Commands.AdminUpdateVendorLegalBanking;
@@ -35,7 +37,7 @@ using Zadana.Application.Modules.Vendors.Commands.StartVendorReview;
 using Zadana.Application.Modules.Vendors.Commands.SuspendVendor;
 using Zadana.Application.Modules.Vendors.Commands.UnlockVendorLogin;
 using Zadana.Application.Modules.Vendors.Interfaces;
-using Zadana.Application.Modules.Vendors.Queries.GetAllVendors;
+using Zadana.Application.Modules.Vendors.Queries.GetAdminVendorStats;
 using Zadana.Application.Modules.Vendors.Queries.GetVendorAnalytics;
 using Zadana.Application.Modules.Vendors.Queries.GetVendorActivityLog;
 using Zadana.Application.Modules.Vendors.Queries.GetAdminVendorFinanceSummary;
@@ -82,23 +84,62 @@ public class AdminVendorsController : ApiControllerBase
     /// </summary>
     [HttpGet]
     public async Task<IActionResult> GetAllVendors(
-        [FromQuery] VendorStatus? status,
+        [FromQuery] string? status,
         [FromQuery] string? search,
+        [FromQuery] string? city,
+        [FromQuery] string? region,
+        [FromQuery] bool? isLoginLocked,
+        [FromQuery] string? riskLevel,
+        [FromQuery] string? verificationStatus,
+        [FromQuery] string? documentsStatus,
+        [FromQuery] string? payoutStatus,
+        [FromQuery] string? onboardingStage,
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 10)
     {
-        var result = await Sender.Send(new GetAllVendorsQuery(status, search, page, pageSize));
+        var result = await Sender.Send(new GetAllVendorsQuery(
+            ResolveVendorStatusFilter(status),
+            search,
+            city,
+            region,
+            isLoginLocked,
+            riskLevel,
+            verificationStatus,
+            documentsStatus,
+            payoutStatus,
+            onboardingStage,
+            page,
+            pageSize));
+        return Ok(result);
+    }
+
+    [HttpGet("stats")]
+    public async Task<IActionResult> GetVendorStats(CancellationToken cancellationToken = default)
+    {
+        var result = await Sender.Send(new GetAdminVendorStatsQuery(), cancellationToken);
         return Ok(result);
     }
 
     [HttpGet("export")]
     public async Task<IActionResult> ExportVendors(
-        [FromQuery] VendorStatus? status,
+        [FromQuery] string? status,
         [FromQuery] string? search,
         [FromQuery] Guid[]? ids,
         CancellationToken cancellationToken = default)
     {
-        var result = await Sender.Send(new GetAllVendorsQuery(status, search, 1, ExportLimits.MaxRows), cancellationToken);
+        var result = await Sender.Send(new GetAllVendorsQuery(
+            ResolveVendorStatusFilter(status),
+            search,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            1,
+            ExportLimits.MaxRows), cancellationToken);
         var items = result.Items.AsEnumerable();
         if (ids is { Length: > 0 })
         {
@@ -289,6 +330,13 @@ public class AdminVendorsController : ApiControllerBase
         [FromQuery] int pageSize = 10)
     {
         var result = await Sender.Send(new GetVendorOrdersQuery(vendorId, search, status, paymentStatus, page, pageSize));
+        return Ok(result);
+    }
+
+    [HttpGet("{vendorId:guid}/orders/stats")]
+    public async Task<IActionResult> GetVendorOrderStats(Guid vendorId, CancellationToken cancellationToken = default)
+    {
+        var result = await Sender.Send(new GetVendorOrderStatsQuery(vendorId), cancellationToken);
         return Ok(result);
     }
 
@@ -724,6 +772,23 @@ public class AdminVendorsController : ApiControllerBase
         await _context.SaveChangesAsync(default);
 
         return Ok(new { Message = _localizer["COMMISSION_RATE_UPDATED"].Value, vendor.CommissionRate });
+    }
+
+    private static VendorStatus? ResolveVendorStatusFilter(string? status)
+    {
+        if (string.IsNullOrWhiteSpace(status))
+        {
+            return null;
+        }
+
+        if (string.Equals(status.Trim(), "Pending", StringComparison.OrdinalIgnoreCase))
+        {
+            return VendorStatus.PendingReview;
+        }
+
+        return Enum.TryParse<VendorStatus>(status.Trim(), true, out var parsed)
+            ? parsed
+            : null;
     }
 }
 

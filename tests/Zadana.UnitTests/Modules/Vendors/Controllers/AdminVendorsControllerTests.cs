@@ -72,7 +72,7 @@ public class AdminVendorsControllerTests
         _senderMock.Setup(sender => sender.Send(It.IsAny<GetAllVendorsQuery>(), default))
             .ReturnsAsync(paginatedList);
 
-        var result = await _controller.GetAllVendors(null, null, 1, 10);
+        var result = await _controller.GetAllVendors(null, null, null, null, null, null, null, null, null, null, 1, 10);
 
         var okResult = result.Should().BeOfType<OkObjectResult>().Subject;
         okResult.Value.Should().BeEquivalentTo(paginatedList);

@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Common.Models;
 using Zadana.Application.Modules.Vendors.DTOs;
 using Zadana.Application.Modules.Vendors.Interfaces;
@@ -15,15 +16,25 @@ namespace Zadana.Infrastructure.Modules.Vendors.Services;
 public class VendorReadService : IVendorReadService
 {
     private readonly ApplicationDbContext _dbContext;
+    private readonly IGeographyCityResolver _geographyCityResolver;
 
-    public VendorReadService(ApplicationDbContext dbContext)
+    public VendorReadService(ApplicationDbContext dbContext, IGeographyCityResolver geographyCityResolver)
     {
         _dbContext = dbContext;
+        _geographyCityResolver = geographyCityResolver;
     }
 
     public async Task<PaginatedList<VendorListItemDto>> GetAllAsync(
         VendorStatus? status,
         string? search,
+        string? city,
+        string? region,
+        bool? isLoginLocked,
+        string? riskLevel,
+        string? verificationStatus,
+        string? documentsStatus,
+        string? payoutStatus,
+        string? onboardingStage,
         int page,
         int pageSize,
         CancellationToken cancellationToken = default)
@@ -32,11 +43,56 @@ public class VendorReadService : IVendorReadService
             from vendor in _dbContext.Vendors.AsNoTracking()
             join user in _dbContext.Users.AsNoTracking() on vendor.UserId equals user.Id into userGroup
             from user in userGroup.DefaultIfEmpty()
-            select new { vendor, user };
+            select new AdminVendorQueryFilters.VendorQueryRow(vendor, user);
 
         if (status.HasValue)
         {
-            query = query.Where(item => item.vendor.Status == status.Value);
+            query = query.Where(item => item.Vendor.Status == status.Value);
+        }
+
+        if (isLoginLocked.HasValue)
+        {
+            query = query.Where(item => item.User != null && item.User.IsLoginLocked == isLoginLocked.Value);
+        }
+
+        query = AdminVendorQueryFilters.ApplyDerivedFilters(
+            query,
+            riskLevel,
+            verificationStatus,
+            documentsStatus,
+            payoutStatus,
+            onboardingStage);
+
+        if (!string.IsNullOrWhiteSpace(city))
+        {
+            var cityFilter = city.Trim();
+            var resolvedFilter = _geographyCityResolver.Resolve(cityFilter);
+            if (resolvedFilter.IsKnown)
+            {
+                var cityCode = resolvedFilter.CityCode!;
+                query = query.Where(item =>
+                    item.Vendor.City != null &&
+                    (item.Vendor.City.ToUpper() == cityCode.ToUpper() ||
+                     item.Vendor.City == resolvedFilter.CityNameAr ||
+                     item.Vendor.City == resolvedFilter.CityNameEn));
+            }
+            else
+            {
+                var pattern = $"%{cityFilter}%";
+                query = query.Where(item =>
+                    item.Vendor.City != null &&
+                    EF.Functions.Like(item.Vendor.City, pattern));
+            }
+        }
+
+        if (!string.IsNullOrWhiteSpace(region))
+        {
+            var regionFilter = region.Trim();
+            var normalizedRegion = regionFilter.Replace(" ", string.Empty, StringComparison.Ordinal).ToUpperInvariant();
+            query = query.Where(item =>
+                item.Vendor.Region != null &&
+                (item.Vendor.Region.ToUpper() == normalizedRegion ||
+                 EF.Functions.Like(item.Vendor.Region, $"%{regionFilter}%")));
         }
 
         if (!string.IsNullOrWhiteSpace(search))
@@ -44,34 +100,34 @@ public class VendorReadService : IVendorReadService
             var pattern = $"%{search.Trim()}%";
 
             query = query.Where(item =>
-                EF.Functions.Like(item.vendor.BusinessNameAr, pattern) ||
-                EF.Functions.Like(item.vendor.BusinessNameEn, pattern) ||
-                EF.Functions.Like(item.vendor.ContactPhone, pattern) ||
-                EF.Functions.Like(item.vendor.ContactEmail, pattern) ||
-                (item.user != null && EF.Functions.Like(item.user.FullName, pattern)) ||
-                (item.vendor.OwnerName != null && EF.Functions.Like(item.vendor.OwnerName, pattern)) ||
-                (item.vendor.OwnerEmail != null && EF.Functions.Like(item.vendor.OwnerEmail, pattern)));
+                EF.Functions.Like(item.Vendor.BusinessNameAr, pattern) ||
+                EF.Functions.Like(item.Vendor.BusinessNameEn, pattern) ||
+                EF.Functions.Like(item.Vendor.ContactPhone, pattern) ||
+                EF.Functions.Like(item.Vendor.ContactEmail, pattern) ||
+                (item.User != null && EF.Functions.Like(item.User.FullName, pattern)) ||
+                (item.Vendor.OwnerName != null && EF.Functions.Like(item.Vendor.OwnerName, pattern)) ||
+                (item.Vendor.OwnerEmail != null && EF.Functions.Like(item.Vendor.OwnerEmail, pattern)));
         }
 
         var projected = query
-            .OrderByDescending(item => item.vendor.CreatedAtUtc)
+            .OrderByDescending(item => item.Vendor.CreatedAtUtc)
             .Select(item => new VendorListItemDto(
-                item.vendor.Id,
-                item.vendor.BusinessNameAr,
-                item.vendor.BusinessNameEn,
-                item.vendor.BusinessType,
-                item.vendor.Status == VendorStatus.Active && item.vendor.CommercialRegistrationExpiryDate.HasValue && item.vendor.CommercialRegistrationExpiryDate.Value.Date < SaudiTime.Today ? "Suspended" : NormalizeVendorStatus(item.vendor.Status),
-                item.vendor.OwnerName ?? (item.user != null ? item.user.FullName : item.vendor.ContactEmail),
-                item.vendor.ContactPhone,
-                item.vendor.CreatedAtUtc,
-                item.vendor.ContactEmail,
-                item.vendor.CommissionRate,
-                item.vendor.City,
-                item.vendor.Region,
-                item.user != null ? item.user.AccountStatus.ToString() : null,
-                item.user != null && item.user.IsLoginLocked,
-                item.user != null ? item.user.LockedAtUtc : null,
-                item.user != null ? item.user.ArchivedAtUtc : null));
+                item.Vendor.Id,
+                item.Vendor.BusinessNameAr,
+                item.Vendor.BusinessNameEn,
+                item.Vendor.BusinessType,
+                item.Vendor.Status == VendorStatus.Active && item.Vendor.CommercialRegistrationExpiryDate.HasValue && item.Vendor.CommercialRegistrationExpiryDate.Value.Date < SaudiTime.Today ? "Suspended" : NormalizeVendorStatus(item.Vendor.Status),
+                item.Vendor.OwnerName ?? (item.User != null ? item.User.FullName : item.Vendor.ContactEmail),
+                item.Vendor.ContactPhone,
+                item.Vendor.CreatedAtUtc,
+                item.Vendor.ContactEmail,
+                item.Vendor.CommissionRate,
+                item.Vendor.City,
+                item.Vendor.Region,
+                item.User != null ? item.User.AccountStatus.ToString() : null,
+                item.User != null && item.User.IsLoginLocked,
+                item.User != null ? item.User.LockedAtUtc : null,
+                item.User != null ? item.User.ArchivedAtUtc : null));
 
         return await PaginatedList<VendorListItemDto>.CreateAsync(projected, page, pageSize, cancellationToken);
     }
@@ -1118,4 +1174,32 @@ public class VendorReadService : IVendorReadService
                 group => group
                     .OrderByDescending(item => item.ReviewedAtUtc ?? item.UpdatedAtUtc)
                     .First());
+
+    public async Task<AdminVendorStatsDto> GetStatsAsync(CancellationToken cancellationToken = default)
+    {
+        var rows = await (
+            from vendor in _dbContext.Vendors.AsNoTracking()
+            join user in _dbContext.Users.AsNoTracking() on vendor.UserId equals user.Id into userGroup
+            from user in userGroup.DefaultIfEmpty()
+            select new { vendor, user })
+            .ToListAsync(cancellationToken);
+
+        var pendingApproval = rows.Count(item => item.vendor.Status == VendorStatus.PendingReview);
+        var missingDocuments = rows.Count(item =>
+            item.vendor.Status == VendorStatus.PendingReview ||
+            (item.vendor.Status != VendorStatus.Active && item.vendor.Status != VendorStatus.PendingReview));
+        var highRisk = rows.Count(item =>
+            item.vendor.Status == VendorStatus.Suspended ||
+            (item.user != null && item.user.IsLoginLocked));
+        var payoutBlocked = rows.Count(item => item.vendor.Status == VendorStatus.Suspended);
+        var suspended = rows.Count(item => item.vendor.Status == VendorStatus.Suspended);
+
+        return new AdminVendorStatsDto(
+            rows.Count,
+            pendingApproval,
+            missingDocuments,
+            highRisk,
+            payoutBlocked,
+            suspended);
+    }
 }

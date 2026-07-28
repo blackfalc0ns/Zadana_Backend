@@ -24,12 +24,12 @@ public class GetAllVendorsQueryHandlerTests
             pageSize: 10);
 
         readService
-            .Setup(service => service.GetAllAsync(null, null, 1, 10, It.IsAny<CancellationToken>()))
+            .Setup(service => service.GetAllAsync(null, null, null, null, null, null, null, null, null, null, 1, 10, It.IsAny<CancellationToken>()))
             .ReturnsAsync(expected);
 
         var handler = new GetAllVendorsQueryHandler(readService.Object);
 
-        var result = await handler.Handle(new GetAllVendorsQuery(null, null, 1, 10), default);
+        var result = await handler.Handle(new GetAllVendorsQuery(null, null, null, null, null, null, null, null, null, null, 1, 10), default);
 
         result.Should().BeSameAs(expected);
     }
@@ -41,12 +41,12 @@ public class GetAllVendorsQueryHandlerTests
         var expected = new PaginatedList<VendorListItemDto>([], 0, 1, 10);
 
         readService
-            .Setup(service => service.GetAllAsync(VendorStatus.Active, "owner", 1, 10, It.IsAny<CancellationToken>()))
+            .Setup(service => service.GetAllAsync(VendorStatus.Active, "owner", null, null, null, null, null, null, null, null, 1, 10, It.IsAny<CancellationToken>()))
             .ReturnsAsync(expected);
 
         var handler = new GetAllVendorsQueryHandler(readService.Object);
 
-        var result = await handler.Handle(new GetAllVendorsQuery(VendorStatus.Active, "owner", 1, 10), default);
+        var result = await handler.Handle(new GetAllVendorsQuery(VendorStatus.Active, "owner", null, null, null, null, null, null, null, null, 1, 10), default);
 
         result.Should().BeSameAs(expected);
     }

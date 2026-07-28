@@ -15,5 +15,18 @@ public class GetAllVendorsQueryHandler : IRequestHandler<GetAllVendorsQuery, Pag
     }
 
     public Task<PaginatedList<VendorListItemDto>> Handle(GetAllVendorsQuery request, CancellationToken cancellationToken) =>
-        _vendorReadService.GetAllAsync(request.Status, request.Search, request.Page, request.PageSize, cancellationToken);
+        _vendorReadService.GetAllAsync(
+            request.Status,
+            request.Search,
+            request.City,
+            request.Region,
+            request.IsLoginLocked,
+            request.RiskLevel,
+            request.VerificationStatus,
+            request.DocumentsStatus,
+            request.PayoutStatus,
+            request.OnboardingStage,
+            request.Page,
+            request.PageSize,
+            cancellationToken);
 }

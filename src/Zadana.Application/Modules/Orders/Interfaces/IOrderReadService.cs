@@ -41,6 +41,9 @@ public interface IOrderReadService
         int page,
         int pageSize,
         CancellationToken cancellationToken = default);
+    Task<AdminVendorOrderStatsDto> GetVendorOrderStatsAsync(
+        Guid vendorId,
+        CancellationToken cancellationToken = default);
     Task<PaginatedList<VendorOrderListItemDto>> GetVendorWorkspaceOrdersAsync(
         Guid vendorId,
         Guid? branchId,

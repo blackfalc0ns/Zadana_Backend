@@ -114,6 +114,13 @@ public class AdminCustomersController : ApiControllerBase
         return Ok(result);
     }
 
+    [HttpGet("stats")]
+    public async Task<ActionResult<AdminCustomerStatsDto>> GetStats(CancellationToken cancellationToken = default)
+    {
+        var result = await Sender.Send(new GetAdminCustomerStatsQuery(), cancellationToken);
+        return Ok(result);
+    }
+
     [HttpGet("{customerId:guid}")]
     public async Task<IActionResult> GetCustomerDetail(Guid customerId)
     {
