@@ -2,7 +2,7 @@ namespace Zadana.Api.Modules.Identity.Requests;
 
 public record AddCustomerAddressRequest(
     string ContactName,
-    string ContactPhone,
+    string? ContactPhone,
     string AddressLine,
     string? Label,
     string? BuildingNo,

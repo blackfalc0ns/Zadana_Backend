@@ -3,7 +3,7 @@ namespace Zadana.Application.Modules.Identity.DTOs;
 public record CustomerAddressDto(
     Guid Id,
     string ContactName,
-    string ContactPhone,
+    string? ContactPhone,
     string AddressLine,
     string? Label,
     string? BuildingNo,

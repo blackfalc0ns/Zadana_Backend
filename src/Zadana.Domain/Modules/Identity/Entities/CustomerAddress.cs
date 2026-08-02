@@ -8,7 +8,7 @@ public class CustomerAddress : BaseEntity
     public Guid UserId { get; private set; }
     public AddressLabel? Label { get; private set; }
     public string ContactName { get; private set; } = null!;
-    public string ContactPhone { get; private set; } = null!;
+    public string? ContactPhone { get; private set; }
     public string AddressLine { get; private set; } = null!;
     public string? BuildingNo { get; private set; }
     public string? FloorNo { get; private set; }
@@ -27,7 +27,7 @@ public class CustomerAddress : BaseEntity
     public CustomerAddress(
         Guid userId,
         string contactName,
-        string contactPhone,
+        string? contactPhone,
         string addressLine,
         AddressLabel? label = null,
         string? buildingNo = null,
@@ -40,7 +40,7 @@ public class CustomerAddress : BaseEntity
     {
         UserId = userId;
         ContactName = contactName.Trim();
-        ContactPhone = contactPhone.Trim();
+        ContactPhone = string.IsNullOrWhiteSpace(contactPhone) ? null : contactPhone.Trim();
         AddressLine = addressLine.Trim();
         Label = label;
         BuildingNo = buildingNo?.Trim();
@@ -58,7 +58,7 @@ public class CustomerAddress : BaseEntity
 
     public void Update(
         string contactName,
-        string contactPhone,
+        string? contactPhone,
         string addressLine,
         AddressLabel? label,
         string? buildingNo,
@@ -70,7 +70,7 @@ public class CustomerAddress : BaseEntity
         decimal? longitude)
     {
         ContactName = contactName.Trim();
-        ContactPhone = contactPhone.Trim();
+        ContactPhone = string.IsNullOrWhiteSpace(contactPhone) ? null : contactPhone.Trim();
         AddressLine = addressLine.Trim();
         Label = label;
         BuildingNo = buildingNo?.Trim();

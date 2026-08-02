@@ -8,7 +8,7 @@ public record UpdateCustomerAddressCommand(
     Guid AddressId,
     Guid UserId,
     string ContactName,
-    string ContactPhone,
+    string? ContactPhone,
     string AddressLine,
     string? Label,
     string? BuildingNo,
@@ -33,7 +33,6 @@ public class UpdateCustomerAddressCommandValidator : AbstractValidator<UpdateCus
             .WithName(x => localizer["ContactName"]);
 
         RuleFor(x => x.ContactPhone)
-            .NotEmpty().WithMessage(x => localizer["RequiredField"])
             .MaximumLength(50).WithMessage(x => localizer["MaxLength"])
             .WithName(x => localizer["ContactPhone"]);
 

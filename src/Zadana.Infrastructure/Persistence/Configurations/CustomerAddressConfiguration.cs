@@ -16,7 +16,7 @@ public class CustomerAddressConfiguration : IEntityTypeConfiguration<CustomerAdd
             .HasConversion<string>()
             .HasMaxLength(50);
         builder.Property(x => x.ContactName).HasMaxLength(200).IsRequired();
-        builder.Property(x => x.ContactPhone).HasMaxLength(50).IsRequired();
+        builder.Property(x => x.ContactPhone).HasMaxLength(50);
         builder.Property(x => x.AddressLine).HasMaxLength(500).IsRequired();
         builder.Property(x => x.BuildingNo).HasMaxLength(50);
         builder.Property(x => x.FloorNo).HasMaxLength(50);
