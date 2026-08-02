@@ -40,7 +40,7 @@ public class CustomerAddress : BaseEntity
     {
         UserId = userId;
         ContactName = contactName.Trim();
-        ContactPhone = string.IsNullOrWhiteSpace(contactPhone) ? null : contactPhone.Trim();
+        ContactPhone = string.IsNullOrWhiteSpace(contactPhone) ? string.Empty : contactPhone.Trim();
         AddressLine = addressLine.Trim();
         Label = label;
         BuildingNo = buildingNo?.Trim();
@@ -70,7 +70,7 @@ public class CustomerAddress : BaseEntity
         decimal? longitude)
     {
         ContactName = contactName.Trim();
-        ContactPhone = string.IsNullOrWhiteSpace(contactPhone) ? null : contactPhone.Trim();
+        ContactPhone = string.IsNullOrWhiteSpace(contactPhone) ? string.Empty : contactPhone.Trim();
         AddressLine = addressLine.Trim();
         Label = label;
         BuildingNo = buildingNo?.Trim();
