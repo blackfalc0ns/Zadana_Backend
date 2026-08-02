@@ -28,6 +28,37 @@ namespace Zadana.Application.Tests.Application.Checkout;
 public class PlaceCheckoutOrderCommandHandlerTests
 {
     [Fact]
+    public async Task Handle_WhenCustomerHasNoPhone_ShouldRequireProfilePhoneBeforeCheckout()
+    {
+        await using var dbContext = CreateDbContext();
+        var customer = new User("No Phone Customer", "checkout.no-phone@test.com", null, UserRole.Customer);
+        dbContext.Users.Add(customer);
+        await dbContext.SaveChangesAsync();
+
+        var handler = new PlaceCheckoutOrderCommandHandler(
+            dbContext,
+            TestPaymentGatewayResolver.Disabled(),
+            Mock.Of<IDeliveryPricingService>(),
+            Mock.Of<ISender>(),
+            dbContext,
+            Mock.Of<IPublisher>());
+
+        var action = () => handler.Handle(
+            new PlaceCheckoutOrderCommand(
+                customer.Id,
+                null,
+                null,
+                null,
+                "cash",
+                null,
+                null),
+            CancellationToken.None);
+
+        var exception = await action.Should().ThrowAsync<BusinessRuleException>();
+        exception.Which.ErrorCode.Should().Be("CUSTOMER_PHONE_REQUIRED");
+    }
+
+    [Fact]
     public async Task Handle_WhenCashOrderPlaced_ShouldPersistPendingVendorAcceptanceHistoryWithoutConcurrencyFailure()
     {
         await using var dbContext = CreateDbContext();

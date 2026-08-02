@@ -91,6 +91,16 @@ public class PlaceCheckoutOrderCommandHandler : IRequestHandler<PlaceCheckoutOrd
         var paymentMethodCode = CheckoutSupport.NormalizePaymentMethodCode(request.PaymentMethod)
             ?? throw new BusinessRuleException("PAYMENT_METHOD_NOT_SUPPORTED", "Selected payment method is not supported.");
 
+        var user = await _context.Users.FirstOrDefaultAsync(x => x.Id == request.UserId, cancellationToken)
+            ?? throw new NotFoundException("User", request.UserId);
+
+        if (string.IsNullOrWhiteSpace(user.PhoneNumber))
+        {
+            throw new BusinessRuleException(
+                "CUSTOMER_PHONE_REQUIRED",
+                "Please add a phone number to your profile before placing an order.");
+        }
+
         var pickupSettings = await CheckoutSupport.LoadPlatformPickupSettingsAsync(_context, cancellationToken);
         if (request.Fulfillment == FulfillmentType.Delivery && !pickupSettings.DeliveryOptionEnabled)
         {
@@ -164,9 +174,6 @@ public class PlaceCheckoutOrderCommandHandler : IRequestHandler<PlaceCheckoutOrd
 
             RemoveUnavailableCartItems(cart, pricing.UnavailableItems.Select(item => item.Id));
         }
-
-        var user = await _context.Users.FirstOrDefaultAsync(x => x.Id == request.UserId, cancellationToken)
-            ?? throw new NotFoundException("User", request.UserId);
 
         DeliveryPriceQuote deliveryQuote;
         DeliveryEtaWindow estimatedDeliveryWindow;

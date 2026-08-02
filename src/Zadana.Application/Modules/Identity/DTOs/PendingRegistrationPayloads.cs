@@ -84,7 +84,7 @@ public sealed record PendingDriverPayload(
 public sealed record StartPendingRegistrationRequest(
     string FullName,
     string Email,
-    string PhoneNumber,
+    string? PhoneNumber,
     string Password,
     UserRole Role,
     string PayloadJson,
@@ -94,7 +94,7 @@ public sealed record PendingRegistrationSnapshot(
     Guid Id,
     string FullName,
     string Email,
-    string PhoneNumber,
+    string? PhoneNumber,
     UserRole Role,
     string? ProfilePhotoUrl);
 

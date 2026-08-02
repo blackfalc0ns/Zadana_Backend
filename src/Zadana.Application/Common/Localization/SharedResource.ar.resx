@@ -554,6 +554,9 @@
   <data name="CUSTOMER_ADDRESS_REQUIRED" xml:space="preserve">
     <value>لازم تضيف عنوان توصيل قبل إتمام الطلب.</value>
   </data>
+  <data name="CUSTOMER_PHONE_REQUIRED" xml:space="preserve">
+    <value>لازم تضيف رقم جوال إلى ملفك الشخصي قبل إتمام الطلب.</value>
+  </data>
   <data name="DELIVERY_PRICING_UNAVAILABLE" xml:space="preserve">
     <value>ما قدرنا نحسب تكلفة التوصيل. جرّب مرة ثانية.</value>
   </data>

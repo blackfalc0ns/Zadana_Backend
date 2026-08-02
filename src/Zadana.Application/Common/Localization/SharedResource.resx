@@ -553,6 +553,9 @@
   <data name="CUSTOMER_ADDRESS_REQUIRED" xml:space="preserve">
     <value>A delivery address is required. Please add an address before placing an order.</value>
   </data>
+  <data name="CUSTOMER_PHONE_REQUIRED" xml:space="preserve">
+    <value>Please add a phone number to your profile before placing an order.</value>
+  </data>
   <data name="DELIVERY_PRICING_UNAVAILABLE" xml:space="preserve">
     <value>Delivery pricing could not be determined. Please try again.</value>
   </data>

@@ -9,7 +9,7 @@ public interface IIdentityAccountService
     Task<IdentityAccountSnapshot?> FindByIdAsync(Guid userId, CancellationToken cancellationToken = default);
     Task<IdentityAccountSnapshot?> FindByIdentifierAsync(string identifier, CancellationToken cancellationToken = default);
     Task<bool> ExistsByIdAsync(Guid userId, CancellationToken cancellationToken = default);
-    Task<bool> ExistsByEmailOrPhoneAsync(string email, string phoneNumber, CancellationToken cancellationToken = default);
+    Task<bool> ExistsByEmailOrPhoneAsync(string email, string? phoneNumber, CancellationToken cancellationToken = default);
     Task<IdentityCreateResult> CreateAsync(CreateIdentityAccountRequest request, CancellationToken cancellationToken = default);
     Task<IdentityCreateResult> CreateWithPasswordHashAsync(
         CreateIdentityAccountRequest request,

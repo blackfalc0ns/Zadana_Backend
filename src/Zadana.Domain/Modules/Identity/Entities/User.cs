@@ -59,7 +59,7 @@ public class User : IdentityUser<Guid>
     public User(
         string fullName,
         string email,
-        string phone,
+        string? phone,
         UserRole role,
         string? profilePhotoUrl = null)
     {
@@ -67,7 +67,7 @@ public class User : IdentityUser<Guid>
         FullName = fullName.Trim();
         Email = email.ToLowerInvariant().Trim();
         UserName = Email;
-        PhoneNumber = phone.Trim();
+        PhoneNumber = string.IsNullOrWhiteSpace(phone) ? null : phone?.Trim();
         Role = role;
         PermissionVersion = 1;
         AccountStatus = AccountStatus.Active;

@@ -55,6 +55,26 @@ public class CustomerAuth_IntegrationTests : IClassFixture<ZadanaWebFactory>
     }
 
     [Fact]
+    public async Task Register_WithoutPhone_Returns200AndStartsEmailVerification()
+    {
+        var email = $"no_phone_{Guid.NewGuid():N}@test.com";
+        var body = new
+        {
+            fullName = "Customer Without Phone",
+            email,
+            password = "P@ssword1234",
+            addressLine = "Test Address Line"
+        };
+
+        var response = await _client.PostAsJsonAsync("/api/customers/auth/register", body);
+
+        var content = await response.Content.ReadAsStringAsync();
+        response.StatusCode.Should().Be(HttpStatusCode.OK, content);
+        content.Should().Contain("\"isVerified\":false");
+        _factory.OtpSink.EmailDispatches.Should().ContainSingle(dispatch => dispatch.Recipient == email);
+    }
+
+    [Fact]
     public async Task Register_WithValidData_SendsOtpToEmailOnly()
     {
         var phone = "010" + new Random().Next(10000000, 99999999).ToString();

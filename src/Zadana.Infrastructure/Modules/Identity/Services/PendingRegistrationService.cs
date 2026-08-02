@@ -42,7 +42,7 @@ public sealed class PendingRegistrationService : IPendingRegistrationService
         CancellationToken cancellationToken = default)
     {
         var email = request.Email.Trim().ToLowerInvariant();
-        var phone = request.PhoneNumber.Trim();
+        var phone = string.IsNullOrWhiteSpace(request.PhoneNumber) ? null : request.PhoneNumber?.Trim();
 
         if (await _identityAccountService.ExistsByEmailOrPhoneAsync(email, phone, cancellationToken))
         {
@@ -179,9 +179,13 @@ public sealed class PendingRegistrationService : IPendingRegistrationService
             new(TokenUseClaim, TokenUseValue),
             new(SessionClaim, sessionJson),
             new(ClaimTypes.Email, pending.Email),
-            new(ClaimTypes.MobilePhone, pending.PhoneNumber),
             new(ClaimTypes.Role, pending.Role.ToString())
         };
+
+        if (!string.IsNullOrWhiteSpace(pending.PhoneNumber))
+        {
+            claims.Add(new Claim(ClaimTypes.MobilePhone, pending.PhoneNumber));
+        }
 
         var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secret));
         var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
@@ -315,7 +319,7 @@ public sealed class PendingRegistrationService : IPendingRegistrationService
     private sealed record RegistrationSessionDto(
         Guid Id,
         string Email,
-        string PhoneNumber,
+        string? PhoneNumber,
         string PasswordHash,
         string FullName,
         string Role,

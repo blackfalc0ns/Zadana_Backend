@@ -3,7 +3,7 @@ namespace Zadana.Api.Modules.Identity.Requests;
 public record RegisterCustomerRequest(
     string FullName,
     string Email,
-    string Phone,
+    string? Phone,
     string Password,
     string? ProfilePhotoUrl,
     string AddressLine,

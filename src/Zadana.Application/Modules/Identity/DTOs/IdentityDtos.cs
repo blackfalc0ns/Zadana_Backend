@@ -61,7 +61,7 @@ public record RegistrationOtpDispatch(
 public record CreateIdentityAccountRequest(
     string FullName,
     string Email,
-    string PhoneNumber,
+    string? PhoneNumber,
     UserRole Role,
     string Password,
     string? ProfilePhotoUrl = null);

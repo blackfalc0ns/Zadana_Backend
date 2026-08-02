@@ -15,7 +15,7 @@ public class PendingRegistration
 
     public Guid Id { get; private set; }
     public string Email { get; private set; } = null!;
-    public string PhoneNumber { get; private set; } = null!;
+    public string? PhoneNumber { get; private set; }
     public string PasswordHash { get; private set; } = null!;
     public string FullName { get; private set; } = null!;
     public UserRole Role { get; private set; }
@@ -35,7 +35,7 @@ public class PendingRegistration
 
     public PendingRegistration(
         string email,
-        string phoneNumber,
+        string? phoneNumber,
         string passwordHash,
         string fullName,
         UserRole role,
@@ -44,7 +44,7 @@ public class PendingRegistration
     {
         Id = Guid.NewGuid();
         Email = email.Trim().ToLowerInvariant();
-        PhoneNumber = phoneNumber.Trim();
+        PhoneNumber = string.IsNullOrWhiteSpace(phoneNumber) ? null : phoneNumber?.Trim();
         PasswordHash = passwordHash;
         FullName = fullName.Trim();
         Role = role;
@@ -58,7 +58,7 @@ public class PendingRegistration
     public static PendingRegistration Rehydrate(
         Guid id,
         string email,
-        string phoneNumber,
+        string? phoneNumber,
         string passwordHash,
         string fullName,
         UserRole role,

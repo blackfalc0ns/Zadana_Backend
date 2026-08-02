@@ -6,7 +6,7 @@ namespace Zadana.Application.Modules.Identity.Commands.RegisterCustomer;
 public record RegisterCustomerCommand(
     string FullName,
     string Email,
-    string Phone,
+    string? Phone,
     string Password,
     string? ProfilePhotoUrl,
     string AddressLine,

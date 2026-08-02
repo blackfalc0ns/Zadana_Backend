@@ -22,8 +22,8 @@ public class RegisterCustomerCommandValidator : AbstractValidator<RegisterCustom
             .WithName(localizer["Email"].Value);
 
         RuleFor(x => x.Phone)
-            .NotEmpty().WithMessage(localizer["RequiredField"].Value)
             .MaximumLength(20).WithMessage(localizer["MaxLength"].Value)
+            .When(x => !string.IsNullOrWhiteSpace(x.Phone))
             .WithName(localizer["Phone"].Value);
 
 

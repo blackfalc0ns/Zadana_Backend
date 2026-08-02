@@ -32,13 +32,13 @@ public class IdentityAccountService : IIdentityAccountService
     public async Task<bool> ExistsByIdAsync(Guid userId, CancellationToken cancellationToken = default) =>
         await _userManager.Users.AnyAsync(u => u.Id == userId, cancellationToken);
 
-    public async Task<bool> ExistsByEmailOrPhoneAsync(string email, string phoneNumber, CancellationToken cancellationToken = default)
+    public async Task<bool> ExistsByEmailOrPhoneAsync(string email, string? phoneNumber, CancellationToken cancellationToken = default)
     {
         var normalizedEmail = email.Trim().ToLowerInvariant();
-        var normalizedPhone = phoneNumber.Trim();
+        var normalizedPhone = string.IsNullOrWhiteSpace(phoneNumber) ? null : phoneNumber.Trim();
 
         return await _userManager.Users.AnyAsync(
-            u => u.Email == normalizedEmail || u.PhoneNumber == normalizedPhone,
+            u => u.Email == normalizedEmail || (normalizedPhone != null && u.PhoneNumber == normalizedPhone),
             cancellationToken);
     }
 
