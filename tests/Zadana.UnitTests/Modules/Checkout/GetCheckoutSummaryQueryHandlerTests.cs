@@ -282,6 +282,108 @@ public class GetCheckoutSummaryQueryHandlerTests
     }
 
     [Fact]
+    public async Task Handle_WhenPrimarySameCityBranchCannotFulfillCart_UsesFulfillableBranchInSameCity()
+    {
+        await using var context = TestDbContextFactory.Create();
+
+        var customer = new User("City Inventory Customer", "checkout.city.inventory@test.com", "01000000281", UserRole.Customer);
+        var vendorUser = new User("City Inventory Vendor", "checkout.city.inventory.vendor@test.com", "01000000282", UserRole.Vendor);
+        var category = new Category("Category", "Category");
+        var firstProduct = new MasterProduct("Fresh chicken breast tray", "Fresh chicken breast tray", "checkout-city-inventory-product-1", category.Id);
+        var secondProduct = new MasterProduct("Fat-free yogurt", "Fat-free yogurt", "checkout-city-inventory-product-2", category.Id);
+        firstProduct.Publish();
+        secondProduct.Publish();
+
+        var vendor = new Vendor(
+            vendorUser.Id,
+            "Dammam Store",
+            "Dammam Store",
+            "Groceries",
+            "CR-CHECKOUT-CITY-INVENTORY",
+            "checkout.city.inventory.vendor@test.com",
+            "01000000282",
+            city: "Dammam");
+        vendor.Approve(10m, Guid.NewGuid());
+
+        var primaryBranch = new VendorBranch(
+            vendor.Id,
+            "Primary Dammam Branch",
+            "PRIMARY-DAMMAM",
+            true,
+            "Primary Dammam Address",
+            "EASTERN",
+            "Dammam",
+            26.4207m,
+            50.0888m,
+            "01000000283",
+            "Manager",
+            "01000000283",
+            1m);
+        var fulfillableBranch = new VendorBranch(
+            vendor.Id,
+            "Fulfillable Dammam Branch",
+            "FULFILLABLE-DAMMAM",
+            false,
+            "Fulfillable Dammam Address",
+            "EASTERN",
+            "Dammam",
+            26.4500m,
+            50.1000m,
+            "01000000284",
+            "Manager",
+            "01000000284",
+            1m);
+
+        var firstVendorProduct = new VendorProduct(vendor.Id, firstProduct.Id, 50m, 10, vendorBranchId: fulfillableBranch.Id);
+        var secondVendorProduct = new VendorProduct(vendor.Id, secondProduct.Id, 20m, 10, vendorBranchId: fulfillableBranch.Id);
+        var address = new CustomerAddress(
+            customer.Id,
+            "City Inventory Customer",
+            "01000000281",
+            "Dammam Address",
+            AddressLabel.Home,
+            city: "Dammam",
+            area: "Dammam",
+            latitude: 26.30m,
+            longitude: 50.20m);
+        address.SetAsDefault();
+
+        var cart = new Cart(customer.Id);
+        cart.Items.Add(new CartItem(cart.Id, firstProduct.Id, firstProduct.NameEn, 1));
+        cart.Items.Add(new CartItem(cart.Id, secondProduct.Id, secondProduct.NameEn, 1));
+        cart.UpdateTotals(70m, 0m);
+
+        context.Users.AddRange(customer, vendorUser);
+        context.Categories.Add(category);
+        context.MasterProducts.AddRange(firstProduct, secondProduct);
+        context.Vendors.Add(vendor);
+        context.VendorBranches.AddRange(primaryBranch, fulfillableBranch);
+        context.VendorProducts.AddRange(firstVendorProduct, secondVendorProduct);
+        context.CustomerAddresses.Add(address);
+        context.Carts.Add(cart);
+        await context.SaveChangesAsync();
+
+        var gatewayResolver = TestPaymentGatewayResolver.Enabled();
+
+        var deliveryPricing = new Mock<IDeliveryPricingService>();
+        deliveryPricing
+            .Setup(service => service.QuoteAsync(fulfillableBranch.Id, address.Id, It.IsAny<CancellationToken>(), It.IsAny<decimal?>()))
+            .ReturnsAsync(new DeliveryPriceQuote(15m, 2m, 0m, 17m, 5m, "zone", "Same city branch", 1m, 4m, 3m, 14m, "driver", "vendor", false, "manual", null, "locked", DateTime.UtcNow, 1, false));
+
+        var handler = new GetCheckoutSummaryQueryHandler(context, gatewayResolver, deliveryPricing.Object);
+
+        var result = await handler.Handle(
+            new GetCheckoutSummaryQuery(customer.Id, vendor.Id, address.Id, null, "cash"),
+            CancellationToken.None);
+
+        result.Cart.Items.Should().HaveCount(2);
+        result.DeliveryCheck.Status.Should().Be("deliverable");
+        result.DeliveryCheck.CanProceedToCheckout.Should().BeTrue();
+        deliveryPricing.Verify(service => service.QuoteAsync(fulfillableBranch.Id, address.Id, It.IsAny<CancellationToken>(), It.IsAny<decimal?>()), Times.Once);
+        deliveryPricing.Verify(service => service.QuoteAsync(primaryBranch.Id, address.Id, It.IsAny<CancellationToken>(), It.IsAny<decimal?>()), Times.Never);
+    }
+
+    [Fact]
     public async Task Handle_WhenVendorHasNoHistory_UsesRegionalFallbackBeforeDistanceBaseline()
     {
         await using var context = TestDbContextFactory.Create();

@@ -76,6 +76,8 @@ internal static class CheckoutSupport
                 context,
                 candidateOffers.Select(offer => offer.VendorId),
                 address,
+                candidateOffers,
+                requiredQuantityByProductId,
                 cancellationToken);
         }
 
@@ -838,6 +840,8 @@ internal static class CheckoutSupport
         IApplicationDbContext context,
         IEnumerable<Guid> vendorIds,
         CustomerAddress? address,
+        IReadOnlyList<VendorOfferSnapshot> offers,
+        IReadOnlyDictionary<Guid, int> requiredQuantityByProductId,
         CancellationToken cancellationToken)
     {
         if (address is null)
@@ -867,11 +871,32 @@ internal static class CheckoutSupport
                 branch.CreatedAtUtc))
             .ToListAsync(cancellationToken);
 
+        var offersByVendor = offers
+            .GroupBy(offer => offer.VendorId)
+            .ToDictionary(group => group.Key, group => (IReadOnlyList<VendorOfferSnapshot>)group.ToList());
+
         return branches
             .GroupBy(branch => branch.VendorId)
             .ToDictionary(
                 group => group.Key,
-                group => (Guid?)ResolveBestBranchForAddress(group.ToList(), address)?.Id);
+                group =>
+                {
+                    var vendorBranches = group.ToList();
+                    if (!offersByVendor.TryGetValue(group.Key, out var vendorOffers))
+                    {
+                        vendorOffers = [];
+                    }
+
+                    var fulfillableBranch = OrderBranchesForAddress(vendorBranches, address)
+                        .FirstOrDefault(branch =>
+                            EvaluateBranchCartAvailability(
+                                vendorOffers,
+                                group.Key,
+                                branch.Id,
+                                requiredQuantityByProductId).CanFulfillCart);
+
+                    return (Guid?)(fulfillableBranch ?? ResolveBestBranchForAddress(vendorBranches, address))?.Id;
+                });
     }
 
     private static List<VendorOfferSnapshot> FilterOffersForAddressBranch(
@@ -914,32 +939,41 @@ internal static class CheckoutSupport
         IReadOnlyCollection<AddressBranchCandidate> branches,
         CustomerAddress address)
     {
+        return OrderBranchesForAddress(branches, address).FirstOrDefault();
+    }
+
+    private static IEnumerable<AddressBranchCandidate> OrderBranchesForAddress(
+        IReadOnlyCollection<AddressBranchCandidate> branches,
+        CustomerAddress address)
+    {
         if (branches.Count == 0)
         {
-            return null;
+            return [];
         }
 
-        var sameCityBranch = branches
+        var sameCityBranches = branches
             .Where(branch => IsSameCityDelivery(branch.City, address.City))
             .OrderByDescending(branch => branch.IsPrimary)
             .ThenBy(branch => branch.CreatedAtUtc)
-            .FirstOrDefault();
+            .ToList();
 
-        if (sameCityBranch is not null)
+        if (sameCityBranches.Count > 0)
         {
-            return sameCityBranch;
+            // Same city delivery is city-wide: any active branch in the city can serve
+            // the address, so inventory availability decides which branch is best.
+            return sameCityBranches;
         }
 
         if (!string.IsNullOrWhiteSpace(address.City))
         {
-            return null;
+            return [];
         }
 
         if (HasUsableCoordinates(address))
         {
             var addressLatitude = address.Latitude!.Value;
             var addressLongitude = address.Longitude!.Value;
-            var nearestBranch = branches
+            var nearestBranches = branches
                 .Where(branch => HasUsableCoordinates(branch.Latitude, branch.Longitude))
                 .Select(branch =>
                 {
@@ -951,18 +985,19 @@ internal static class CheckoutSupport
                 .OrderBy(item => item.DistanceKm)
                 .ThenByDescending(item => item.Branch.IsPrimary)
                 .ThenBy(item => item.Branch.CreatedAtUtc)
-                .FirstOrDefault();
+                .Select(item => item.Branch)
+                .ToList();
 
-            if (nearestBranch is not null)
+            if (nearestBranches.Count > 0)
             {
-                return nearestBranch.Branch;
+                return nearestBranches;
             }
         }
 
         return branches
             .OrderByDescending(branch => branch.IsPrimary)
             .ThenBy(branch => branch.CreatedAtUtc)
-            .FirstOrDefault();
+            .ToList();
     }
 
     private static bool HasUsableCoordinates(CustomerAddress address) =>
