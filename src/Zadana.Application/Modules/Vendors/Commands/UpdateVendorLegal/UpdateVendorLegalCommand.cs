@@ -64,7 +64,7 @@ public class UpdateVendorLegalCommandHandler : IRequestHandler<UpdateVendorLegal
         var vendor = await _vendorRepository.GetByUserIdAsync(userId, cancellationToken)
             ?? throw new NotFoundException("Vendor", userId);
 
-        if (VendorReviewWorkflow.IsProfileReviewResubmission(vendor))
+        if (VendorReviewWorkflow.IsProfileReviewResubmission(vendor, "legal"))
         {
             var resetDocuments = ResolveReuploadedRejectedDocuments(
                 vendor.CommercialRegisterDocumentUrl,

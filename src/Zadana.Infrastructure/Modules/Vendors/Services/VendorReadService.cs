@@ -391,6 +391,7 @@ public class VendorReadService : IVendorReadService
             .ToListAsync(cancellationToken);
 
         var pendingChanges = vendor.Status == VendorStatus.Active
+            && !VendorReviewWorkflow.IsProfileReviewResubmission(vendor)
             ? await GetPendingProfileChangesAsync(vendor.UserId, cancellationToken)
             : null;
         return MapWorkspace(vendor, user, approvedByName, reviewNotifications, pendingChanges);

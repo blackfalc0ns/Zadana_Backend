@@ -17,8 +17,46 @@ public static class VendorReviewWorkflow
     public static bool IsRequired(VendorDocumentType type) =>
         type is VendorDocumentType.Commercial or VendorDocumentType.Tax or VendorDocumentType.License;
 
-    public static bool IsProfileReviewResubmission(Vendor vendor) =>
-        vendor.Status is VendorStatus.PendingReview or VendorStatus.Rejected;
+    public static bool IsProfileReviewResubmission(Vendor vendor, string? section = null)
+    {
+        if (vendor.Status is VendorStatus.PendingReview or VendorStatus.Rejected)
+        {
+            return true;
+        }
+
+        return section?.Trim().ToLowerInvariant() switch
+        {
+            "store" => HasRejectedProfileSection(vendor, "store"),
+            "owner" => HasRejectedProfileSection(vendor, "owner")
+                || HasRejectedDocument(vendor, VendorDocumentType.Identity),
+            "contact" => HasRejectedProfileSection(vendor, "contact"),
+            "legal" => HasExpiredCommercialRegistration(vendor)
+                || HasRejectedProfileSection(vendor, "legal")
+                || HasRejectedDocument(vendor, VendorDocumentType.Commercial)
+                || HasRejectedDocument(vendor, VendorDocumentType.Tax)
+                || HasRejectedDocument(vendor, VendorDocumentType.License),
+            "banking" => HasRejectedProfileSection(vendor, "banking")
+                || HasRejectedDocument(vendor, VendorDocumentType.Bank)
+                || vendor.BankAccounts.Any(account => account.IsPrimary && account.Status == BankAccountStatus.Rejected),
+            _ => HasExpiredCommercialRegistration(vendor)
+                || vendor.DocumentReviews.Any(review => review.Decision == VendorDocumentReviewDecision.Rejected)
+                || vendor.ProfileReviewItems.Any(item => item.Status == VendorProfileReviewStatus.Rejected)
+        };
+    }
+
+    private static bool HasExpiredCommercialRegistration(Vendor vendor) =>
+        vendor.CommercialRegistrationExpiryDate.HasValue &&
+        vendor.CommercialRegistrationExpiryDate.Value.Date < SaudiTime.Today;
+
+    private static bool HasRejectedProfileSection(Vendor vendor, string section) =>
+        VendorProfileReviewCatalog.GetSectionCodes(section).Any(code =>
+            vendor.ProfileReviewItems.Any(item =>
+                string.Equals(item.Code, code, StringComparison.OrdinalIgnoreCase)
+                && item.Status == VendorProfileReviewStatus.Rejected));
+
+    private static bool HasRejectedDocument(Vendor vendor, VendorDocumentType type) =>
+        vendor.DocumentReviews.Any(review =>
+            review.Type == type && review.Decision == VendorDocumentReviewDecision.Rejected);
 
     public static bool IsUploaded(Vendor vendor, VendorDocumentType type)
     {

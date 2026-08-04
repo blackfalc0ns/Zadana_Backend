@@ -71,7 +71,7 @@ public class UpdateVendorOwnerCommandHandler : IRequestHandler<UpdateVendorOwner
         var vendor = await _vendorRepository.GetByUserIdAsync(userId, cancellationToken)
             ?? throw new NotFoundException("Vendor", userId);
 
-        if (VendorReviewWorkflow.IsProfileReviewResubmission(vendor))
+        if (VendorReviewWorkflow.IsProfileReviewResubmission(vendor, "owner"))
         {
             vendor.UpdateOwner(
                 request.OwnerName,

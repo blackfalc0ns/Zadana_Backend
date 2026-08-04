@@ -86,7 +86,7 @@ public class UpdateVendorBankingCommandHandler : IRequestHandler<UpdateVendorBan
                 cancellationToken);
         }
 
-        if (VendorReviewWorkflow.IsProfileReviewResubmission(vendor))
+        if (VendorReviewWorkflow.IsProfileReviewResubmission(vendor, "banking"))
         {
             var payoutDay = !string.IsNullOrWhiteSpace(request.PayoutDay)
                 ? PayoutScheduleDayPolicy.ParseOrDefault(request.PayoutDay)
