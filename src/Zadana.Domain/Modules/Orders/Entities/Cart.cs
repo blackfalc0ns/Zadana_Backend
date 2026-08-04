@@ -9,6 +9,7 @@ public class Cart : BaseEntity
     public Guid? UserId { get; private set; }
     public string? GuestId { get; private set; }
     public Guid? CouponId { get; private set; }
+    public Guid? SelectedVendorId { get; private set; }
     
     public decimal Subtotal { get; private set; }
     public decimal DiscountTotal { get; private set; }
@@ -77,6 +78,13 @@ public class Cart : BaseEntity
         CouponId = null;
         DiscountTotal = 0;
         RecalculateTotal();
+    }
+
+    public void SelectVendor(Guid? vendorId)
+    {
+        SelectedVendorId = vendorId.HasValue && vendorId.Value != Guid.Empty
+            ? vendorId.Value
+            : null;
     }
 
     public void UpdateTotals(

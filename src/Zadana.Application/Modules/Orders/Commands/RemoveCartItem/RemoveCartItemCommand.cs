@@ -69,6 +69,11 @@ public class RemoveCartItemCommandHandler : IRequestHandler<RemoveCartItemComman
         var cartItem = cart.Items.FirstOrDefault(item => item.Id == request.CartItemId)
             ?? throw new NotFoundException("CartItem", request.CartItemId);
 
+        if (request.VendorId.HasValue)
+        {
+            cart.SelectVendor(request.VendorId.Value);
+        }
+
         cart.Items.Remove(cartItem);
 
         if (cart.Items.Count == 0)

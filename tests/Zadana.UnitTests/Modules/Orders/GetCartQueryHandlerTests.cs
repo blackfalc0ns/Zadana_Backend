@@ -81,6 +81,28 @@ public class GetCartQueryHandlerTests
     }
 
     [Fact]
+    public async Task Handle_ReusesLastSelectedVendor_WhenRefreshDoesNotSendVendorId()
+    {
+        using var scope = new CultureScope("en");
+        await using var context = TestDbContextFactory.Create();
+
+        var setup = await SeedCartScenarioAsync(context);
+        var handler = new GetCartQueryHandler(context);
+
+        await handler.Handle(new GetCartQuery(CartActor.Create(setup.UserId, null), setup.SecondVendorId), CancellationToken.None);
+
+        var refreshed = await handler.Handle(new GetCartQuery(CartActor.Create(setup.UserId, null), null), CancellationToken.None);
+
+        refreshed.Items.Should().ContainSingle();
+        refreshed.Items[0].VendorPrices.Should().ContainSingle();
+        refreshed.Items[0].VendorPrices[0].Name.Should().Be("Town Store");
+        refreshed.Summary.Subtotal.Should().Be(130m);
+        refreshed.Summary.DiscountAmount.Should().Be(20m);
+        refreshed.Summary.TotalAmount.Should().Be(110m);
+        refreshed.Summary.IsPricingAvailable.Should().BeTrue();
+    }
+
+    [Fact]
     public async Task Handle_ReturnsNullFinancialTotals_WhenSelectedVendorDoesNotPriceAllCartItems()
     {
         using var scope = new CultureScope("en");

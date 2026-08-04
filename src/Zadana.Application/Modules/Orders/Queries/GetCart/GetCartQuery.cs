@@ -29,13 +29,31 @@ public class GetCartQueryHandler : IRequestHandler<GetCartQuery, CartDto>
                 cancellationToken);
         }
 
-        var cart = await CartLookup.FindCartAsync(_context, actor, cancellationToken, includeItems: true, asTracking: false);
+        var cart = await CartLookup.FindCartAsync(
+            _context,
+            actor,
+            cancellationToken,
+            includeItems: true,
+            asTracking: request.VendorId.HasValue);
         var address = await CartBranchSelectionSupport.ResolveDefaultAddressAsync(_context, actor, cancellationToken);
+
+        if (request.VendorId.HasValue && cart is not null && cart.SelectedVendorId != request.VendorId.Value)
+        {
+            cart.SelectVendor(request.VendorId.Value);
+            await _context.SaveChangesAsync(cancellationToken);
+        }
+
+        var effectiveVendorId = request.VendorId ?? cart?.SelectedVendorId;
 
         // The full cart is projected first so the summary (pricing totals, checkout
         // eligibility, unavailable counts) always reflects every item, while only the
         // returned items list is sliced for the requested offset/limit.
-        var fullCart = await CartProjection.BuildCartDtoAsync(_context, cart, cancellationToken, request.VendorId, address);
+        var fullCart = await CartProjection.BuildCartDtoAsync(
+            _context,
+            cart,
+            cancellationToken,
+            effectiveVendorId,
+            address);
 
         var offset = OffsetLimitPagination.NormalizeOffset(request.Offset);
         var limit = OffsetLimitPagination.NormalizeLimit(request.Limit);

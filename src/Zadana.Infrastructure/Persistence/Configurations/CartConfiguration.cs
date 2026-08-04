@@ -31,6 +31,7 @@ public class CartConfiguration : IEntityTypeConfiguration<Cart>
         builder.Property(x => x.DeliveryQuoteStatus).HasMaxLength(50);
         builder.Property(x => x.Total).HasPrecision(18, 2).IsRequired();
         builder.Property(x => x.GuestId).HasMaxLength(200);
+        builder.Property(x => x.SelectedVendorId);
 
         builder.HasOne(x => x.User)
             .WithMany()

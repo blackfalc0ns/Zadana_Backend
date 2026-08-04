@@ -72,6 +72,11 @@ public class UpdateCartItemQuantityCommandHandler : IRequestHandler<UpdateCartIt
         var cartItem = cart.Items.FirstOrDefault(item => item.Id == request.CartItemId)
             ?? throw new NotFoundException("CartItem", request.CartItemId);
 
+        if (request.VendorId.HasValue)
+        {
+            cart.SelectVendor(request.VendorId.Value);
+        }
+
         cartItem.UpdateQuantity(request.Quantity);
 
         await _context.SaveChangesAsync(cancellationToken);
