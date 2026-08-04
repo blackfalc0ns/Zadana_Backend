@@ -129,6 +129,16 @@ public record ArchiveVendorRequest(string Reason);
 
 public record AdminResetVendorPasswordRequest(string NewPassword);
 
+public record AdminHardDeleteVendorsRequest(IReadOnlyCollection<Guid> Ids);
+
+public record AdminHardDeleteVendorSkippedItem(Guid Id, string Code, string Reason);
+
+public record AdminHardDeleteVendorsResponse(
+    int DeletedCount,
+    int SkippedCount,
+    IReadOnlyCollection<Guid> DeletedIds,
+    IReadOnlyCollection<AdminHardDeleteVendorSkippedItem> Skipped);
+
 public record AdminUpdateVendorStoreRequest(
     string BusinessNameAr,
     string BusinessNameEn,
