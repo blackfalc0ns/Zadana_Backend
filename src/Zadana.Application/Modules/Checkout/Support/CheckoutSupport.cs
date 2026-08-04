@@ -240,7 +240,7 @@ internal static class CheckoutSupport
                 branch.Latitude,
                 branch.Longitude,
                 branch.DeliveryRadiusKm,
-                branch.City,
+                string.IsNullOrWhiteSpace(branch.City) ? branch.Vendor.City : branch.City,
                 branch.IsPrimary,
                 branch.CreatedAtUtc))
             .ToListAsync(cancellationToken);
@@ -866,7 +866,7 @@ internal static class CheckoutSupport
                 branch.Latitude,
                 branch.Longitude,
                 branch.DeliveryRadiusKm,
-                branch.City,
+                string.IsNullOrWhiteSpace(branch.City) ? branch.Vendor.City : branch.City,
                 branch.IsPrimary,
                 branch.CreatedAtUtc))
             .ToListAsync(cancellationToken);
@@ -1519,6 +1519,7 @@ internal static class CheckoutSupport
     {
         var branch = await context.VendorBranches
             .AsNoTracking()
+            .Include(item => item.Vendor)
             .Include(item => item.OperatingHours)
             .FirstOrDefaultAsync(item => item.Id == vendorBranchId, cancellationToken)
             ?? throw new NotFoundException("VendorBranch", vendorBranchId);
@@ -1571,6 +1572,7 @@ internal static class CheckoutSupport
 
         var branches = await context.VendorBranches
             .AsNoTracking()
+            .Include(item => item.Vendor)
             .Include(item => item.OperatingHours)
             .Where(item => item.VendorId == vendorId && item.IsActive)
             .OrderByDescending(item => item.IsPrimary)
@@ -1578,7 +1580,7 @@ internal static class CheckoutSupport
             .ToListAsync(cancellationToken);
 
         var cityBranches = branches
-            .Where(item => DeliveryCityMatcher.Matches(item.City, city))
+            .Where(item => DeliveryCityMatcher.Matches(ResolveBranchCity(item), city))
             .ToList();
 
         var options = cityBranches
@@ -1750,11 +1752,13 @@ internal static class CheckoutSupport
             return null;
         }
 
-        var localizedCity = SaudiGeographyDisplay.LocalizeCity(branch.City);
+        var city = ResolveBranchCity(branch);
+        var region = ResolveBranchRegion(branch);
+        var localizedCity = SaudiGeographyDisplay.LocalizeCity(city);
         var address = SaudiGeographyDisplay.FormatBranchAddress(
             branch.AddressLine,
-            branch.City,
-            branch.Region);
+            city,
+            region);
 
         return new CheckoutPickupBranchDto(
             branch.Id,
@@ -1765,6 +1769,25 @@ internal static class CheckoutSupport
             BranchOperatingHoursSupport.BuildHoursTodayLabel(
                 branch.OperatingHours?.ToList() ?? [],
                 DateTime.UtcNow));
+    }
+
+    private static string ResolveBranchCity(VendorBranch branch) =>
+        FirstNonBlank(branch.City, branch.Vendor?.City) ?? string.Empty;
+
+    private static string ResolveBranchRegion(VendorBranch branch) =>
+        FirstNonBlank(branch.Region, branch.Vendor?.Region) ?? string.Empty;
+
+    private static string? FirstNonBlank(params string?[] values)
+    {
+        foreach (var value in values)
+        {
+            if (!string.IsNullOrWhiteSpace(value))
+            {
+                return value.Trim();
+            }
+        }
+
+        return null;
     }
 
     public static decimal CalculatePickupCommissionAmount(decimal subtotal, decimal pickupCommissionPercent) =>

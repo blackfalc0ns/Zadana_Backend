@@ -54,7 +54,7 @@ internal static class CartBranchSelectionSupport
                 branch.Latitude,
                 branch.Longitude,
                 branch.DeliveryRadiusKm,
-                branch.City,
+                string.IsNullOrWhiteSpace(branch.City) ? branch.Vendor.City : branch.City,
                 branch.IsPrimary,
                 branch.CreatedAtUtc))
             .ToListAsync(cancellationToken);
