@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Common.Models;
@@ -5,6 +6,7 @@ using Zadana.Application.Modules.Vendors.DTOs;
 using Zadana.Application.Modules.Vendors.Interfaces;
 using Zadana.Application.Modules.Vendors.Support;
 using Zadana.Domain.Modules.Identity.Entities;
+using Zadana.Domain.Modules.Identity.Enums;
 using Zadana.Domain.Modules.Social.Entities;
 using Zadana.Domain.Modules.Vendors.Entities;
 using Zadana.Domain.Modules.Vendors.Enums;
@@ -15,6 +17,8 @@ namespace Zadana.Infrastructure.Modules.Vendors.Services;
 
 public class VendorReadService : IVendorReadService
 {
+    private static readonly JsonSerializerOptions PendingChangeJsonOptions = new(JsonSerializerDefaults.Web);
+
     private readonly ApplicationDbContext _dbContext;
     private readonly IGeographyCityResolver _geographyCityResolver;
 
@@ -386,7 +390,63 @@ public class VendorReadService : IVendorReadService
             .OrderByDescending(item => item.CreatedAtUtc)
             .ToListAsync(cancellationToken);
 
-        return MapWorkspace(vendor, user, approvedByName, reviewNotifications);
+        var pendingChanges = await GetPendingProfileChangesAsync(vendor.UserId, cancellationToken);
+        return MapWorkspace(vendor, user, approvedByName, reviewNotifications, pendingChanges);
+    }
+
+    private async Task<VendorPendingProfileChangesDto?> GetPendingProfileChangesAsync(
+        Guid userId,
+        CancellationToken cancellationToken)
+    {
+        var requests = await _dbContext.AccessApprovalRequests
+            .AsNoTracking()
+            .Where(request =>
+                request.RequestedByUserId == userId &&
+                request.TargetUserId == userId &&
+                request.Status == AccessApprovalStatus.Pending &&
+                (request.Action == ProfileChangeApprovalActions.VendorProfileStore ||
+                 request.Action == ProfileChangeApprovalActions.VendorProfileOwner ||
+                 request.Action == ProfileChangeApprovalActions.VendorProfileLegal ||
+                 request.Action == ProfileChangeApprovalActions.VendorProfileBanking))
+            .OrderByDescending(request => request.CreatedAtUtc)
+            .ToListAsync(cancellationToken);
+
+        var storeRequest = requests.FirstOrDefault(request => request.Action == ProfileChangeApprovalActions.VendorProfileStore);
+        var ownerRequest = requests.FirstOrDefault(request => request.Action == ProfileChangeApprovalActions.VendorProfileOwner);
+        var legalRequest = requests.FirstOrDefault(request => request.Action == ProfileChangeApprovalActions.VendorProfileLegal);
+        var bankingRequest = requests.FirstOrDefault(request => request.Action == ProfileChangeApprovalActions.VendorProfileBanking);
+
+        if (storeRequest is null && ownerRequest is null && legalRequest is null && bankingRequest is null)
+        {
+            return null;
+        }
+
+        return new VendorPendingProfileChangesDto(
+            storeRequest is null ? null : JsonSerializer.Deserialize<VendorStoreProfileChangePayload>(storeRequest.PayloadJson, PendingChangeJsonOptions) is { } store
+                ? new VendorPendingStoreChangesDto(store.CommercialRegistrationNumber, store.CommercialRegisterDocumentUrl)
+                : null,
+            ownerRequest is null ? null : JsonSerializer.Deserialize<VendorOwnerProfileChangePayload>(ownerRequest.PayloadJson, PendingChangeJsonOptions) is { } owner
+                ? new VendorPendingOwnerChangesDto(owner.OwnerName, owner.OwnerEmail, owner.OwnerPhone, owner.IdNumber, owner.Nationality)
+                : null,
+            legalRequest is null ? null : JsonSerializer.Deserialize<VendorLegalProfileChangePayload>(legalRequest.PayloadJson, PendingChangeJsonOptions) is { } legal
+                ? new VendorPendingLegalChangesDto(
+                    legal.CommercialRegistrationNumber,
+                    legal.CommercialRegistrationExpiryDate,
+                    legal.TaxId,
+                    legal.LicenseNumber,
+                    legal.CommercialRegisterDocumentUrl,
+                    legal.TaxDocumentUrl,
+                    legal.LicenseDocumentUrl)
+                : null,
+            bankingRequest is null ? null : JsonSerializer.Deserialize<VendorBankingProfileChangePayload>(bankingRequest.PayloadJson, PendingChangeJsonOptions) is { } banking
+                ? new VendorPendingBankingChangesDto(
+                    banking.BankName,
+                    banking.AccountHolderName,
+                    banking.Iban,
+                    banking.SwiftCode,
+                    banking.PayoutCycle,
+                    banking.PayoutDay)
+                : null);
     }
 
     public Task<Guid?> GetVendorIdByUserIdAsync(Guid userId, CancellationToken cancellationToken = default) =>
@@ -400,7 +460,8 @@ public class VendorReadService : IVendorReadService
         Vendor vendor,
         User? user,
         string? approvedByName,
-        IReadOnlyList<Notification>? reviewNotifications = null)
+        IReadOnlyList<Notification>? reviewNotifications = null,
+        VendorPendingProfileChangesDto? pendingChanges = null)
     {
         var primaryBankAccount = GetPrimaryBankAccount(vendor);
         var primaryBranch = GetPrimaryBranch(vendor);
@@ -484,7 +545,8 @@ public class VendorReadService : IVendorReadService
             workspaceReview.AuditEntries,
             workspaceReview.MissingDocumentsCount,
             workspaceReview.CanSubmitForReview,
-            vendor.PayoutDay.ToString());
+            vendor.PayoutDay.ToString(),
+            pendingChanges);
     }
 
     private static WorkspaceReviewProjection BuildWorkspaceReview(

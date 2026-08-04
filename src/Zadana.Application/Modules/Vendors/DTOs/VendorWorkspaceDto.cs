@@ -65,7 +65,42 @@ public record VendorWorkspaceDto(
     IReadOnlyList<VendorWorkspaceReviewAuditEntryDto> ReviewAuditEntries,
     int MissingDocumentsCount,
     bool CanSubmitForReview,
-    string PayoutDay = "Monday");
+    string PayoutDay = "Monday",
+    VendorPendingProfileChangesDto? PendingChanges = null);
+
+public record VendorPendingProfileChangesDto(
+    VendorPendingStoreChangesDto? Store = null,
+    VendorPendingOwnerChangesDto? Owner = null,
+    VendorPendingLegalChangesDto? Legal = null,
+    VendorPendingBankingChangesDto? Banking = null);
+
+public record VendorPendingStoreChangesDto(
+    string? CommercialRegistrationNumber,
+    string? CommercialRegisterDocumentUrl);
+
+public record VendorPendingOwnerChangesDto(
+    string OwnerName,
+    string OwnerEmail,
+    string OwnerPhone,
+    string? IdNumber,
+    string? Nationality);
+
+public record VendorPendingLegalChangesDto(
+    string CommercialRegistrationNumber,
+    DateTime? CommercialRegistrationExpiryDate,
+    string? TaxId,
+    string? LicenseNumber,
+    string? CommercialRegisterDocumentUrl,
+    string? TaxDocumentUrl,
+    string? LicenseDocumentUrl);
+
+public record VendorPendingBankingChangesDto(
+    string BankName,
+    string AccountHolderName,
+    string Iban,
+    string? SwiftCode,
+    string? PayoutCycle,
+    string? PayoutDay);
 
 public record VendorWorkspaceReviewSummaryDto(
     int TotalItems,
