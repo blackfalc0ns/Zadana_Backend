@@ -150,19 +150,54 @@ public class PlaceCheckoutOrderCommandHandler : IRequestHandler<PlaceCheckoutOrd
                 throw new BusinessRuleException("CUSTOMER_ADDRESS_REQUIRED", "Customer must have a default address before placing an order.");
             }
         }
-
-        if (request.Fulfillment == FulfillmentType.Pickup && !request.VendorBranchId.HasValue)
+        else if (request.Fulfillment == FulfillmentType.Pickup)
         {
-            throw new BusinessRuleException("PICKUP_BRANCH_REQUIRED", "Pickup orders require a vendor branch.");
+            address = await CheckoutSupport.ResolveSelectedAddressAsync(_context, request.UserId, request.AddressId, cancellationToken);
+        }
+
+        var pickupBranchId = request.Fulfillment == FulfillmentType.Pickup
+            ? request.VendorBranchId
+            : null;
+        if (request.Fulfillment == FulfillmentType.Pickup &&
+            !pickupBranchId.HasValue &&
+            request.VendorId.HasValue)
+        {
+            pickupBranchId = await CheckoutSupport.ResolvePickupBranchForCartAsync(
+                _context,
+                cart,
+                request.VendorId.Value,
+                address,
+                cancellationToken);
         }
 
         var pricing = await CheckoutSupport.BuildPricingSnapshotAsync(
             _context,
             cart,
             request.VendorId,
-            address,
+            request.Fulfillment == FulfillmentType.Pickup ? null : address,
             cancellationToken,
-            request.Fulfillment == FulfillmentType.Pickup ? request.VendorBranchId : null);
+            pickupBranchId);
+        if (request.Fulfillment == FulfillmentType.Pickup && !pickupBranchId.HasValue)
+        {
+            pickupBranchId = await CheckoutSupport.ResolvePickupBranchForCartAsync(
+                _context,
+                cart,
+                pricing.VendorId,
+                address,
+                cancellationToken);
+
+            if (pickupBranchId.HasValue)
+            {
+                pricing = await CheckoutSupport.BuildPricingSnapshotAsync(
+                    _context,
+                    cart,
+                    pricing.VendorId,
+                    null,
+                    cancellationToken,
+                    pickupBranchId);
+            }
+        }
+
         if (pricing.UnavailableItems.Count > 0)
         {
             if (!request.RemoveUnavailableItems)
@@ -183,13 +218,20 @@ public class PlaceCheckoutOrderCommandHandler : IRequestHandler<PlaceCheckoutOrd
 
         if (request.Fulfillment == FulfillmentType.Pickup)
         {
-            await CheckoutSupport.ValidatePickupBranchAsync(
+            if (!pickupBranchId.HasValue)
+            {
+                throw new BusinessRuleException(
+                    "PICKUP_BRANCH_REQUIRED",
+                    "Pickup orders require an active vendor branch.");
+            }
+
+            var pickupBranch = await CheckoutSupport.ValidatePickupBranchAsync(
                 _context,
                 pricing.VendorId,
-                request.VendorBranchId!.Value,
+                pickupBranchId.Value,
                 cancellationToken);
 
-            orderBranchId = request.VendorBranchId.Value;
+            orderBranchId = pickupBranch.Id;
             deliveryQuote = CheckoutSupport.BuildNoPricingQuote();
             orderCoupon = await ResolveOrderCouponAsync(request.UserId, cart, request.PromoCode, pricing.VendorId, pricing.Subtotal, cancellationToken);
             var pickupDiscount = orderCoupon == null ? 0m : CheckoutSupport.CalculateDiscountAmount(orderCoupon, pricing.Subtotal);

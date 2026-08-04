@@ -59,16 +59,50 @@ public class GetCheckoutSummaryQueryHandler : IRequestHandler<GetCheckoutSummary
 
         var cart = await CheckoutSupport.GetRequiredCartAsync(_context, request.UserId, cancellationToken);
         var cardAvailable = _gatewayResolver.TryResolve(CardProvider, out var gateway) && gateway is not null && gateway.IsEnabled;
-        var address = request.Fulfillment == FulfillmentType.Pickup
-            ? null
-            : await CheckoutSupport.ResolveSelectedAddressAsync(_context, request.UserId, request.AddressId, cancellationToken);
+        var address = await CheckoutSupport.ResolveSelectedAddressAsync(_context, request.UserId, request.AddressId, cancellationToken);
+        var pickupBranchId = request.Fulfillment == FulfillmentType.Pickup
+            ? request.VendorBranchId
+            : null;
+        if (request.Fulfillment == FulfillmentType.Pickup &&
+            !pickupBranchId.HasValue &&
+            request.VendorId.HasValue)
+        {
+            pickupBranchId = await CheckoutSupport.ResolvePickupBranchForCartAsync(
+                _context,
+                cart,
+                request.VendorId.Value,
+                address,
+                cancellationToken);
+        }
+
         var pricing = await CheckoutSupport.BuildPricingSnapshotAsync(
             _context,
             cart,
             request.VendorId,
-            address,
+            request.Fulfillment == FulfillmentType.Pickup ? null : address,
             cancellationToken,
-            request.Fulfillment == FulfillmentType.Pickup ? request.VendorBranchId : null);
+            pickupBranchId);
+        if (request.Fulfillment == FulfillmentType.Pickup && !pickupBranchId.HasValue)
+        {
+            pickupBranchId = await CheckoutSupport.ResolvePickupBranchForCartAsync(
+                _context,
+                cart,
+                pricing.VendorId,
+                address,
+                cancellationToken);
+
+            if (pickupBranchId.HasValue)
+            {
+                pricing = await CheckoutSupport.BuildPricingSnapshotAsync(
+                    _context,
+                    cart,
+                    pricing.VendorId,
+                    null,
+                    cancellationToken,
+                    pickupBranchId);
+            }
+        }
+
         var coupon = await CheckoutSupport.ResolveAppliedCouponAsync(_context, request.UserId, cart, cancellationToken);
         var discount = coupon == null ? 0m : CheckoutSupport.CalculateDiscountAmount(coupon, pricing.Subtotal);
 
@@ -77,6 +111,7 @@ public class GetCheckoutSummaryQueryHandler : IRequestHandler<GetCheckoutSummary
             return await BuildPickupSummaryAsync(
                 request,
                 pricing,
+                pickupBranchId,
                 coupon,
                 discount,
                 cardAvailable,
@@ -167,17 +202,18 @@ public class GetCheckoutSummaryQueryHandler : IRequestHandler<GetCheckoutSummary
     private async Task<CheckoutSummaryDto> BuildPickupSummaryAsync(
         GetCheckoutSummaryQuery request,
         CheckoutSupport.CheckoutPricingSnapshot pricing,
+        Guid? pickupBranchId,
         Zadana.Domain.Modules.Marketing.Entities.Coupon? coupon,
         decimal discount,
         bool cardAvailable,
         bool cashOnPickupEnabled,
         CancellationToken cancellationToken)
     {
-        var pickupBranch = request.VendorBranchId.HasValue
+        var pickupBranch = pickupBranchId.HasValue
             ? await CheckoutSupport.ValidatePickupBranchAsync(
                 _context,
                 pricing.VendorId,
-                request.VendorBranchId.Value,
+                pickupBranchId.Value,
                 cancellationToken)
             : null;
         var deliveryQuote = CheckoutSupport.BuildNoPricingQuote();

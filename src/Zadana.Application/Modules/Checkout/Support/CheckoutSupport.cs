@@ -1611,6 +1611,97 @@ internal static class CheckoutSupport
         return new CheckoutPickupBranchesDto(vendorId, city.Trim(), options);
     }
 
+    public static async Task<Guid?> ResolvePickupBranchForCartAsync(
+        IApplicationDbContext context,
+        Cart cart,
+        Guid vendorId,
+        CustomerAddress? address,
+        CancellationToken cancellationToken)
+    {
+        var masterProductIds = cart.Items.Select(item => item.MasterProductId).Distinct().ToList();
+        var requiredQuantityByProductId = cart.Items
+            .GroupBy(item => item.MasterProductId)
+            .ToDictionary(group => group.Key, group => group.Sum(item => item.Quantity));
+
+        var offers = ApplyUnifiedPricing(
+            await LoadCandidateOffersAsync(context, masterProductIds, vendorId, cancellationToken));
+
+        var branches = await context.VendorBranches
+            .AsNoTracking()
+            .Include(item => item.Vendor)
+            .Where(item => item.VendorId == vendorId && item.IsActive)
+            .OrderByDescending(item => item.IsPrimary)
+            .ThenBy(item => item.CreatedAtUtc)
+            .ToListAsync(cancellationToken);
+
+        if (branches.Count == 0)
+        {
+            return null;
+        }
+
+        var preferredBranches = !string.IsNullOrWhiteSpace(address?.City)
+            ? branches
+                .Where(branch => DeliveryCityMatcher.Matches(ResolveBranchCity(branch), address.City))
+                .ToList()
+            : [];
+
+        var orderedCandidates = preferredBranches.Count > 0
+            ? preferredBranches
+            : branches;
+
+        var fulfillablePreferredBranch = orderedCandidates
+            .Select(branch => new
+            {
+                Branch = branch,
+                Availability = EvaluateBranchCartAvailability(
+                    offers,
+                    vendorId,
+                    branch.Id,
+                    requiredQuantityByProductId)
+            })
+            .Where(item => item.Availability.CanFulfillCart)
+            .OrderByDescending(item => item.Branch.IsPrimary)
+            .ThenBy(item => item.Branch.CreatedAtUtc)
+            .Select(item => item.Branch.Id)
+            .FirstOrDefault();
+
+        if (fulfillablePreferredBranch != Guid.Empty)
+        {
+            return fulfillablePreferredBranch;
+        }
+
+        if (preferredBranches.Count > 0)
+        {
+            var fulfillableAnyBranch = branches
+                .Except(preferredBranches)
+                .Select(branch => new
+                {
+                    Branch = branch,
+                    Availability = EvaluateBranchCartAvailability(
+                        offers,
+                        vendorId,
+                        branch.Id,
+                        requiredQuantityByProductId)
+                })
+                .Where(item => item.Availability.CanFulfillCart)
+                .OrderByDescending(item => item.Branch.IsPrimary)
+                .ThenBy(item => item.Branch.CreatedAtUtc)
+                .Select(item => item.Branch.Id)
+                .FirstOrDefault();
+
+            if (fulfillableAnyBranch != Guid.Empty)
+            {
+                return fulfillableAnyBranch;
+            }
+        }
+
+        return orderedCandidates
+            .OrderByDescending(branch => branch.IsPrimary)
+            .ThenBy(branch => branch.CreatedAtUtc)
+            .Select(branch => (Guid?)branch.Id)
+            .FirstOrDefault();
+    }
+
     private static async Task<List<VendorOfferSnapshot>> LoadCandidateOffersAsync(
         IApplicationDbContext context,
         IReadOnlyCollection<Guid> masterProductIds,
