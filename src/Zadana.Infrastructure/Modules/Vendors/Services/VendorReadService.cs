@@ -131,7 +131,8 @@ public class VendorReadService : IVendorReadService
                 user != null ? user.AccountStatus.ToString() : null,
                 user != null && user.IsLoginLocked,
                 user != null ? user.LockedAtUtc : null,
-                user != null ? user.ArchivedAtUtc : null);
+                user != null ? user.ArchivedAtUtc : null,
+                vendor.LogoUrl);
 
         return await PaginatedList<VendorListItemDto>.CreateAsync(projected, page, pageSize, cancellationToken);
     }

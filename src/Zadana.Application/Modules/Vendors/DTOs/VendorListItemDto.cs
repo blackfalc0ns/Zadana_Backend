@@ -16,4 +16,5 @@ public record VendorListItemDto(
     string? AccountStatus = null,
     bool IsLoginLocked = false,
     DateTime? LockedAtUtc = null,
-    DateTime? ArchivedAtUtc = null);
+    DateTime? ArchivedAtUtc = null,
+    string? LogoUrl = null);
