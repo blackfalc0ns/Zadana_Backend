@@ -1,8 +1,10 @@
 using System.Text.Json;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.OutputCaching;
 using Microsoft.EntityFrameworkCore;
 using Zadana.Api.Controllers;
+using Zadana.Application.Common.Caching;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Domain.Modules.Vendors.Entities;
 using Zadana.SharedKernel.Exceptions;
@@ -14,18 +16,34 @@ namespace Zadana.Api.Modules.Vendors.Controllers;
 [Authorize(Policy = "VendorOnly")]
 public class VendorWorkspaceStateController : ApiControllerBase
 {
+    private static readonly string[] CatalogHybridCacheTags =
+    [
+        CacheTagNames.Catalog,
+        CacheTagNames.CatalogFilters,
+        CacheTagNames.Home
+    ];
+
+    private static readonly string[] PublicOutputCacheTags =
+    [
+        "catalog-browse",
+        "home-public"
+    ];
+
     private readonly IApplicationDbContext _dbContext;
     private readonly ICacheInvalidator _cacheInvalidator;
     private readonly ICurrentVendorService _currentVendorService;
+    private readonly IOutputCacheStore _outputCacheStore;
 
     public VendorWorkspaceStateController(
         IApplicationDbContext dbContext,
         ICacheInvalidator cacheInvalidator,
-        ICurrentVendorService currentVendorService)
+        ICurrentVendorService currentVendorService,
+        IOutputCacheStore outputCacheStore)
     {
         _dbContext = dbContext;
         _cacheInvalidator = cacheInvalidator;
         _currentVendorService = currentVendorService;
+        _outputCacheStore = outputCacheStore;
     }
 
     [HttpGet("{feature}")]
@@ -40,8 +58,9 @@ public class VendorWorkspaceStateController : ApiControllerBase
     public async Task<IActionResult> SaveFeatureState(string feature, [FromBody] JsonElement payload, CancellationToken cancellationToken)
     {
         var vendorId = await _currentVendorService.GetRequiredVendorIdAsync(cancellationToken);
-        await UpsertPayloadAsync(vendorId, feature, payload.GetRawText(), cancellationToken);
-        return NoContent();
+        var payloadJson = payload.GetRawText();
+        await UpsertPayloadAsync(vendorId, feature, payloadJson, cancellationToken);
+        return Content(payloadJson, "application/json");
     }
 
     internal async Task<string?> GetPayloadAsync(Guid vendorId, string feature, CancellationToken cancellationToken)
@@ -70,7 +89,17 @@ public class VendorWorkspaceStateController : ApiControllerBase
         }
 
         await _dbContext.SaveChangesAsync(cancellationToken);
-        await _cacheInvalidator.RemoveByTagsAsync(["catalog", "catalog_filters", "home"], cancellationToken);
+        await InvalidateCustomerReadCachesAsync(cancellationToken);
+    }
+
+    private async Task InvalidateCustomerReadCachesAsync(CancellationToken cancellationToken)
+    {
+        await _cacheInvalidator.RemoveByTagsAsync(CatalogHybridCacheTags, cancellationToken);
+
+        foreach (var tag in PublicOutputCacheTags)
+        {
+            await _outputCacheStore.EvictByTagAsync(tag, cancellationToken);
+        }
     }
 }
 
@@ -79,13 +108,31 @@ public class VendorWorkspaceStateController : ApiControllerBase
 [Authorize(Policy = "AdminOnly")]
 public class AdminVendorWorkspaceStateController : ApiControllerBase
 {
+    private static readonly string[] CatalogHybridCacheTags =
+    [
+        CacheTagNames.Catalog,
+        CacheTagNames.CatalogFilters,
+        CacheTagNames.Home
+    ];
+
+    private static readonly string[] PublicOutputCacheTags =
+    [
+        "catalog-browse",
+        "home-public"
+    ];
+
     private readonly IApplicationDbContext _dbContext;
     private readonly ICacheInvalidator _cacheInvalidator;
+    private readonly IOutputCacheStore _outputCacheStore;
 
-    public AdminVendorWorkspaceStateController(IApplicationDbContext dbContext, ICacheInvalidator cacheInvalidator)
+    public AdminVendorWorkspaceStateController(
+        IApplicationDbContext dbContext,
+        ICacheInvalidator cacheInvalidator,
+        IOutputCacheStore outputCacheStore)
     {
         _dbContext = dbContext;
         _cacheInvalidator = cacheInvalidator;
+        _outputCacheStore = outputCacheStore;
     }
 
     [HttpGet("{feature}")]
@@ -106,22 +153,33 @@ public class AdminVendorWorkspaceStateController : ApiControllerBase
     public async Task<IActionResult> SaveFeatureState(Guid vendorId, string feature, [FromBody] JsonElement payload, CancellationToken cancellationToken)
     {
         await EnsureVendorExistsAsync(vendorId, cancellationToken);
+        var payloadJson = payload.GetRawText();
         var normalizedFeature = VendorWorkspaceState.NormalizeFeature(feature);
         var state = await _dbContext.VendorWorkspaceStates
             .FirstOrDefaultAsync(item => item.VendorId == vendorId && item.Feature == normalizedFeature, cancellationToken);
 
         if (state is null)
         {
-            _dbContext.VendorWorkspaceStates.Add(new VendorWorkspaceState(vendorId, normalizedFeature, payload.GetRawText()));
+            _dbContext.VendorWorkspaceStates.Add(new VendorWorkspaceState(vendorId, normalizedFeature, payloadJson));
         }
         else
         {
-            state.UpdatePayload(payload.GetRawText());
+            state.UpdatePayload(payloadJson);
         }
 
         await _dbContext.SaveChangesAsync(cancellationToken);
-        await _cacheInvalidator.RemoveByTagsAsync(["catalog", "catalog_filters", "home"], cancellationToken);
-        return NoContent();
+        await InvalidateCustomerReadCachesAsync(cancellationToken);
+        return Content(payloadJson, "application/json");
+    }
+
+    private async Task InvalidateCustomerReadCachesAsync(CancellationToken cancellationToken)
+    {
+        await _cacheInvalidator.RemoveByTagsAsync(CatalogHybridCacheTags, cancellationToken);
+
+        foreach (var tag in PublicOutputCacheTags)
+        {
+            await _outputCacheStore.EvictByTagAsync(tag, cancellationToken);
+        }
     }
 
     private async Task EnsureVendorExistsAsync(Guid vendorId, CancellationToken cancellationToken)
