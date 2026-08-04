@@ -17,6 +17,9 @@ public static class VendorReviewWorkflow
     public static bool IsRequired(VendorDocumentType type) =>
         type is VendorDocumentType.Commercial or VendorDocumentType.Tax or VendorDocumentType.License;
 
+    public static bool IsProfileReviewResubmission(Vendor vendor) =>
+        vendor.Status is VendorStatus.PendingReview or VendorStatus.Rejected;
+
     public static bool IsUploaded(Vendor vendor, VendorDocumentType type)
     {
         var primaryBankAccount = vendor.BankAccounts

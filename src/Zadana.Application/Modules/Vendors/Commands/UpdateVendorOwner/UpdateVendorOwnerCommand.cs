@@ -3,6 +3,8 @@ using MediatR;
 using Microsoft.Extensions.Localization;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Common.Localization;
+using Zadana.Application.Modules.Identity.Interfaces;
+using Zadana.Application.Modules.Identity.Services;
 using Zadana.Application.Modules.Vendors.DTOs;
 using Zadana.Application.Modules.Vendors.Interfaces;
 using Zadana.Application.Modules.Vendors.Support;
@@ -34,7 +36,10 @@ public class UpdateVendorOwnerCommandHandler : IRequestHandler<UpdateVendorOwner
     private readonly IVendorRepository _vendorRepository;
     private readonly IVendorReadService _vendorReadService;
     private readonly ICurrentUserService _currentUserService;
+    private readonly IUnitOfWork _unitOfWork;
     private readonly IVendorReviewAuditService _vendorReviewAuditService;
+    private readonly IIdentityAccountService _identityAccountService;
+    private readonly IEmailVerificationSender _emailVerificationSender;
     private readonly IProfileChangeApprovalService _profileChangeApprovalService;
     private readonly IAdminAlertService _adminAlertService;
 
@@ -42,14 +47,20 @@ public class UpdateVendorOwnerCommandHandler : IRequestHandler<UpdateVendorOwner
         IVendorRepository vendorRepository,
         IVendorReadService vendorReadService,
         ICurrentUserService currentUserService,
+        IUnitOfWork unitOfWork,
         IVendorReviewAuditService vendorReviewAuditService,
+        IIdentityAccountService identityAccountService,
+        IEmailVerificationSender emailVerificationSender,
         IProfileChangeApprovalService profileChangeApprovalService,
         IAdminAlertService adminAlertService)
     {
         _vendorRepository = vendorRepository;
         _vendorReadService = vendorReadService;
         _currentUserService = currentUserService;
+        _unitOfWork = unitOfWork;
         _vendorReviewAuditService = vendorReviewAuditService;
+        _identityAccountService = identityAccountService;
+        _emailVerificationSender = emailVerificationSender;
         _profileChangeApprovalService = profileChangeApprovalService;
         _adminAlertService = adminAlertService;
     }
@@ -59,6 +70,58 @@ public class UpdateVendorOwnerCommandHandler : IRequestHandler<UpdateVendorOwner
         var userId = _currentUserService.UserId ?? throw new UnauthorizedException("USER_NOT_AUTHENTICATED");
         var vendor = await _vendorRepository.GetByUserIdAsync(userId, cancellationToken)
             ?? throw new NotFoundException("Vendor", userId);
+
+        if (VendorReviewWorkflow.IsProfileReviewResubmission(vendor))
+        {
+            vendor.UpdateOwner(
+                request.OwnerName,
+                request.OwnerEmail,
+                request.OwnerPhone,
+                request.IdNumber,
+                request.Nationality);
+            VendorProfileReviewMutations.ResetSectionToSubmitted(vendor, "owner");
+
+            var updateIdentityResult = await _identityAccountService.UpdateProfileAsync(
+                vendor.UserId,
+                request.OwnerName,
+                request.OwnerEmail,
+                request.OwnerPhone,
+                cancellationToken);
+
+            if (!updateIdentityResult.Succeeded)
+            {
+                throw new BusinessRuleException(
+                    "IDENTITY_UPDATE_FAILED",
+                    string.Join(", ", updateIdentityResult.Errors ?? []));
+            }
+
+            if (updateIdentityResult.EmailChanged)
+            {
+                await _emailVerificationSender.SendAsync(vendor.UserId, cancellationToken);
+            }
+
+            await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+            await _vendorReviewAuditService.AppendActivityEntryAsync(
+                vendor.UserId,
+                "profile-owner-updated-for-review",
+                "info",
+                "Vendor owner details were updated and resubmitted for compliance review.",
+                "Vendor portal",
+                vendor.BusinessNameAr,
+                userId,
+                vendor.BusinessNameAr,
+                cancellationToken);
+
+            await VendorProfileSectionAdminAlerts.NotifySectionReviewAsync(
+                _adminAlertService,
+                vendor,
+                "owner",
+                cancellationToken);
+
+            return await _vendorReadService.GetWorkspaceByUserIdAsync(userId, cancellationToken)
+                ?? throw new NotFoundException("Vendor", userId);
+        }
 
         var payload = new VendorOwnerProfileChangePayload(
             vendor.Id,

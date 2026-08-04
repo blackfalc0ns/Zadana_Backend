@@ -390,7 +390,9 @@ public class VendorReadService : IVendorReadService
             .OrderByDescending(item => item.CreatedAtUtc)
             .ToListAsync(cancellationToken);
 
-        var pendingChanges = await GetPendingProfileChangesAsync(vendor.UserId, cancellationToken);
+        var pendingChanges = vendor.Status == VendorStatus.Active
+            ? await GetPendingProfileChangesAsync(vendor.UserId, cancellationToken)
+            : null;
         return MapWorkspace(vendor, user, approvedByName, reviewNotifications, pendingChanges);
     }
 

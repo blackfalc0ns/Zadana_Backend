@@ -7,6 +7,7 @@ using Zadana.Application.Modules.Finances.Services;
 using Zadana.Application.Modules.Vendors.DTOs;
 using Zadana.Application.Modules.Vendors.Interfaces;
 using Zadana.Application.Modules.Vendors.Support;
+using Zadana.Domain.Modules.Vendors.Entities;
 using Zadana.Domain.Modules.Wallets.Enums;
 using Zadana.SharedKernel.Exceptions;
 
@@ -45,6 +46,7 @@ public class UpdateVendorBankingCommandHandler : IRequestHandler<UpdateVendorBan
     private readonly IVendorRepository _vendorRepository;
     private readonly IVendorReadService _vendorReadService;
     private readonly ICurrentUserService _currentUserService;
+    private readonly IUnitOfWork _unitOfWork;
     private readonly IVendorReviewAuditService _vendorReviewAuditService;
     private readonly IProfileChangeApprovalService _profileChangeApprovalService;
     private readonly IAdminAlertService _adminAlertService;
@@ -54,6 +56,7 @@ public class UpdateVendorBankingCommandHandler : IRequestHandler<UpdateVendorBan
         IVendorRepository vendorRepository,
         IVendorReadService vendorReadService,
         ICurrentUserService currentUserService,
+        IUnitOfWork unitOfWork,
         IVendorReviewAuditService vendorReviewAuditService,
         IProfileChangeApprovalService profileChangeApprovalService,
         IAdminAlertService adminAlertService,
@@ -62,6 +65,7 @@ public class UpdateVendorBankingCommandHandler : IRequestHandler<UpdateVendorBan
         _vendorRepository = vendorRepository;
         _vendorReadService = vendorReadService;
         _currentUserService = currentUserService;
+        _unitOfWork = unitOfWork;
         _vendorReviewAuditService = vendorReviewAuditService;
         _profileChangeApprovalService = profileChangeApprovalService;
         _adminAlertService = adminAlertService;
@@ -80,6 +84,71 @@ public class UpdateVendorBankingCommandHandler : IRequestHandler<UpdateVendorBan
             await _settlementProcessingSettingsService.EnsurePayoutDayEnabledAsync(
                 payoutDay,
                 cancellationToken);
+        }
+
+        if (VendorReviewWorkflow.IsProfileReviewResubmission(vendor))
+        {
+            var payoutDay = !string.IsNullOrWhiteSpace(request.PayoutDay)
+                ? PayoutScheduleDayPolicy.ParseOrDefault(request.PayoutDay)
+                : (PayoutScheduleDay?)null;
+
+            vendor.UpdateBanking(request.PayoutCycle, payoutDay);
+
+            var primaryAccount = vendor.BankAccounts
+                .FirstOrDefault(account => account.IsPrimary)
+                ?? vendor.BankAccounts
+                    .OrderByDescending(account => account.CreatedAtUtc)
+                    .FirstOrDefault();
+
+            foreach (var account in vendor.BankAccounts)
+            {
+                account.UnsetPrimary();
+            }
+
+            if (primaryAccount is null)
+            {
+                primaryAccount = new VendorBankAccount(
+                    vendor.Id,
+                    request.BankName,
+                    request.AccountHolderName,
+                    request.Iban,
+                    request.SwiftCode);
+
+                primaryAccount.MarkAsPreferredForSetup();
+                _vendorRepository.AddBankAccount(primaryAccount);
+            }
+            else
+            {
+                primaryAccount.UpdateDetails(
+                    request.BankName,
+                    request.AccountHolderName,
+                    request.Iban,
+                    request.SwiftCode);
+                primaryAccount.MarkAsPreferredForSetup();
+            }
+
+            VendorProfileReviewMutations.ResetSectionToSubmitted(vendor, "banking");
+            await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+            await _vendorReviewAuditService.AppendActivityEntryAsync(
+                vendor.UserId,
+                "profile-banking-updated-for-review",
+                "warning",
+                "Vendor banking details were updated and resubmitted for compliance review.",
+                "Vendor portal",
+                vendor.BusinessNameAr,
+                userId,
+                vendor.BusinessNameAr,
+                cancellationToken);
+
+            await VendorProfileSectionAdminAlerts.NotifySectionReviewAsync(
+                _adminAlertService,
+                vendor,
+                "banking",
+                cancellationToken);
+
+            return await _vendorReadService.GetWorkspaceByUserIdAsync(userId, cancellationToken)
+                ?? throw new NotFoundException("Vendor", userId);
         }
 
         var payload = new VendorBankingProfileChangePayload(
