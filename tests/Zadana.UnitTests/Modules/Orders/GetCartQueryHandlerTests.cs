@@ -4,6 +4,8 @@ using Zadana.Application.Modules.Orders.Queries.GetCart;
 using Zadana.Application.Modules.Orders.Queries.GetCartVendors;
 using Zadana.Application.Modules.Orders.Support;
 using Zadana.Domain.Modules.Catalog.Entities;
+using Zadana.Domain.Modules.Identity.Entities;
+using Zadana.Domain.Modules.Identity.Enums;
 using Zadana.Domain.Modules.Orders.Entities;
 using Zadana.Domain.Modules.Vendors.Entities;
 using Zadana.UnitTests.Common;
@@ -131,6 +133,26 @@ public class GetCartQueryHandlerTests
     }
 
     [Fact]
+    public async Task Handle_DoesNotMarkSelectedVendorItemUnavailable_WhenDefaultAddressDoesNotResolveToBranch()
+    {
+        using var scope = new CultureScope("en");
+        await using var context = TestDbContextFactory.Create();
+
+        var setup = await SeedBranchScopedCartScenarioAsync(context);
+        var handler = new GetCartQueryHandler(context);
+
+        var result = await handler.Handle(new GetCartQuery(CartActor.Create(setup.UserId, null), setup.FirstVendorId), CancellationToken.None);
+
+        result.Items.Should().ContainSingle();
+        result.Items[0].IsAvailable.Should().BeTrue();
+        result.Items[0].AvailabilityStatus.Should().BeNull();
+        result.Items[0].VendorPrices.Should().ContainSingle();
+        result.Summary.HasUnavailableItems.Should().BeFalse();
+        result.Summary.UnavailableItemsCount.Should().Be(0);
+        result.Summary.IsPricingAvailable.Should().BeTrue();
+    }
+
+    [Fact]
     public async Task GetCartVendors_ReturnsAllAvailableVendors()
     {
         using var scope = new CultureScope("en");
@@ -200,6 +222,60 @@ public class GetCartQueryHandlerTests
         await context.SaveChangesAsync();
 
         return seeded;
+    }
+
+    private static async Task<CartScenario> SeedBranchScopedCartScenarioAsync(Infrastructure.Persistence.ApplicationDbContext context)
+    {
+        var seeded = await SeedCatalogOnlyScenarioAsync(context);
+        var cart = new Cart(Guid.NewGuid());
+        cart.Items.Add(new CartItem(cart.Id, seeded.MasterProduct.Id, seeded.MasterProduct.NameEn, 2));
+
+        var customerAddress = new CustomerAddress(
+            cart.UserId!.Value,
+            "Cart Customer",
+            "01000000002",
+            "Cairo Address",
+            AddressLabel.Home,
+            city: "Cairo");
+        customerAddress.SetAsDefault();
+
+        var branch = new VendorBranch(
+            seeded.FirstVendorId,
+            "Dammam Branch",
+            "DAMMAM-1",
+            true,
+            "Dammam Address",
+            "Eastern",
+            "Dammam",
+            26.4207m,
+            50.0888m,
+            "01000000003",
+            "Branch Manager",
+            "01000000004",
+            15m);
+
+        context.Carts.Add(cart);
+        context.CustomerAddresses.Add(customerAddress);
+        context.VendorBranches.Add(branch);
+        await context.SaveChangesAsync();
+
+        var firstVendorWideProduct = context.VendorProducts.Single(product =>
+            product.VendorId == seeded.FirstVendorId &&
+            product.MasterProductId == seeded.MasterProduct.Id &&
+            !product.VendorBranchId.HasValue);
+        context.VendorProducts.Remove(firstVendorWideProduct);
+        await context.SaveChangesAsync();
+
+        context.VendorProducts.Add(new VendorProduct(
+            seeded.FirstVendorId,
+            seeded.MasterProduct.Id,
+            50m,
+            10,
+            60m,
+            vendorBranchId: branch.Id));
+        await context.SaveChangesAsync();
+
+        return new CartScenario(cart.UserId, seeded.MasterProduct, seeded.FirstVendorId, seeded.SecondVendorId);
     }
 
     private static async Task<CartScenario> SeedCartScenarioWithMissingVendorPriceAsync(Infrastructure.Persistence.ApplicationDbContext context)

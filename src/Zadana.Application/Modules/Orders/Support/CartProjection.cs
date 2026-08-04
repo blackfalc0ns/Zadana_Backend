@@ -412,13 +412,14 @@ internal static class CartProjection
             .GroupBy(offer => new { offer.VendorId, offer.MasterProductId })
             .SelectMany(group =>
             {
-                // No branch can serve this address for the vendor -> drop the offer so the
-                // product is reported as "unavailable" for this vendor (the vendor itself
-                // still appears in the cart vendor list).
+                // Cart store switching should reflect the vendor's catalog inventory, not
+                // make the item disappear just because the customer's current/default
+                // address cannot resolve to a branch. Delivery and branch reachability are
+                // validated later by delivery-check/checkout.
                 if (!selectedBranchIdByVendor.TryGetValue(group.Key.VendorId, out var selectedBranchId) ||
                     !selectedBranchId.HasValue)
                 {
-                    return [];
+                    return group.AsEnumerable();
                 }
 
                 var branchOffers = group
@@ -430,10 +431,13 @@ internal static class CartProjection
                     return branchOffers;
                 }
 
-                var hasBranchScopedInventory = group.Any(offer => offer.VendorBranchId.HasValue);
-                return hasBranchScopedInventory
-                    ? []
-                    : group.Where(offer => !offer.VendorBranchId.HasValue);
+                var vendorWideOffers = group
+                    .Where(offer => !offer.VendorBranchId.HasValue)
+                    .ToList();
+
+                return vendorWideOffers.Count > 0
+                    ? vendorWideOffers
+                    : group.ToList();
             })
             .ToList();
     }

@@ -114,8 +114,8 @@ public class GetCartVendorsQueryHandler : IRequestHandler<GetCartVendorsQuery, C
 
         // Intentionally NOT filtered by the customer's address city/branch here: every
         // vendor that carries at least one cart product must stay visible so the customer
-        // can always pick a store. Whether a specific product is actually serviceable for
-        // the customer's address is surfaced per-item as "unavailable" in CartProjection.
+        // can always pick a store. Address delivery reachability is validated later by
+        // delivery-check/checkout instead of hiding the vendor from cart switching.
         var vendorRows = vendorProductRows
             .GroupBy(product => new
             {
