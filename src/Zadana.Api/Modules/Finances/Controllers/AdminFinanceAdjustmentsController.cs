@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Zadana.Api.Controllers;
 using Microsoft.EntityFrameworkCore;
 using Zadana.Api.Authorization;
 using Zadana.Application.Common.Interfaces;
@@ -19,7 +20,7 @@ public sealed class AdminFinanceAdjustmentsController(
     IApplicationDbContext context,
     FinancialEventPostingService financialEventPostingService,
     WalletProjectionUpdater walletProjectionUpdater,
-    FinanceOwnerNameResolver financeOwnerNameResolver) : ControllerBase
+    FinanceOwnerNameResolver financeOwnerNameResolver) : ApiControllerBase
 {
     [HttpGet]
     [RequireAccess(PermissionKeys.Admin.FinancesView)]

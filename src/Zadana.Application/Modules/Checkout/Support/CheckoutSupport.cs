@@ -266,11 +266,6 @@ internal static class CheckoutSupport
             return sameCityBranch.Id;
         }
 
-        if (!string.IsNullOrWhiteSpace(address.City))
-        {
-            return null;
-        }
-
         if (HasUsableCoordinates(address))
         {
             var addressLatitude = address.Latitude!.Value;
@@ -293,6 +288,11 @@ internal static class CheckoutSupport
             {
                 return nearestBranch.Branch.Id;
             }
+        }
+
+        if (!string.IsNullOrWhiteSpace(address.City))
+        {
+            return null;
         }
 
         return branches[0].Id;

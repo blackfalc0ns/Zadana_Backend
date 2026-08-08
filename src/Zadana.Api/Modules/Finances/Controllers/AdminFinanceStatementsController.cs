@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Zadana.Api.Controllers;
 using Microsoft.EntityFrameworkCore;
 using Zadana.Api.Authorization;
 using Zadana.Application.Common.Interfaces;
@@ -12,7 +13,7 @@ namespace Zadana.Api.Modules.Finances.Controllers;
 [Route("api/admin/finances/statements")]
 [Authorize(Policy = "AdminOnly")]
 public sealed class AdminFinanceStatementsController(
-    IApplicationDbContext context) : ControllerBase
+    IApplicationDbContext context) : ApiControllerBase
 {
     [HttpGet("summary")]
     [RequireAccess(PermissionKeys.Admin.FinancesView)]

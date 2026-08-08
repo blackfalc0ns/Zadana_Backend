@@ -54,7 +54,7 @@ public class OrderSupportCaseWorkflowNotificationTests
                 It.Is<AdminAlertRequest>(request =>
                     request.Type == AdminAlertTypes.SupportCreated &&
                     request.Category == AdminAlertCategories.Support &&
-                    request.TargetUrl == "/notifications?category=support"),
+                    request.TargetUrl.StartsWith("/support?tab=legacy&legacyCaseId=", StringComparison.Ordinal)),
                 It.IsAny<CancellationToken>()),
             Times.Once);
 

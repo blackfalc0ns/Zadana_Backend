@@ -1,8 +1,10 @@
 using FluentAssertions;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Localization;
 using Microsoft.Extensions.Logging;
+using Moq;
 using Zadana.Api.Middleware;
 using Zadana.Application.Common.Localization;
 
@@ -52,7 +54,7 @@ public class ExceptionHandlingMiddlewareTests
         context.Response.Body.Position = 0;
         using var reader = new StreamReader(context.Response.Body);
         var body = await reader.ReadToEndAsync();
-        body.Should().Contain("ServerErrorTitle");
+        body.Should().Contain("\"status\":500");
         body.Should().Contain("traceId");
     }
 
@@ -72,6 +74,7 @@ public class ExceptionHandlingMiddlewareTests
     {
         return new ServiceCollection()
             .AddSingleton<IStringLocalizer<SharedResource>, EchoStringLocalizer<SharedResource>>()
+            .AddSingleton(Mock.Of<IWebHostEnvironment>(environment => environment.EnvironmentName == "Testing"))
             .BuildServiceProvider();
     }
 

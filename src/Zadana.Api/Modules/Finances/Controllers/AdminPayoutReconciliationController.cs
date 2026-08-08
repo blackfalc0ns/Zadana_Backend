@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Zadana.Api.Controllers;
 using Microsoft.EntityFrameworkCore;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Modules.Finances.Services;
@@ -20,7 +21,7 @@ namespace Zadana.Api.Modules.Finances.Controllers;
 public sealed class AdminPayoutReconciliationController(
     IApplicationDbContext context,
     PayoutBankReconciliationService reconciliationService,
-    ICurrentUserService currentUserService) : ControllerBase
+    ICurrentUserService currentUserService) : ApiControllerBase
 {
     private const long MaxCsvRequestBytes = 5L * 1024 * 1024 + 16 * 1024;
 

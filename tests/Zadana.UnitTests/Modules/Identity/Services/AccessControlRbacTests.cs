@@ -256,8 +256,8 @@ public class AccessControlRbacTests
             CancellationToken.None);
 
         await act.Should()
-            .ThrowAsync<BadRequestException>()
-            .Where(exception => exception.ErrorCode == "SELF_ACCESS_CHANGE_BLOCKED");
+            .ThrowAsync<BusinessRuleException>()
+            .Where(exception => exception.ErrorCode == "ACCESS_APPROVAL_REQUIRED");
     }
 
     [Fact]
@@ -294,8 +294,8 @@ public class AccessControlRbacTests
             CancellationToken.None);
 
         await act.Should()
-            .ThrowAsync<BadRequestException>()
-            .Where(exception => exception.ErrorCode == "SELF_ACCESS_CHANGE_BLOCKED");
+            .ThrowAsync<BusinessRuleException>()
+            .Where(exception => exception.ErrorCode == "ACCESS_APPROVAL_REQUIRED");
     }
 
     private static PermissionDefinition AddPermission(

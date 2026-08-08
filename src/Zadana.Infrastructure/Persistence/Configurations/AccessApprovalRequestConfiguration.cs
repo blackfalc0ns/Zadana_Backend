@@ -25,8 +25,7 @@ public class AccessApprovalRequestConfiguration : IEntityTypeConfiguration<Acces
             .HasMaxLength(128);
 
         builder.Property(x => x.PayloadJson)
-            .IsRequired()
-            .HasColumnType("nvarchar(max)");
+            .IsRequired();
 
         builder.Property(x => x.Status)
             .IsRequired()

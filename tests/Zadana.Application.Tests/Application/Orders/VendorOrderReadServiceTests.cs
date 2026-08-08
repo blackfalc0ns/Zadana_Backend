@@ -176,7 +176,7 @@ public class VendorOrderReadServiceTests
         result.Should().NotBeNull();
         result!.AssignedDriver.Should().NotBeNull();
         result.AssignedDriver!.Name.Should().Be("Vendor Detail Driver");
-        result.PickupOtp.Should().Be(assignment.PickupOtpCode);
+        result.PickupOtp.Should().BeNull("the vendor must validate the driver's code without being shown it");
         result.CanConfirmPickup.Should().BeTrue();
         result.PickupOtpStatus.Should().Be("pending");
     }

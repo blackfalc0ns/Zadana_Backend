@@ -1406,7 +1406,7 @@ public class VendorAccessController : ApiControllerBase
             string.Equals(team, "orders_clerk", StringComparison.OrdinalIgnoreCase) ||
             string.Equals(team, "inventory_clerk", StringComparison.OrdinalIgnoreCase))
         {
-            return team;
+            return team!;
         }
 
         return string.Equals(roleCode, "vendor_branch_manager", StringComparison.OrdinalIgnoreCase)

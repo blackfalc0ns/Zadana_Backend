@@ -1,6 +1,7 @@
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Zadana.Api.Controllers;
 using Microsoft.EntityFrameworkCore;
 using Zadana.Api.Common.Export;
 using Zadana.Api.Localization;
@@ -32,7 +33,7 @@ public class AdminFinancesController(
     FinancialEventPostingService financialEventPostingService,
     WalletProjectionUpdater walletProjectionUpdater,
     RevenueReconciliationService revenueReconciliationService,
-    FinanceOwnerNameResolver financeOwnerNameResolver) : ControllerBase
+    FinanceOwnerNameResolver financeOwnerNameResolver) : ApiControllerBase
 {
     [HttpGet("dashboard/snapshot")]
     [ProducesResponseType(typeof(AdminFinanceDashboardDto), StatusCodes.Status200OK)]
@@ -138,11 +139,17 @@ public class AdminFinancesController(
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<ActionResult<ZoneFinanceSettingsDto>> UpdatePricingSettings(
         [FromRoute] Guid zoneId,
-        [FromBody] UpdateZoneFinanceSettingsCommand command,
+        [FromBody] UpdateZoneFinanceSettingsRequest request,
         CancellationToken cancellationToken)
     {
-        if (zoneId != command.ZoneId) return BadRequest(ApiLocalizedMessages.Resolve(HttpContext, "ZONE_ID_MISMATCH"));
-
+        var command = new UpdateZoneFinanceSettingsCommand(
+            zoneId,
+            request.VatPercent,
+            request.CodFeeType,
+            request.CodFlatFee,
+            request.CodPercent,
+            request.IsVatActive,
+            request.IsCodFeeActive);
         var result = await mediator.Send(command, cancellationToken);
         return Ok(result);
     }
@@ -152,11 +159,14 @@ public class AdminFinancesController(
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<ActionResult<CityDeliveryPricingSettingsDto>> UpdateCityPricing(
         [FromRoute] Guid cityId,
-        [FromBody] UpdateCityDeliveryPricingSettingsCommand command,
+        [FromBody] UpdateDeliveryPricingRequest request,
         CancellationToken cancellationToken)
     {
-        if (cityId != command.CityId) return BadRequest(ApiLocalizedMessages.Resolve(HttpContext, "CITY_ID_MISMATCH"));
-
+        var command = new UpdateCityDeliveryPricingSettingsCommand(
+            cityId, request.BaseDeliveryFee, request.IncludedKm, request.ExtraKmFee,
+            request.MinDeliveryFee, request.MaxDeliveryFee, request.IsPricingActive,
+            request.VatPercent, request.CodFeeType, request.CodFlatFee, request.CodPercent,
+            request.IsVatActive, request.IsCodFeeActive);
         var result = await mediator.Send(command, cancellationToken);
         return Ok(result);
     }
@@ -166,11 +176,14 @@ public class AdminFinancesController(
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<ActionResult<RegionDeliveryPricingSettingsDto>> UpdateRegionPricing(
         [FromRoute] Guid regionId,
-        [FromBody] UpdateRegionDeliveryPricingSettingsCommand command,
+        [FromBody] UpdateDeliveryPricingRequest request,
         CancellationToken cancellationToken)
     {
-        if (regionId != command.RegionId) return BadRequest(ApiLocalizedMessages.Resolve(HttpContext, "REGION_ID_MISMATCH"));
-
+        var command = new UpdateRegionDeliveryPricingSettingsCommand(
+            regionId, request.BaseDeliveryFee, request.IncludedKm, request.ExtraKmFee,
+            request.MinDeliveryFee, request.MaxDeliveryFee, request.IsPricingActive,
+            request.VatPercent, request.CodFeeType, request.CodFlatFee, request.CodPercent,
+            request.IsVatActive, request.IsCodFeeActive);
         var result = await mediator.Send(command, cancellationToken);
         return Ok(result);
     }
@@ -178,9 +191,16 @@ public class AdminFinancesController(
     [HttpPut("delivery-defaults")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     public async Task<ActionResult<DeliveryPricingDefaultsDto>> UpdateDeliveryDefaults(
-        [FromBody] UpdateDeliveryPricingDefaultsCommand command,
+        [FromBody] UpdateDeliveryPricingDefaultsRequest request,
         CancellationToken cancellationToken)
     {
+        var command = new UpdateDeliveryPricingDefaultsCommand(
+            request.Id, request.BaseDeliveryFee, request.IncludedKm, request.ExtraKmFee,
+            request.MinDeliveryFee, request.MaxDeliveryFee, request.IsPricingActive,
+            request.VatPercent, request.CodFeeType, request.CodFlatFee, request.CodPercent,
+            request.IsVatActive, request.IsCodFeeActive, request.MinTotalDeliveryFee,
+            request.MaxTotalDeliveryFee, request.MaxQuotedDistanceKm,
+            request.WarningSubtotalRatioThreshold);
         var result = await mediator.Send(command, cancellationToken);
         return Ok(result);
     }
@@ -1261,6 +1281,47 @@ public sealed record CreateVendorCodRemittanceRequest(
     string? Reference,
     string? IdempotencyKey,
     Guid? PlatformOwnerId);
+
+public sealed record UpdateZoneFinanceSettingsRequest(
+    decimal VatPercent,
+    string CodFeeType,
+    decimal CodFlatFee,
+    decimal CodPercent,
+    bool IsVatActive,
+    bool IsCodFeeActive);
+
+public sealed record UpdateDeliveryPricingRequest(
+    decimal BaseDeliveryFee,
+    decimal IncludedKm,
+    decimal ExtraKmFee,
+    decimal MinDeliveryFee,
+    decimal MaxDeliveryFee,
+    bool IsPricingActive,
+    decimal VatPercent,
+    string CodFeeType,
+    decimal CodFlatFee,
+    decimal CodPercent,
+    bool IsVatActive,
+    bool IsCodFeeActive);
+
+public sealed record UpdateDeliveryPricingDefaultsRequest(
+    Guid Id,
+    decimal BaseDeliveryFee,
+    decimal IncludedKm,
+    decimal ExtraKmFee,
+    decimal MinDeliveryFee,
+    decimal MaxDeliveryFee,
+    bool IsPricingActive,
+    decimal VatPercent,
+    string CodFeeType,
+    decimal CodFlatFee,
+    decimal CodPercent,
+    bool IsVatActive,
+    bool IsCodFeeActive,
+    decimal MinTotalDeliveryFee,
+    decimal MaxTotalDeliveryFee,
+    decimal MaxQuotedDistanceKm,
+    decimal WarningSubtotalRatioThreshold);
 
 public sealed record AdminVendorCodReconciliationDto(
     Guid VendorId,

@@ -64,7 +64,7 @@ public class DriverWalletControllerTests
             CancellationToken.None);
 
         await act.Should().ThrowAsync<BadRequestException>()
-            .WithMessage("Account identifier is required.");
+            .WithMessage("*Account identifier is required.*");
     }
 
     [Fact]

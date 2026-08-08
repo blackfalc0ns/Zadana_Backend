@@ -47,8 +47,8 @@ public class VendorOrdersControllerTests
         var driverLiveLocation = new DriverLiveLocationDto(24.7441m, 46.7042m, 8.5m, DateTime.UtcNow);
 
         _currentVendorServiceMock
-            .Setup(x => x.GetRequiredVendorIdAsync(It.IsAny<CancellationToken>()))
-            .ReturnsAsync(vendorId);
+            .Setup(x => x.GetRequiredVendorScopeAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new CurrentVendorScope(vendorId, null));
 
         var detail = new VendorOrderDetailDto(
             orderId,

@@ -1,9 +1,9 @@
 using Zadana.Domain.Modules.Vendors.Enums;
 using Zadana.Domain.Modules.Social.Support;
-using Zadana.Domain.Modules.Identity.Services;
 using Zadana.Domain.Modules.Wallets.Enums;
 using Zadana.SharedKernel.Exceptions;
 using Zadana.SharedKernel.Primitives;
+using Zadana.SharedKernel.Security;
 
 namespace Zadana.Domain.Modules.Vendors.Entities;
 

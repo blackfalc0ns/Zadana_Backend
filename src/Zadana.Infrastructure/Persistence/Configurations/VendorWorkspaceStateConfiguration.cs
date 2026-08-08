@@ -17,7 +17,6 @@ public class VendorWorkspaceStateConfiguration : IEntityTypeConfiguration<Vendor
             .IsRequired();
 
         builder.Property(x => x.PayloadJson)
-            .HasColumnType("nvarchar(max)")
             .IsRequired();
 
         builder.HasIndex(x => new { x.VendorId, x.Feature })

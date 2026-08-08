@@ -1,5 +1,6 @@
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.Extensions.DependencyInjection;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Modules.Geography;
@@ -59,8 +60,10 @@ public class GeographyCityResolverTests
     private static GeographyCityResolver CreateResolver()
     {
         var services = new ServiceCollection();
+        var databaseName = Guid.NewGuid().ToString();
+        var databaseRoot = new InMemoryDatabaseRoot();
         services.AddDbContext<ApplicationDbContext>(options =>
-            options.UseInMemoryDatabase(Guid.NewGuid().ToString()));
+            options.UseInMemoryDatabase(databaseName, databaseRoot));
         services.AddSingleton<GeographyCityResolver>();
         services.AddSingleton<IGeographyCityResolver>(provider => provider.GetRequiredService<GeographyCityResolver>());
         var serviceProvider = services.BuildServiceProvider();
@@ -69,7 +72,9 @@ public class GeographyCityResolverTests
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         SeedGeography(db);
 
-        return serviceProvider.GetRequiredService<GeographyCityResolver>();
+        var resolver = serviceProvider.GetRequiredService<GeographyCityResolver>();
+        resolver.RefreshCatalogAsync().GetAwaiter().GetResult();
+        return resolver;
     }
 
     private static void SeedGeography(ApplicationDbContext db)

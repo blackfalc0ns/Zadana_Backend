@@ -71,7 +71,7 @@ public class DriverUpdateOrderStatusCommandHandlerTests
         var driverUser = new User("Driver User", "driver-status.driver@test.com", "01000000112", UserRole.Driver);
         var vendorId = Guid.NewGuid();
 
-        var driver = new Driver(driverUser.Id, DriverVehicleType.Car, "1234567890", "LIC-123");
+        var driver = new Driver(driverUser.Id, DriverVehicleType.Car, "1234567890", "LIC-123", region: "RIYADH", city: "RIYADH");
         driver.Approve(Guid.NewGuid());
 
         var order = CreateOrder(customer.Id, vendorId, OrderStatus.DriverAssigned, "ORD-DRV-PICKUP");
@@ -112,7 +112,7 @@ public class DriverUpdateOrderStatusCommandHandlerTests
         var driverUser = new User("Driver User", "driver-status.driver.delivered@test.com", "01000000118", UserRole.Driver);
         var vendorId = Guid.NewGuid();
 
-        var driver = new Driver(driverUser.Id, DriverVehicleType.Car, "1234567895", "LIC-999");
+        var driver = new Driver(driverUser.Id, DriverVehicleType.Car, "1234567895", "LIC-999", region: "RIYADH", city: "RIYADH");
         driver.Approve(Guid.NewGuid());
 
         var order = CreateOrder(customer.Id, vendorId, OrderStatus.OnTheWay, "ORD-DRV-DELIVERED");
@@ -156,7 +156,7 @@ public class DriverUpdateOrderStatusCommandHandlerTests
         var driverUser = new User("Driver User", "driver-status.driver2@test.com", "01000000114", UserRole.Driver);
         var vendorId = Guid.NewGuid();
 
-        var driver = new Driver(driverUser.Id, DriverVehicleType.Car, "1234567891", "LIC-456");
+        var driver = new Driver(driverUser.Id, DriverVehicleType.Car, "1234567891", "LIC-456", region: "RIYADH", city: "RIYADH");
         driver.Approve(Guid.NewGuid());
 
         var order = CreateOrder(customer.Id, vendorId, OrderStatus.OnTheWay, "ORD-DRV-FAILED");
@@ -197,7 +197,7 @@ public class DriverUpdateOrderStatusCommandHandlerTests
         var driverUser = new User("Driver User", "driver-status.driver.success@test.com", "01000000120", UserRole.Driver);
         var vendorId = Guid.NewGuid();
 
-        var driver = new Driver(driverUser.Id, DriverVehicleType.Car, "1234567896", "LIC-1000");
+        var driver = new Driver(driverUser.Id, DriverVehicleType.Car, "1234567896", "LIC-1000", region: "RIYADH", city: "RIYADH");
         driver.Approve(Guid.NewGuid());
 
         var order = CreateOrder(customer.Id, vendorId, OrderStatus.OnTheWay, "ORD-DRV-SUCCESS");
@@ -243,7 +243,7 @@ public class DriverUpdateOrderStatusCommandHandlerTests
         var driverUser = new User("Driver User", "driver-status.driver.idempotent.pickup@test.com", "01000000122", UserRole.Driver);
         var vendorId = Guid.NewGuid();
 
-        var driver = new Driver(driverUser.Id, DriverVehicleType.Car, "1234567897", "LIC-1001");
+        var driver = new Driver(driverUser.Id, DriverVehicleType.Car, "1234567897", "LIC-1001", region: "RIYADH", city: "RIYADH");
         driver.Approve(Guid.NewGuid());
 
         var order = CreateOrder(customer.Id, vendorId, OrderStatus.PickedUp, "ORD-DRV-IDEMPOTENT-PICKUP");
@@ -289,7 +289,7 @@ public class DriverUpdateOrderStatusCommandHandlerTests
         var driverUser = new User("Driver User", "driver-status.driver.idempotent.delivered@test.com", "01000000124", UserRole.Driver);
         var vendorId = Guid.NewGuid();
 
-        var driver = new Driver(driverUser.Id, DriverVehicleType.Car, "1234567898", "LIC-1002");
+        var driver = new Driver(driverUser.Id, DriverVehicleType.Car, "1234567898", "LIC-1002", region: "RIYADH", city: "RIYADH");
         driver.Approve(Guid.NewGuid());
 
         var order = CreateOrder(customer.Id, vendorId, OrderStatus.Delivered, "ORD-DRV-IDEMPOTENT-DELIVERED");
@@ -339,7 +339,7 @@ public class DriverUpdateOrderStatusCommandHandlerTests
         var vendorId = Guid.NewGuid();
         var masterProductId = Guid.NewGuid();
 
-        var driver = new Driver(driverUser.Id, DriverVehicleType.Car, "1234567811", "LIC-1005");
+        var driver = new Driver(driverUser.Id, DriverVehicleType.Car, "1234567811", "LIC-1005", region: "RIYADH", city: "RIYADH");
         driver.Approve(Guid.NewGuid());
 
         var vendorProduct = new VendorProduct(vendorId, masterProductId, 120m, stockQuantity: 5, tradePrice: 90m);
@@ -385,7 +385,7 @@ public class DriverUpdateOrderStatusCommandHandlerTests
         var vendorId = Guid.NewGuid();
         var masterProductId = Guid.NewGuid();
 
-        var driver = new Driver(driverUser.Id, DriverVehicleType.Car, "1234567812", "LIC-1006");
+        var driver = new Driver(driverUser.Id, DriverVehicleType.Car, "1234567812", "LIC-1006", region: "RIYADH", city: "RIYADH");
         driver.Approve(Guid.NewGuid());
 
         var vendorProduct = new VendorProduct(vendorId, masterProductId, 120m, stockQuantity: 3, tradePrice: 90m);
@@ -433,7 +433,7 @@ public class DriverUpdateOrderStatusCommandHandlerTests
         var vendorId = Guid.NewGuid();
         var masterProductId = Guid.NewGuid();
 
-        var driver = new Driver(driverUser.Id, DriverVehicleType.Car, "1234567813", "LIC-1007");
+        var driver = new Driver(driverUser.Id, DriverVehicleType.Car, "1234567813", "LIC-1007", region: "RIYADH", city: "RIYADH");
         driver.Approve(Guid.NewGuid());
 
         var vendorProduct = new VendorProduct(vendorId, masterProductId, 120m, stockQuantity: 1, tradePrice: 90m);

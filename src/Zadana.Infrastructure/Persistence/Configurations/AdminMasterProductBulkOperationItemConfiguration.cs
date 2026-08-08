@@ -36,8 +36,7 @@ public class AdminMasterProductBulkOperationItemConfiguration : IEntityTypeConfi
         builder.Property(x => x.MeasurementValue)
             .HasColumnType("decimal(18,2)");
 
-        builder.Property(x => x.ImagesJson)
-            .HasColumnType("nvarchar(max)");
+        builder.Property(x => x.ImagesJson);
 
         builder.Property(x => x.ErrorMessage)
             .HasMaxLength(1000);

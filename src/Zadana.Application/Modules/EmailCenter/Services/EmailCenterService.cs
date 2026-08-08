@@ -653,6 +653,9 @@ public sealed class EmailCenterService : IEmailCenterService
         if (!await _context.EmailWorkflowRuleConfigs.AnyAsync(cancellationToken))
         {
             _context.EmailWorkflowRuleConfigs.AddRange(EmailCenterDefaults.BuildWorkflowRules());
+            // Persist the initial rules before synchronizing them. Database queries do not
+            // include Added entities, so syncing first would insert every default twice.
+            await _context.SaveChangesAsync(cancellationToken);
         }
 
         await SyncReducedEmailRulesAsync(cancellationToken);

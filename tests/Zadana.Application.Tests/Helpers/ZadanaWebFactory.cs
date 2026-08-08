@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -30,6 +31,7 @@ public class ZadanaWebFactory : WebApplicationFactory<Program>
     internal const string TestJwtAudience = "ZadanaTestClient";
 
     private readonly string _dbName = Guid.NewGuid().ToString();
+    private readonly InMemoryDatabaseRoot _databaseRoot = new();
     private readonly object _seedSync = new();
     private bool _seeded;
     public TestOtpSink OtpSink { get; } = new();
@@ -75,7 +77,7 @@ public class ZadanaWebFactory : WebApplicationFactory<Program>
             // Register the InMemory database (Program.cs skips SqlServer in Testing env)
             services.AddDbContext<ApplicationDbContext>((sp, options) =>
             {
-                options.UseInMemoryDatabase(_dbName);
+                options.UseInMemoryDatabase(_dbName, _databaseRoot);
                 options.AddInterceptors(sp.GetRequiredService<Zadana.Infrastructure.Persistence.Interceptors.AuditableEntityInterceptor>());
             });
 

@@ -122,7 +122,17 @@ public class CustomerAuth_IntegrationTests : IClassFixture<ZadanaWebFactory>
         var body1 = new { fullName = "User One", email, phone = phone1, password = "P@ssword1", addressLine = "A1" };
         var body2 = new { fullName = "User Two", email, phone = phone2, password = "P@ssword1", addressLine = "A2" };
 
-        await _client.PostAsJsonAsync("/api/customers/auth/register", body1);
+        var firstResponse = await _client.PostAsJsonAsync("/api/customers/auth/register", body1);
+        var firstContent = await firstResponse.Content.ReadAsStringAsync();
+        firstResponse.StatusCode.Should().Be(HttpStatusCode.OK, firstContent);
+        using (var firstDocument = System.Text.Json.JsonDocument.Parse(firstContent))
+        {
+            var registrationToken = firstDocument.RootElement.GetProperty("registrationToken").GetString();
+            var otpCode = _factory.OtpSink.EmailDispatches.Single(d => d.Recipient == email).OtpCode;
+            var verifyResponse = await _client.PostAsJsonAsync("/api/customers/auth/verify-otp",
+                new { identifier = email, otpCode, registrationToken });
+            verifyResponse.StatusCode.Should().Be(HttpStatusCode.OK, await verifyResponse.Content.ReadAsStringAsync());
+        }
         var response = await _client.PostAsJsonAsync("/api/customers/auth/register", body2);
 
         response.StatusCode.Should().Be(HttpStatusCode.Conflict,
@@ -139,12 +149,15 @@ public class CustomerAuth_IntegrationTests : IClassFixture<ZadanaWebFactory>
         var phone = "015" + new Random().Next(10000000, 99999999).ToString();
         var password = "P@ssword1234";
 
-        await _client.PostAsJsonAsync("/api/customers/auth/register",
+        var registerResponse = await _client.PostAsJsonAsync("/api/customers/auth/register",
             new { fullName = "Login Test", email, phone, password, addressLine = "Login Address" });
+        var registerContent = await registerResponse.Content.ReadAsStringAsync();
+        using var registerDocument = System.Text.Json.JsonDocument.Parse(registerContent);
+        var registrationToken = registerDocument.RootElement.GetProperty("registrationToken").GetString();
 
         var otpCode = _factory.OtpSink.EmailDispatches.Single(d => d.Recipient == email).OtpCode;
         await _client.PostAsJsonAsync("/api/customers/auth/verify-otp",
-            new { identifier = email, otpCode });
+            new { identifier = email, otpCode, registrationToken });
 
         // Then login
         var loginBody = new { identifier = email, password };
@@ -165,10 +178,12 @@ public class CustomerAuth_IntegrationTests : IClassFixture<ZadanaWebFactory>
             new { fullName = "Test User", email, phone, password = "CorrectPass1!", addressLine = "Wrong Password Address" });
         var registerContent = await registerResponse.Content.ReadAsStringAsync();
         registerResponse.StatusCode.Should().Be(HttpStatusCode.OK, registerContent);
+        using var registerDocument = System.Text.Json.JsonDocument.Parse(registerContent);
+        var registrationToken = registerDocument.RootElement.GetProperty("registrationToken").GetString();
 
         var otpCode = _factory.OtpSink.EmailDispatches.Single(d => d.Recipient == email).OtpCode;
         var verifyResponse = await _client.PostAsJsonAsync("/api/customers/auth/verify-otp",
-            new { identifier = email, otpCode });
+            new { identifier = email, otpCode, registrationToken });
         verifyResponse.StatusCode.Should().Be(HttpStatusCode.OK, await verifyResponse.Content.ReadAsStringAsync());
 
         var loginBody = new { identifier = email, password = "WrongPassword123" };
@@ -196,12 +211,15 @@ public class CustomerAuth_IntegrationTests : IClassFixture<ZadanaWebFactory>
         var phone = "017" + new Random().Next(10000000, 99999999).ToString();
         var password = "P@ssword1234";
 
-        await _client.PostAsJsonAsync("/api/customers/auth/register",
+        var registerResponse = await _client.PostAsJsonAsync("/api/customers/auth/register",
             new { fullName = "Profile User", email, phone, password, addressLine = "Profile Address" });
+        var registerContent = await registerResponse.Content.ReadAsStringAsync();
+        using var registerDocument = System.Text.Json.JsonDocument.Parse(registerContent);
+        var registrationToken = registerDocument.RootElement.GetProperty("registrationToken").GetString();
 
         var otpCode = _factory.OtpSink.EmailDispatches.Single(d => d.Recipient == email).OtpCode;
         await _client.PostAsJsonAsync("/api/customers/auth/verify-otp",
-            new { identifier = email, otpCode });
+            new { identifier = email, otpCode, registrationToken });
 
         var loginResp = await _client.PostAsJsonAsync("/api/customers/auth/login",
             new { identifier = email, password });
@@ -262,13 +280,15 @@ public class CustomerAuth_IntegrationTests : IClassFixture<ZadanaWebFactory>
 
         var registerContent = await registerResponse.Content.ReadAsStringAsync();
         registerResponse.StatusCode.Should().Be(HttpStatusCode.OK, registerContent);
+        using var registerDocument = System.Text.Json.JsonDocument.Parse(registerContent);
+        var registrationToken = registerDocument.RootElement.GetProperty("registrationToken").GetString();
 
         var otpCode = _factory.OtpSink.EmailDispatches
             .Single(dispatch => dispatch.Recipient == email)
             .OtpCode;
 
         var response = await _client.PostAsJsonAsync("/api/customers/auth/verify-otp",
-            new { identifier = email, otpCode });
+            new { identifier = email, otpCode, registrationToken });
 
         var content = await response.Content.ReadAsStringAsync();
         response.StatusCode.Should().Be(HttpStatusCode.OK, content);

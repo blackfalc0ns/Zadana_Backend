@@ -20,11 +20,9 @@ public class AccessAuditLogConfiguration : IEntityTypeConfiguration<AccessAuditL
             .IsRequired()
             .HasMaxLength(500);
 
-        builder.Property(x => x.BeforeJson)
-            .HasColumnType("nvarchar(max)");
+        builder.Property(x => x.BeforeJson);
 
-        builder.Property(x => x.AfterJson)
-            .HasColumnType("nvarchar(max)");
+        builder.Property(x => x.AfterJson);
 
         builder.Property(x => x.IpAddress)
             .HasMaxLength(100);

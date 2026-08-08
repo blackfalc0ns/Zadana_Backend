@@ -33,7 +33,6 @@ public sealed class PayoutProofAttachmentConfiguration : IEntityTypeConfiguratio
             .IsRequired();
 
         builder.Property(item => item.ProtectedContent)
-            .HasColumnType("varbinary(max)")
             .IsRequired();
 
         builder.Property(item => item.RowVersion)

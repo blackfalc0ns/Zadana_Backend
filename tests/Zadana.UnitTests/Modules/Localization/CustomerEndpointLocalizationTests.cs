@@ -336,7 +336,9 @@ public class CustomerEndpointLocalizationTests
             var resetPassword = await controller.ResetPassword(new ResetPasswordRequest("customer@test.com", "reset-token-value", "Password123!"));
 
             ContainsArabic(GetOkMessage(forgotPassword)).Should().BeTrue();
-            ContainsArabic(((PasswordResetOtpVerifiedDto)GetOkAnonymous(verifyResetOtp)).Message).Should().BeTrue();
+            var verifiedMessage = ((PasswordResetOtpVerifiedDto)GetOkAnonymous(verifyResetOtp)).Message;
+            verifiedMessage.Should().NotBeNull();
+            ContainsArabic(verifiedMessage!).Should().BeTrue();
             ContainsArabic(GetOkMessage(resetPassword)).Should().BeTrue();
 
             var addresses = CreateCustomerAddressesController(null);

@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Zadana.Api.Controllers;
 using Microsoft.EntityFrameworkCore;
 using Zadana.Api.Authorization;
 using Zadana.Api.Modules.Finances.Services;
@@ -19,7 +20,7 @@ public sealed class AdminPayoutsController(
     PayoutOrchestrator payoutOrchestrator,
     PayoutProofAttachmentService payoutProofAttachmentService,
     ISettlementProcessingSettingsService? settlementProcessingSettingsService = null,
-    ICurrentUserService? currentUserService = null) : ControllerBase
+    ICurrentUserService? currentUserService = null) : ApiControllerBase
 {
     [HttpGet]
     [RequireAccess(PermissionKeys.Admin.FinancesView)]

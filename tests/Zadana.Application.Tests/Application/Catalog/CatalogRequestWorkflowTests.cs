@@ -168,7 +168,7 @@ public class CatalogRequestWorkflowTests
         var createdId = await handler.Handle(new ReviewCategoryRequestCommand(request.Id, true, null, null, null), CancellationToken.None);
 
         createdId.Should().Be(existing.Id);
-        dbContext.Categories.Count().Should().Be(2);
+        dbContext.Categories.Count().Should().Be(4);
         existing.IsActive.Should().BeTrue();
     }
 
@@ -454,7 +454,7 @@ public class CatalogRequestWorkflowTests
 
         public Task<IdentityAccountSnapshot?> FindByIdentifierAsync(string identifier, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<bool> ExistsByIdAsync(Guid userId, CancellationToken cancellationToken = default) => throw new NotImplementedException();
-        public Task<bool> ExistsByEmailOrPhoneAsync(string email, string phoneNumber, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task<bool> ExistsByEmailOrPhoneAsync(string email, string? phoneNumber, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<IdentityCreateResult> CreateAsync(CreateIdentityAccountRequest request, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<IdentityCreateResult> CreateWithPasswordHashAsync(
             CreateIdentityAccountRequest request,

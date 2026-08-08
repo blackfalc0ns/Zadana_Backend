@@ -1,6 +1,7 @@
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Zadana.Api.Controllers;
 using Zadana.Application.Modules.Dashboard.DTOs;
 using Zadana.Application.Modules.Dashboard.Queries.GetAdminDashboardOverview;
 
@@ -9,7 +10,7 @@ namespace Zadana.Api.Modules.Dashboard.Controllers;
 [ApiController]
 [Route("api/admin/dashboard")]
 [Authorize(Policy = "AdminOnly")]
-public class AdminDashboardController(IMediator mediator) : ControllerBase
+public class AdminDashboardController(IMediator mediator) : ApiControllerBase
 {
     [HttpGet("overview")]
     [ProducesResponseType(typeof(AdminDashboardOverviewDto), StatusCodes.Status200OK)]

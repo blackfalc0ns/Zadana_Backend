@@ -115,18 +115,28 @@ public class AdminAccessController(
 
     [HttpPost("roles")]
     [RequireAccess(PermissionKeys.Admin.UsersAccessCreate)]
-    public async Task<IActionResult> CreateRole([FromBody] CreateRoleCommand command)
+    public async Task<IActionResult> CreateRole([FromBody] CreateRoleRequest request)
     {
-        var result = await mediator.Send(command);
+        var result = await mediator.Send(new CreateRoleCommand(
+            request.Name,
+            request.Description,
+            request.IdentityRole,
+            request.PanelScope,
+            request.Permissions));
         return Ok(result);
     }
 
     [HttpPut("roles/{id}")]
     [RequireAccess(PermissionKeys.Admin.UsersAccessEdit)]
-    public async Task<IActionResult> UpdateRole(Guid id, [FromBody] UpdateRoleCommand command)
+    public async Task<IActionResult> UpdateRole(Guid id, [FromBody] UpdateRoleRequest request)
     {
-        if (id != command.Id) return BadRequest();
-        var result = await mediator.Send(command);
+        var result = await mediator.Send(new UpdateRoleCommand(
+            id,
+            request.Name,
+            request.Description,
+            request.IdentityRole,
+            request.PanelScope,
+            request.Permissions));
         return Ok(result);
     }
 
@@ -1946,6 +1956,20 @@ public class AdminAccessController(
 }
 
 // Request DTOs
+public record CreateRoleRequest(
+    string Name,
+    string? Description,
+    UserRole IdentityRole,
+    PanelScope PanelScope,
+    List<string> Permissions);
+
+public record UpdateRoleRequest(
+    string Name,
+    string? Description,
+    UserRole IdentityRole,
+    PanelScope PanelScope,
+    List<string> Permissions);
+
 public record UpdateUserScopeRequest(
     Guid RoleDefinitionId,
     PanelScope PanelScope,

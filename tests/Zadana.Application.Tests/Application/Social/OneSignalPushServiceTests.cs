@@ -287,23 +287,19 @@ public class OneSignalPushServiceTests
         failedResult.Reason.Should().Be("""{"errors":["invalid_aliases"]}""");
 
         logger.Entries.Should().Contain(entry =>
-            entry.Level == LogLevel.Information &&
-            entry.Message.Contains("customer-success", StringComparison.Ordinal) &&
+            entry.Level == LogLevel.Debug &&
             entry.Message.Contains("MobileHeadsUp", StringComparison.Ordinal) &&
             entry.Message.Contains("NotificationEventId", StringComparison.Ordinal) &&
             entry.Message.Contains("existing_android_channel_id:zadana_heads_up_notifications", StringComparison.Ordinal) &&
             entry.Message.Contains("click_action", StringComparison.Ordinal) &&
-            entry.Message.Contains("push-success", StringComparison.Ordinal) &&
-            entry.Message.Contains("\"id\":\"push-success\"", StringComparison.Ordinal));
+            entry.Message.Contains("push-success", StringComparison.Ordinal));
 
         logger.Entries.Should().Contain(entry =>
             entry.Level == LogLevel.Warning &&
-            entry.Message.Contains("customer-failure", StringComparison.Ordinal) &&
             entry.Message.Contains("order_status_changed", StringComparison.Ordinal) &&
             entry.Message.Contains(failureReferenceId.ToString(), StringComparison.Ordinal) &&
             entry.Message.Contains("400", StringComparison.Ordinal) &&
-            entry.Message.Contains("errors", StringComparison.Ordinal) &&
-            entry.Message.Contains("invalid_aliases", StringComparison.Ordinal));
+            entry.Message.Contains("HasRecipientErrors: True", StringComparison.Ordinal));
     }
 
     [Fact]

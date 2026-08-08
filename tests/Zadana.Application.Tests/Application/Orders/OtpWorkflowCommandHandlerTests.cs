@@ -32,7 +32,7 @@ public class OtpWorkflowCommandHandlerTests
         var vendorUser = new User("Vendor User", "otp.vendor.pickup@test.com", "01000000131", UserRole.Vendor);
         var driverUser = new User("Driver User", "otp.driver.pickup@test.com", "01000000132", UserRole.Driver);
         var vendor = CreateVendor(vendorUser.Id);
-        var driver = new Driver(driverUser.Id, DriverVehicleType.Car, "1234567899", "LIC-1003");
+        var driver = new Driver(driverUser.Id, DriverVehicleType.Car, "1234567899", "LIC-1003", region: "RIYADH", city: "RIYADH");
         driver.Approve(Guid.NewGuid());
         var masterProductId = Guid.NewGuid();
         var vendorProduct = new VendorProduct(vendor.Id, masterProductId, 120m, stockQuantity: 4, tradePrice: 90m);
@@ -92,8 +92,8 @@ public class OtpWorkflowCommandHandlerTests
         var staleDriverUser = new User("Stale Driver User", "otp.driver.stale@test.com", "01000000138", UserRole.Driver);
         var currentDriverUser = new User("Current Driver User", "otp.driver.current@test.com", "01000000139", UserRole.Driver);
         var vendor = CreateVendor(vendorUser.Id);
-        var staleDriver = new Driver(staleDriverUser.Id, DriverVehicleType.Car, "1234567801", "LIC-2001");
-        var currentDriver = new Driver(currentDriverUser.Id, DriverVehicleType.Car, "1234567802", "LIC-2002");
+        var staleDriver = new Driver(staleDriverUser.Id, DriverVehicleType.Car, "1234567801", "LIC-2001", region: "RIYADH", city: "RIYADH");
+        var currentDriver = new Driver(currentDriverUser.Id, DriverVehicleType.Car, "1234567802", "LIC-2002", region: "RIYADH", city: "RIYADH");
         staleDriver.Approve(Guid.NewGuid());
         currentDriver.Approve(Guid.NewGuid());
         var masterProductId = Guid.NewGuid();
@@ -158,7 +158,7 @@ public class OtpWorkflowCommandHandlerTests
         await using var dbContext = CreateDbContext();
         var customer = new User("Customer User", "otp.customer.delivery@test.com", "01000000133", UserRole.Customer);
         var driverUser = new User("Driver User", "otp.driver.delivery@test.com", "01000000134", UserRole.Driver);
-        var driver = new Driver(driverUser.Id, DriverVehicleType.Car, "2234567899", "LIC-1004");
+        var driver = new Driver(driverUser.Id, DriverVehicleType.Car, "2234567899", "LIC-1004", region: "RIYADH", city: "RIYADH");
         driver.Approve(Guid.NewGuid());
         var vendorId = Guid.NewGuid();
         var masterProductId = Guid.NewGuid();
@@ -221,7 +221,7 @@ public class OtpWorkflowCommandHandlerTests
         await using var dbContext = CreateDbContext();
         var customer = new User("Customer User", "otp.customer.pickup.retry@test.com", "01000000141", UserRole.Customer);
         var driverUser = new User("Driver User", "otp.driver.pickup.retry@test.com", "01000000142", UserRole.Driver);
-        var driver = new Driver(driverUser.Id, DriverVehicleType.Car, "2234567888", "LIC-1008");
+        var driver = new Driver(driverUser.Id, DriverVehicleType.Car, "2234567888", "LIC-1008", region: "RIYADH", city: "RIYADH");
         driver.Approve(Guid.NewGuid());
         var vendorId = Guid.NewGuid();
         var masterProductId = Guid.NewGuid();

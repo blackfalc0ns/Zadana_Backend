@@ -24,6 +24,7 @@ public class AdminAuth_IntegrationTests : IClassFixture<ZadanaWebFactory>
     [Fact]
     public async Task AdminLogin_WithValidCredentials_ReturnsToken()
     {
+        await EnsureCsrfAsync();
         var body = new { identifier = "admin@test.com", password = "Admin@123" };
         var response = await _client.PostAsJsonAsync("/api/admin/auth/login", body);
 
@@ -35,11 +36,21 @@ public class AdminAuth_IntegrationTests : IClassFixture<ZadanaWebFactory>
     [Fact]
     public async Task AdminLogin_WithWrongPassword_Returns401()
     {
+        await EnsureCsrfAsync();
         var body = new { identifier = "admin@test.com", password = "WrongPassword" };
         var response = await _client.PostAsJsonAsync("/api/admin/auth/login", body);
 
         response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
     }
+
+    private async Task EnsureCsrfAsync()
+    {
+        var csrf = await _client.GetFromJsonAsync<CsrfTokenResponse>("/api/admin/auth/csrf");
+        _client.DefaultRequestHeaders.Remove("X-XSRF-TOKEN");
+        _client.DefaultRequestHeaders.Add("X-XSRF-TOKEN", csrf!.CsrfToken);
+    }
+
+    private sealed record CsrfTokenResponse(string CsrfToken);
 
     [Fact]
     public async Task GetAdminMe_WithoutToken_Returns401()

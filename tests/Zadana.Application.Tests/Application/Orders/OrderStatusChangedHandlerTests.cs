@@ -108,6 +108,8 @@ public class OrderStatusChangedHandlerTests
                 It.IsAny<Guid?>(),
                 It.IsAny<string?>(),
                 It.IsAny<string?>(),
+                It.IsAny<OneSignalPushProfile>(),
+                OneSignalApplicationTarget.VendorWeb,
                 It.IsAny<CancellationToken>()),
             Times.Once);
 
@@ -198,6 +200,8 @@ public class OrderStatusChangedHandlerTests
                 It.IsAny<Guid?>(),
                 It.IsAny<string?>(),
                 It.IsAny<string?>(),
+                It.IsAny<OneSignalPushProfile>(),
+                OneSignalApplicationTarget.VendorWeb,
                 It.IsAny<CancellationToken>()),
             Times.Once);
 
@@ -973,6 +977,27 @@ public class OrderStatusChangedHandlerTests
                 It.IsAny<string?>(),
                 It.IsAny<string?>(),
                 It.IsAny<OneSignalPushProfile>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new OneSignalPushDispatchResult(
+                Attempted: true,
+                Sent: true,
+                Skipped: false,
+                ProviderStatusCode: 200,
+                ProviderNotificationId: "push-id",
+                Reason: null));
+        pushServiceMock
+            .Setup(service => service.SendToExternalUserAsync(
+                It.IsAny<string>(),
+                It.IsAny<string>(),
+                It.IsAny<string>(),
+                It.IsAny<string>(),
+                It.IsAny<string>(),
+                It.IsAny<string?>(),
+                It.IsAny<Guid?>(),
+                It.IsAny<string?>(),
+                It.IsAny<string?>(),
+                It.IsAny<OneSignalPushProfile>(),
+                It.IsAny<OneSignalApplicationTarget>(),
                 It.IsAny<CancellationToken>()))
             .ReturnsAsync(new OneSignalPushDispatchResult(
                 Attempted: true,

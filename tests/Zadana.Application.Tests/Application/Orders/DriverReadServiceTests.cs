@@ -5,6 +5,7 @@ using System.Text.Json;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Modules.Delivery.DTOs;
 using Zadana.Application.Modules.Delivery.Interfaces;
+using Zadana.Domain.Modules.Catalog.Entities;
 using Zadana.Domain.Modules.Delivery.Entities;
 using Zadana.Domain.Modules.Delivery.Enums;
 using Zadana.Domain.Modules.Identity.Entities;
@@ -33,7 +34,12 @@ public class DriverReadServiceTests
         var vendor = CreateVendor();
         var branch = CreateBranch(vendor.Id);
         var address = CreateCustomerAddress(customer.Id);
+        var category = new Category("Fresh", "Fresh");
+        var masterProduct = new MasterProduct("Fresh Item", "Fresh Item", $"fresh-item-{Guid.NewGuid():N}", category.Id);
+        var vendorProduct = new VendorProduct(vendor.Id, masterProduct.Id, 50m, 10, tradePrice: 40m, vendorBranchId: branch.Id);
         var order = CreateOrder(customer.Id, vendor.Id, branch.Id, address.Id, OrderStatus.DriverAssigned, "ORD-DETAIL-01");
+        order.Items.Clear();
+        order.Items.Add(new OrderItem(order.Id, vendorProduct.Id, masterProduct.Id, "Fresh Item", 2, 50m));
         var assignment = new DeliveryAssignment(order.Id, 60m);
 
         assignment.OfferTo(driver.Id, 1, DateTime.UtcNow.AddMinutes(5));
@@ -45,6 +51,9 @@ public class DriverReadServiceTests
         dbContext.Vendors.Add(vendor);
         dbContext.VendorBranches.Add(branch);
         dbContext.CustomerAddresses.Add(address);
+        dbContext.Categories.Add(category);
+        dbContext.MasterProducts.Add(masterProduct);
+        dbContext.VendorProducts.Add(vendorProduct);
         dbContext.Drivers.Add(driver);
         dbContext.Orders.Add(order);
         dbContext.DeliveryAssignments.Add(assignment);
@@ -625,8 +634,8 @@ public class DriverReadServiceTests
         result.NationalId.Should().Be(payload.NationalId);
         result.LicenseNumber.Should().Be(payload.LicenseNumber);
         result.VehicleLicenseNumber.Should().Be(payload.VehicleLicenseNumber);
-        result.Operations.Region.Should().Be(payload.Region);
-        result.Operations.City.Should().Be(payload.City);
+        result.Operations.Region.Should().Be("Eastern Region");
+        result.Operations.City.Should().Be("Dammam");
         result.Documents.Single(document => document.DocumentType == "NationalId").Number.Should().Be(payload.NationalId);
         result.Documents.Single(document => document.DocumentType == "DriverLicense").Number.Should().Be(payload.LicenseNumber);
         result.Documents.Single(document => document.DocumentType == "VehicleLicense").Number.Should().Be(payload.VehicleLicenseNumber);

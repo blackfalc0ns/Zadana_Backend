@@ -23,9 +23,9 @@ public class EmailDispatchLogConfiguration : IEntityTypeConfiguration<EmailDispa
         builder.Property(x => x.FailureReason).HasMaxLength(2000);
         builder.Property(x => x.EventKey).HasMaxLength(100);
 
-        builder.Property(x => x.ToRecipientsJson).HasColumnType("nvarchar(max)").IsRequired();
-        builder.Property(x => x.CcRecipientsJson).HasColumnType("nvarchar(max)").IsRequired();
-        builder.Property(x => x.BccRecipientsJson).HasColumnType("nvarchar(max)").IsRequired();
+        builder.Property(x => x.ToRecipientsJson).IsRequired();
+        builder.Property(x => x.CcRecipientsJson).IsRequired();
+        builder.Property(x => x.BccRecipientsJson).IsRequired();
 
         builder.HasIndex(x => new { x.RuleKey, x.CreatedAtUtc })
             .HasDatabaseName("IX_EmailDispatchLogs_RuleKey_CreatedAtUtc");

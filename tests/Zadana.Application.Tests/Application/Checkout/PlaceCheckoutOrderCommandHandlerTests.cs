@@ -159,7 +159,8 @@ public class PlaceCheckoutOrderCommandHandlerTests
         savedOrder.StatusHistory
             .Select(history => history.NewStatus)
             .Should()
-            .ContainInOrder(OrderStatus.Placed, OrderStatus.PendingVendorAcceptance);
+            .ContainSingle()
+            .Which.Should().Be(OrderStatus.PendingVendorAcceptance);
 
         vendorProduct.StockQuantity.Should().Be(9);
         var savedOrderItem = await dbContext.OrderItems.SingleAsync();

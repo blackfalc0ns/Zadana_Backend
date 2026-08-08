@@ -63,11 +63,9 @@ public class SystemLogEntryConfiguration : IEntityTypeConfiguration<SystemLogEnt
         builder.Property(x => x.QueryString)
             .HasMaxLength(1000);
 
-        builder.Property(x => x.RequestPayloadJson)
-            .HasColumnType("nvarchar(max)");
+        builder.Property(x => x.RequestPayloadJson);
 
-        builder.Property(x => x.MetadataJson)
-            .HasColumnType("nvarchar(max)");
+        builder.Property(x => x.MetadataJson);
 
         builder.Property(x => x.ErrorMessage)
             .HasMaxLength(1000);

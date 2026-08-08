@@ -60,7 +60,7 @@ public class DriverCommitmentPolicyServiceTests
         summary.DailyRejections.Should().Be(3);
         summary.CanReceiveOffers.Should().BeFalse();
         summary.EnforcementLevel.Should().Be(DriverCommitmentEnforcementLevel.SoftBlocked.ToString());
-        summary.RestrictionMessage.Should().Contain("تم تقييد الحساب");
+        summary.RestrictionMessage.Should().Contain("قيّدنا الحساب مؤقتًا");
         summary.RestrictionMessageEn.Should().Contain("temporarily restricted");
         summary.RestrictionMessageEn.Should().NotContain("\n");
     }

@@ -24,9 +24,11 @@ public class OnlinePaymentCaptureServiceTests
 
         var entry = context.JournalEntries.Include(x => x.Lines).Single();
         entry.Lines.Sum(l => l.DebitAmount).Should().Be(entry.Lines.Sum(l => l.CreditAmount));
-        entry.Lines.Should().HaveCount(2);
+        entry.Lines.Should().HaveCount(4);
         entry.Lines.Should().ContainSingle(l => l.AccountCode == FinancialAccountCode.GatewayReceivable && l.DebitAmount == 130.75m);
         entry.Lines.Should().ContainSingle(l => l.AccountCode == FinancialAccountCode.CustomerAdvance && l.CreditAmount == 130.75m);
+        entry.Lines.Should().ContainSingle(l => l.AccountCode == FinancialAccountCode.GatewayFeeExpense && l.DebitAmount == 4.60m);
+        entry.Lines.Should().ContainSingle(l => l.AccountCode == FinancialAccountCode.GatewayReceivable && l.CreditAmount == 4.60m);
     }
 
     [Fact]

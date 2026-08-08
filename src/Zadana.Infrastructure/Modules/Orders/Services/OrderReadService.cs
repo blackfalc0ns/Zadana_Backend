@@ -1242,7 +1242,7 @@ public class OrderReadService : IOrderReadService
             order.Id,
             order.PlacedAtUtc,
             order.TotalAmount,
-            MapStatus(order.Status),
+            order.Status == OrderStatus.Refunded ? "returning" : MapStatus(order.Status),
             MapCustomerPaymentStatus(order.PaymentStatus),
             MapCustomerPaymentMethod(order.PaymentMethod),
             CanRetryPayment(order),

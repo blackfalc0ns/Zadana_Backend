@@ -9,7 +9,7 @@ public static class GeographyCityNormalization
             return null;
         }
 
-        return value.Trim().ToLowerInvariant()
+        var normalized = value.Trim().ToLowerInvariant()
             .Replace(" ", string.Empty)
             .Replace("-", string.Empty)
             .Replace("_", string.Empty)
@@ -18,5 +18,7 @@ public static class GeographyCityNormalization
             .Replace("آ", "ا")
             .Replace("ى", "ي")
             .Replace("ة", "ه");
+
+        return GeographyCityAliases.MapAliasKey(normalized);
     }
 }

@@ -25,11 +25,11 @@ public class EmailWorkflowRuleConfigConfiguration : IEntityTypeConfiguration<Ema
         builder.Property(x => x.AutomationState).HasMaxLength(50).IsRequired();
         builder.Property(x => x.EventKey).HasMaxLength(100);
 
-        builder.Property(x => x.PersonaTargetsJson).HasColumnType("nvarchar(max)").IsRequired();
-        builder.Property(x => x.EntityScopeJson).HasColumnType("nvarchar(max)").IsRequired();
-        builder.Property(x => x.RecipientTargetsJson).HasColumnType("nvarchar(max)").IsRequired();
-        builder.Property(x => x.RouteJson).HasColumnType("nvarchar(max)").IsRequired();
-        builder.Property(x => x.TemplateJson).HasColumnType("nvarchar(max)").IsRequired();
+        builder.Property(x => x.PersonaTargetsJson).IsRequired();
+        builder.Property(x => x.EntityScopeJson).IsRequired();
+        builder.Property(x => x.RecipientTargetsJson).IsRequired();
+        builder.Property(x => x.RouteJson).IsRequired();
+        builder.Property(x => x.TemplateJson).IsRequired();
 
         builder.HasIndex(x => x.RuleKey)
             .IsUnique()

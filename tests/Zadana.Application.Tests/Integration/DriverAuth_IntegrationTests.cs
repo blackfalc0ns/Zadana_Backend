@@ -73,6 +73,8 @@ public class DriverAuth_IntegrationTests : IClassFixture<ZadanaWebFactory>
             BuildDriverRegisterBody(email, password));
         var registerContent = await registerResponse.Content.ReadAsStringAsync();
         registerResponse.StatusCode.Should().Be(HttpStatusCode.OK, registerContent);
+        using var registerDocument = JsonDocument.Parse(registerContent);
+        var registrationToken = registerDocument.RootElement.GetProperty("registrationToken").GetString();
 
         var otpCode = _factory.OtpSink.EmailDispatches
             .Single(dispatch => dispatch.Recipient == email)
@@ -80,7 +82,7 @@ public class DriverAuth_IntegrationTests : IClassFixture<ZadanaWebFactory>
 
         var verifyResponse = await _client.PostAsJsonAsync(
             "/api/drivers/auth/verify-otp",
-            new { identifier = email, otpCode });
+            new { identifier = email, otpCode, registrationToken });
         var verifyContent = await verifyResponse.Content.ReadAsStringAsync();
         verifyResponse.StatusCode.Should().Be(HttpStatusCode.OK, verifyContent);
 
@@ -109,6 +111,8 @@ public class DriverAuth_IntegrationTests : IClassFixture<ZadanaWebFactory>
 
         var registerContent = await registerResponse.Content.ReadAsStringAsync();
         registerResponse.StatusCode.Should().Be(HttpStatusCode.OK, registerContent);
+        using var registerDocument = JsonDocument.Parse(registerContent);
+        var registrationToken = registerDocument.RootElement.GetProperty("registrationToken").GetString();
 
         var otpCode = _factory.OtpSink.EmailDispatches
             .Single(dispatch => dispatch.Recipient == email)
@@ -116,7 +120,7 @@ public class DriverAuth_IntegrationTests : IClassFixture<ZadanaWebFactory>
 
         var verifyResponse = await _client.PostAsJsonAsync(
             "/api/drivers/auth/verify-otp",
-            new { identifier = email, otpCode });
+            new { identifier = email, otpCode, registrationToken });
         var verifyContent = await verifyResponse.Content.ReadAsStringAsync();
         verifyResponse.StatusCode.Should().Be(HttpStatusCode.OK, verifyContent);
 

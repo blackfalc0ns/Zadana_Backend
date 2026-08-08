@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Zadana.Api.Controllers;
 using Microsoft.EntityFrameworkCore;
 using Zadana.Api.Authorization;
 using Zadana.Api.Common.Export;
@@ -25,7 +26,7 @@ public sealed class AdminSettlementsController(
     VendorPayoutWalletService vendorPayoutWalletService,
     FinanceOwnerNameResolver financeOwnerNameResolver,
     ISettlementProcessingSettingsService? settlementProcessingSettingsService = null,
-    ICurrentUserService? currentUserService = null) : ControllerBase
+    ICurrentUserService? currentUserService = null) : ApiControllerBase
 {
     [HttpGet]
     [RequireAccess(PermissionKeys.Admin.FinancesView)]

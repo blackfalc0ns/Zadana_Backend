@@ -29,11 +29,9 @@ public class VendorStaffInvitationConfiguration : IEntityTypeConfiguration<Vendo
             .IsRequired();
 
         builder.Property(x => x.BranchIdsJson)
-            .HasColumnType("nvarchar(max)")
             .IsRequired();
 
         builder.Property(x => x.PermissionsJson)
-            .HasColumnType("nvarchar(max)")
             .IsRequired();
 
         builder.Property(x => x.TokenHash)

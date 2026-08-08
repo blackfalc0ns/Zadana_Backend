@@ -33,7 +33,7 @@ public class DriverArrivalStateCommandHandlerTests
         var vendorUser = new User("Vendor User", "arrival.vendor@test.com", "01000000132", UserRole.Vendor);
         var driverUser = new User("Driver User", "arrival.driver@test.com", "01000000133", UserRole.Driver);
         var vendor = new Vendor(vendorUser.Id, "متجر", "Store", "Groceries", "CR-ARR-1", "arrival.vendor@test.com", "01000000132", city: "Riyadh");
-        var driver = new Driver(driverUser.Id, DriverVehicleType.Car, "1234567890", "CAR-123");
+        var driver = new Driver(driverUser.Id, DriverVehicleType.Car, "1234567890", "CAR-123", region: "RIYADH", city: "RIYADH");
         driver.Approve(Guid.NewGuid());
 
         var order = new Order("ORD-ARR-001", customer.Id, vendor.Id, Guid.NewGuid(), PaymentMethodType.Card, 100m, 0m, 10m, 10m, 0m, 0m, null, null, null, 0m, 0m, 0m, 0m, null, null, false, null, null, null, null, 1, false, 5m);
@@ -104,7 +104,7 @@ public class DriverArrivalStateCommandHandlerTests
         var vendorUser = new User("Vendor User", "arrival.vendor2@test.com", "01000000135", UserRole.Vendor);
         var driverUser = new User("Driver User", "arrival.driver2@test.com", "01000000136", UserRole.Driver);
         var vendor = new Vendor(vendorUser.Id, "متجر", "Store", "Groceries", "CR-ARR-2", "arrival.vendor2@test.com", "01000000135", city: "Riyadh");
-        var driver = new Driver(driverUser.Id, DriverVehicleType.Car, "1234567891", "CAR-124");
+        var driver = new Driver(driverUser.Id, DriverVehicleType.Car, "1234567891", "CAR-124", region: "RIYADH", city: "RIYADH");
         driver.Approve(Guid.NewGuid());
 
         var order = new Order("ORD-ARR-002", customer.Id, vendor.Id, Guid.NewGuid(), PaymentMethodType.Card, 100m, 0m, 10m, 10m, 0m, 0m, null, null, null, 0m, 0m, 0m, 0m, null, null, false, null, null, null, null, 1, false, 5m);
@@ -201,7 +201,7 @@ public class DriverArrivalStateCommandHandlerTests
         var vendorUser = new User("Vendor User", "arrival.vendor3@test.com", "01000000138", UserRole.Vendor);
         var driverUser = new User("Driver User", "arrival.driver3@test.com", "01000000139", UserRole.Driver);
         var vendor = new Vendor(vendorUser.Id, "متجر", "Store", "Groceries", "CR-ARR-3", "arrival.vendor3@test.com", "01000000138", city: "Riyadh");
-        var driver = new Driver(driverUser.Id, DriverVehicleType.Car, "1234567892", "CAR-125");
+        var driver = new Driver(driverUser.Id, DriverVehicleType.Car, "1234567892", "CAR-125", region: "RIYADH", city: "RIYADH");
         driver.Approve(Guid.NewGuid());
 
         var order = new Order("ORD-ARR-003", customer.Id, vendor.Id, Guid.NewGuid(), PaymentMethodType.Card, 100m, 0m, 10m, 10m, 0m, 0m, null, null, null, 0m, 0m, 0m, 0m, null, null, false, null, null, null, null, 1, false, 5m);
@@ -277,7 +277,7 @@ public class DriverArrivalStateCommandHandlerTests
         var vendorUser = new User("Vendor User", "arrival.vendor4@test.com", "01000000141", UserRole.Vendor);
         var driverUser = new User("Driver User", "arrival.driver4@test.com", "01000000142", UserRole.Driver);
         var vendor = new Vendor(vendorUser.Id, "متجر", "Store", "Groceries", "CR-ARR-4", "arrival.vendor4@test.com", "01000000141", city: "Riyadh");
-        var driver = new Driver(driverUser.Id, DriverVehicleType.Car, "1234567893", "CAR-126");
+        var driver = new Driver(driverUser.Id, DriverVehicleType.Car, "1234567893", "CAR-126", region: "RIYADH", city: "RIYADH");
         driver.Approve(Guid.NewGuid());
 
         var order = new Order("ORD-ARR-004", customer.Id, vendor.Id, Guid.NewGuid(), PaymentMethodType.Card, 100m, 0m, 10m, 10m, 0m, 0m, null, null, null, 0m, 0m, 0m, 0m, null, null, false, null, null, null, null, 1, false, 5m);

@@ -48,7 +48,7 @@ public class AdminOrdersControllerRefundTests
         var orderReadService = new Mock<IOrderReadService>();
         orderReadService
             .Setup(service => service.GetAdminOrderDetailAsync(order.Id, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(CreateAdminOrderDetail(order.Id));
+            .ReturnsAsync(CreateAdminOrderDetail(order.Id, customer.Id));
 
         var notificationDispatcher = new Mock<IOrderStatusNotificationDispatcher>();
         notificationDispatcher
@@ -149,7 +149,7 @@ public class AdminOrdersControllerRefundTests
         var orderReadService = new Mock<IOrderReadService>();
         orderReadService
             .Setup(service => service.GetAdminOrderDetailAsync(order.Id, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(CreateAdminOrderDetail(order.Id));
+            .ReturnsAsync(CreateAdminOrderDetail(order.Id, customer.Id));
 
         var notificationDispatcher = new Mock<IOrderStatusNotificationDispatcher>();
         notificationDispatcher
@@ -233,7 +233,7 @@ public class AdminOrdersControllerRefundTests
             false,
             5m);
 
-    private static AdminOrderDetailDto CreateAdminOrderDetail(Guid orderId) =>
+    private static AdminOrderDetailDto CreateAdminOrderDetail(Guid orderId, Guid customerUserId) =>
         new(
             orderId,
             "ORD-ADMIN-REFUND",
@@ -241,6 +241,7 @@ public class AdminOrdersControllerRefundTests
             "01000000001",
             "admin.refund.customer@test.com",
             "Test address",
+            customerUserId,
             "Test merchant",
             "Main branch",
             "Riyadh",
@@ -257,6 +258,13 @@ public class AdminOrdersControllerRefundTests
             "cancelled",
             "partially_refunded",
             "cancelled",
+            "Delivery",
+            "not_applicable",
+            0,
+            null,
+            null,
+            null,
+            [],
             "none",
             string.Empty,
             string.Empty,
