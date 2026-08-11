@@ -168,11 +168,14 @@ public class AdminVendorsControllerTests
     public async Task RejectVendor_ReturnsOkResult_WithLocalizedMessage()
     {
         var vendorId = Guid.NewGuid();
-        var request = new RejectVendorRequest("Missing documents");
+        var request = new RejectVendorRequest("Missing documents", "commercial");
 
         var result = await _controller.RejectVendor(vendorId, request);
 
-        _senderMock.Verify(sender => sender.Send(It.Is<RejectVendorCommand>(command => command.VendorId == vendorId && command.Reason == "Missing documents"), default), Times.Once);
+        _senderMock.Verify(sender => sender.Send(It.Is<RejectVendorCommand>(command =>
+            command.VendorId == vendorId
+            && command.Reason == "Missing documents"
+            && command.DocumentId == "commercial"), default), Times.Once);
         result.Should().BeOfType<OkObjectResult>();
     }
 
@@ -214,12 +217,14 @@ public class AdminVendorsControllerTests
     public async Task RequestVendorDocuments_ReturnsOkResult()
     {
         var vendorId = Guid.NewGuid();
-        var request = new AdminRequestVendorDocumentsRequest("Need fresh tax and license files.");
+        var request = new AdminRequestVendorDocumentsRequest("Need a fresh tax file.", "tax");
 
         var result = await _controller.RequestVendorDocuments(vendorId, request);
 
         _senderMock.Verify(sender => sender.Send(It.Is<RequestVendorDocumentsCommand>(command =>
-            command.VendorId == vendorId && command.Note == request.Note), default), Times.Once);
+            command.VendorId == vendorId
+            && command.Note == request.Note
+            && command.DocumentId == request.DocumentId), default), Times.Once);
         result.Should().BeOfType<OkObjectResult>();
     }
 

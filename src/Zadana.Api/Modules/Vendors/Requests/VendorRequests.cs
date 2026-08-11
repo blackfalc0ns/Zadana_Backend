@@ -119,7 +119,7 @@ public record UpdateVendorNotificationSettingsRequest(
 
 public record ApproveVendorRequest(decimal CommissionRate);
 
-public record RejectVendorRequest(string Reason);
+public record RejectVendorRequest(string Reason, string? DocumentId = null);
 
 public record SuspendVendorRequest(string Reason);
 
@@ -202,7 +202,7 @@ public record AdminUpdateVendorFinanceSettingsRequest(
     string? PayoutCycle,
     string? PayoutDay = null);
 
-public record AdminRequestVendorDocumentsRequest(string Note);
+public record AdminRequestVendorDocumentsRequest(string Note, string DocumentId);
 
 public record AdminAddVendorReviewNoteRequest(
     string Message,

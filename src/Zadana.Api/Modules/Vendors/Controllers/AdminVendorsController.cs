@@ -490,7 +490,7 @@ public class AdminVendorsController : ApiControllerBase
     [HttpPost("{vendorId:guid}/request-documents")]
     public async Task<IActionResult> RequestVendorDocuments(Guid vendorId, [FromBody] AdminRequestVendorDocumentsRequest request)
     {
-        var result = await Sender.Send(new RequestVendorDocumentsCommand(vendorId, request.Note));
+        var result = await Sender.Send(new RequestVendorDocumentsCommand(vendorId, request.DocumentId, request.Note));
         return Ok(result);
     }
 
@@ -588,7 +588,7 @@ public class AdminVendorsController : ApiControllerBase
     [HttpPost("{vendorId:guid}/reject")]
     public async Task<IActionResult> RejectVendor(Guid vendorId, [FromBody] RejectVendorRequest request)
     {
-        await Sender.Send(new RejectVendorCommand(vendorId, request.Reason));
+        await Sender.Send(new RejectVendorCommand(vendorId, request.Reason, request.DocumentId));
         return Ok(new { Message = _localizer["VendorRejected"].Value });
     }
 

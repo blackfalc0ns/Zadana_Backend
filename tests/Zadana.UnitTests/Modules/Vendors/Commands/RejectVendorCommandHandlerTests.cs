@@ -20,7 +20,15 @@ public class RejectVendorCommandHandlerTests
     [Fact]
     public async Task Handle_WithValidRequest_RejectsVendor()
     {
-        var vendor = new Vendor(Guid.NewGuid(), "Ar", "En", "Retail", "CR", "t@t.com", "1");
+        var vendor = new Vendor(
+            Guid.NewGuid(),
+            "Ar",
+            "En",
+            "Retail",
+            "CR",
+            "t@t.com",
+            "1",
+            commercialRegisterDocumentUrl: "https://files.test/commercial.pdf");
         _currentUserServiceMock.Setup(service => service.UserId).Returns((Guid?)null);
         _vendorRepositoryMock
             .Setup(repository => repository.GetByIdAsync(vendor.Id, It.IsAny<CancellationToken>()))
@@ -33,10 +41,14 @@ public class RejectVendorCommandHandlerTests
             _unitOfWorkMock.Object,
             _currentUserServiceMock.Object);
 
-        await handler.Handle(new RejectVendorCommand(vendor.Id, "Missing docs"), default);
+        await handler.Handle(new RejectVendorCommand(vendor.Id, "Missing docs", "commercial"), default);
 
         vendor.Status.Should().Be(VendorStatus.Rejected);
         vendor.RejectionReason.Should().Be("Missing docs");
+        vendor.DocumentReviews.Should().ContainSingle(review =>
+            review.Type == VendorDocumentType.Commercial
+            && review.Decision == VendorDocumentReviewDecision.Rejected
+            && review.RejectionReason == "Missing docs");
         _unitOfWorkMock.Verify(unitOfWork => unitOfWork.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
     }
 
@@ -56,6 +68,29 @@ public class RejectVendorCommandHandlerTests
 
         await Assert.ThrowsAsync<NotFoundException>(() =>
             handler.Handle(new RejectVendorCommand(Guid.NewGuid(), "reason"), default));
+    }
+
+    [Fact]
+    public async Task Handle_WithoutCorrectionTarget_RejectsUnsafeGenericRejection()
+    {
+        var vendor = new Vendor(Guid.NewGuid(), "Ar", "En", "Retail", "CR", "t@t.com", "1");
+        _vendorRepositoryMock
+            .Setup(repository => repository.GetByIdAsync(vendor.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(vendor);
+
+        var handler = new RejectVendorCommandHandler(
+            _vendorRepositoryMock.Object,
+            _vendorReviewAuditServiceMock.Object,
+            _vendorCommunicationServiceMock.Object,
+            _unitOfWorkMock.Object,
+            _currentUserServiceMock.Object);
+
+        var exception = await Assert.ThrowsAsync<BusinessRuleException>(() =>
+            handler.Handle(new RejectVendorCommand(vendor.Id, "Generic rejection"), default));
+
+        exception.Message.Should().Contain("Reject at least one required document");
+        vendor.Status.Should().Be(VendorStatus.PendingReview);
+        _unitOfWorkMock.Verify(unitOfWork => unitOfWork.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
