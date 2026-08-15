@@ -1,8 +1,11 @@
+using System.Globalization;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.Configuration;
 using Microsoft.IdentityModel.Tokens;
 using Zadana.Application.Modules.Identity.DTOs;
@@ -14,7 +17,8 @@ using Zadana.Domain.Modules.Identity.Enums;
 namespace Zadana.Infrastructure.Modules.Identity.Services;
 
 /// <summary>
-/// Holds pending signup state in a short-lived signed JWT. No DB row is created until OTP succeeds.
+/// Holds pending signup state in a short-lived signed JWT plus a distributed cache lookup
+/// keyed by platform + email/phone, so verify/resend work even when the client omits the token.
 /// </summary>
 public sealed class PendingRegistrationService : IPendingRegistrationService
 {
@@ -22,20 +26,32 @@ public sealed class PendingRegistrationService : IPendingRegistrationService
     public const string TokenUseValue = "registration";
     public const string SessionClaim = "reg_session";
 
-    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
+    private const string CachePrefix = "preg:";
+
+    private static readonly UserRole[] LookupRoles =
+    [
+        UserRole.Customer,
+        UserRole.Vendor,
+        UserRole.Driver
+    ];
+
+    private static readonly JsonSerializerOptions JsonOptions = CreateJsonOptions();
 
     private readonly IIdentityAccountService _identityAccountService;
     private readonly UserManager<User> _userManager;
     private readonly IConfiguration _configuration;
+    private readonly IDistributedCache _cache;
 
     public PendingRegistrationService(
         IIdentityAccountService identityAccountService,
         UserManager<User> userManager,
-        IConfiguration configuration)
+        IConfiguration configuration,
+        IDistributedCache cache)
     {
         _identityAccountService = identityAccountService;
         _userManager = userManager;
         _configuration = configuration;
+        _cache = cache;
     }
 
     public async Task<PendingRegistrationStartResult> StartAsync(
@@ -71,6 +87,7 @@ public sealed class PendingRegistrationService : IPendingRegistrationService
 
         var otp = pending.GenerateOtp();
         var token = CreateToken(pending);
+        await PersistSessionAsync(pending, cancellationToken);
 
         return new PendingRegistrationStartResult(
             PendingRegistrationStartStatus.Succeeded,
@@ -79,50 +96,53 @@ public sealed class PendingRegistrationService : IPendingRegistrationService
             token);
     }
 
-    public Task<PendingOtpDispatchResult> ResendOtpAsync(
-        string registrationToken,
+    public async Task<PendingOtpDispatchResult> ResendOtpAsync(
+        string? registrationToken,
         UserRole? expectedRole = null,
+        string? identifier = null,
         CancellationToken cancellationToken = default)
     {
-        if (!TryReadSession(registrationToken, out var pending) || pending is null)
+        var pending = await ResolveSessionAsync(registrationToken, identifier, expectedRole, cancellationToken);
+        if (pending is null)
         {
-            return Task.FromResult(new PendingOtpDispatchResult(PendingOtpDispatchStatus.NotFound));
-        }
-
-        if (expectedRole.HasValue && pending.Role != expectedRole.Value)
-        {
-            return Task.FromResult(new PendingOtpDispatchResult(PendingOtpDispatchStatus.NotFound));
+            return new PendingOtpDispatchResult(PendingOtpDispatchStatus.NotFound);
         }
 
         if (pending.IsExpired())
         {
-            return Task.FromResult(new PendingOtpDispatchResult(PendingOtpDispatchStatus.Expired));
+            return new PendingOtpDispatchResult(PendingOtpDispatchStatus.Expired);
         }
 
         if (!pending.CanResendOtp())
         {
-            return Task.FromResult(new PendingOtpDispatchResult(
+            var currentToken = CreateToken(pending);
+            await PersistSessionAsync(pending, cancellationToken);
+            return new PendingOtpDispatchResult(
                 PendingOtpDispatchStatus.CooldownActive,
                 Map(pending),
-                RegistrationToken: registrationToken,
-                CooldownSecondsRemaining: pending.ResendCooldownSecondsRemaining()));
+                RegistrationToken: currentToken,
+                CooldownSecondsRemaining: pending.ResendCooldownSecondsRemaining());
         }
 
         var otp = pending.GenerateOtp();
         var token = CreateToken(pending);
-        return Task.FromResult(new PendingOtpDispatchResult(
+        await PersistSessionAsync(pending, cancellationToken);
+        return new PendingOtpDispatchResult(
             PendingOtpDispatchStatus.Succeeded,
             Map(pending),
             otp,
-            token));
+            token);
     }
 
     public async Task<PendingCompletionResult> VerifyAndCreateAccountAsync(
-        string registrationToken,
+        string? registrationToken,
         string otpCode,
+        string identifier,
+        UserRole? expectedRole = null,
         CancellationToken cancellationToken = default)
     {
-        if (!TryReadSession(registrationToken, out var pending) || pending is null)
+        var pending = await ResolveSessionAsync(registrationToken, identifier, expectedRole, cancellationToken);
+        if (pending is null)
         {
             return new PendingCompletionResult(PendingCompletionStatus.NotFound);
         }
@@ -134,12 +154,14 @@ public sealed class PendingRegistrationService : IPendingRegistrationService
 
         if (!pending.VerifyOtp(otpCode))
         {
-            // Return a rotated token so OTP attempt counters remain enforceable without DB state.
             var rotated = CreateToken(pending);
+            await PersistSessionAsync(pending, cancellationToken);
             return new PendingCompletionResult(
                 PendingCompletionStatus.InvalidOtp,
                 RegistrationToken: rotated);
         }
+
+        await RemoveSessionAsync(pending, cancellationToken);
 
         if (pending.ExistingUserId.HasValue)
         {
@@ -209,6 +231,95 @@ public sealed class PendingRegistrationService : IPendingRegistrationService
             RegistrationPhone: pending.PhoneNumber);
     }
 
+    private async Task<PendingRegistration?> ResolveSessionAsync(
+        string? registrationToken,
+        string? identifier,
+        UserRole? expectedRole,
+        CancellationToken cancellationToken)
+    {
+        TryReadSession(registrationToken, out var fromToken);
+        if (fromToken is not null && !RoleMatches(fromToken, expectedRole))
+        {
+            fromToken = null;
+        }
+
+        if (fromToken is not null &&
+            !string.IsNullOrWhiteSpace(identifier) &&
+            !SessionMatchesIdentifier(fromToken, identifier))
+        {
+            fromToken = null;
+        }
+
+        var fromCache = await ReadFromCacheAsync(identifier, expectedRole, cancellationToken);
+        if (fromCache is not null && !RoleMatches(fromCache, expectedRole))
+        {
+            fromCache = null;
+        }
+
+        if (fromCache is not null && fromToken is not null)
+        {
+            return fromCache.UpdatedAtUtc >= fromToken.UpdatedAtUtc ? fromCache : fromToken;
+        }
+
+        return fromCache ?? fromToken;
+    }
+
+    private async Task<PendingRegistration?> ReadFromCacheAsync(
+        string? identifier,
+        UserRole? expectedRole,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(identifier))
+        {
+            return null;
+        }
+
+        var roles = expectedRole.HasValue ? [expectedRole.Value] : LookupRoles;
+        foreach (var role in roles)
+        {
+            foreach (var key in IdentifierKeys(role, identifier))
+            {
+                var json = await _cache.GetStringAsync(key, cancellationToken);
+                var pending = DeserializeSession(json);
+                if (pending is not null)
+                {
+                    return pending;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    private async Task PersistSessionAsync(PendingRegistration pending, CancellationToken cancellationToken)
+    {
+        var json = JsonSerializer.Serialize(ToSession(pending), JsonOptions);
+        var expires = AsUtcDateTime(pending.ExpiresAtUtc);
+        var ttl = expires - DateTime.UtcNow;
+        if (ttl <= TimeSpan.Zero)
+        {
+            return;
+        }
+
+        var options = new DistributedCacheEntryOptions
+        {
+            AbsoluteExpiration = new DateTimeOffset(expires, TimeSpan.Zero)
+        };
+
+        foreach (var key in EnumerateCacheKeys(pending))
+        {
+            await _cache.SetStringAsync(key, json, options, cancellationToken);
+        }
+    }
+
+    private async Task RemoveSessionAsync(PendingRegistration pending, CancellationToken cancellationToken)
+    {
+        foreach (var key in EnumerateCacheKeys(pending))
+        {
+            await _cache.RemoveAsync(key, cancellationToken);
+        }
+    }
+
     private string CreateToken(PendingRegistration pending)
     {
         var secret = _configuration["JwtSettings:Secret"];
@@ -235,7 +346,7 @@ public sealed class PendingRegistrationService : IPendingRegistrationService
 
         var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secret));
         var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
-        var expires = pending.ExpiresAtUtc;
+        var expires = AsUtcDateTime(pending.ExpiresAtUtc);
 
         var token = new JwtSecurityToken(
             issuer: _configuration["JwtSettings:Issuer"],
@@ -285,19 +396,31 @@ public sealed class PendingRegistrationService : IPendingRegistrationService
                 return false;
             }
 
-            var sessionJson = principal.FindFirst(SessionClaim)?.Value;
-            if (string.IsNullOrWhiteSpace(sessionJson))
-            {
-                return false;
-            }
+            pending = DeserializeSession(principal.FindFirst(SessionClaim)?.Value);
+            return pending is not null;
+        }
+        catch (Exception)
+        {
+            return false;
+        }
+    }
 
+    private static PendingRegistration? DeserializeSession(string? sessionJson)
+    {
+        if (string.IsNullOrWhiteSpace(sessionJson))
+        {
+            return null;
+        }
+
+        try
+        {
             var session = JsonSerializer.Deserialize<RegistrationSessionDto>(sessionJson, JsonOptions);
             if (session is null || !Enum.TryParse<UserRole>(session.Role, ignoreCase: true, out var role))
             {
-                return false;
+                return null;
             }
 
-            pending = PendingRegistration.Rehydrate(
+            return PendingRegistration.Rehydrate(
                 session.Id,
                 session.Email,
                 session.PhoneNumber,
@@ -315,19 +438,10 @@ public sealed class PendingRegistrationService : IPendingRegistrationService
                 session.ExpiresAtUtc,
                 session.ExistingUserId,
                 session.LinkedOtpEmail);
-            return true;
-        }
-        catch (SecurityTokenException)
-        {
-            return false;
-        }
-        catch (ArgumentException)
-        {
-            return false;
         }
         catch (JsonException)
         {
-            return false;
+            return null;
         }
     }
 
@@ -379,6 +493,75 @@ public sealed class PendingRegistrationService : IPendingRegistrationService
             registeringAs,
             cancellationToken);
 
+    private static bool RoleMatches(PendingRegistration pending, UserRole? expectedRole) =>
+        !expectedRole.HasValue || pending.Role == expectedRole.Value;
+
+    private static bool SessionMatchesIdentifier(PendingRegistration pending, string identifier) =>
+        RegistrationContactMatcher.Matches(identifier, pending.Email, pending.PhoneNumber) ||
+        RegistrationContactMatcher.Matches(identifier, pending.LinkedOtpEmail, null);
+
+    private static IEnumerable<string> EnumerateCacheKeys(PendingRegistration pending)
+    {
+        yield return $"{CachePrefix}id:{pending.Id:N}";
+        yield return EmailKey(pending.Role, pending.Email);
+
+        if (!string.IsNullOrWhiteSpace(pending.LinkedOtpEmail))
+        {
+            yield return EmailKey(pending.Role, pending.LinkedOtpEmail);
+        }
+
+        foreach (var phoneKey in PhoneKeys(pending.Role, pending.PhoneNumber))
+        {
+            yield return phoneKey;
+        }
+    }
+
+    private static IEnumerable<string> IdentifierKeys(UserRole role, string identifier)
+    {
+        var trimmed = identifier.Trim();
+        if (trimmed.Contains('@', StringComparison.Ordinal))
+        {
+            yield return EmailKey(role, trimmed);
+            yield break;
+        }
+
+        foreach (var phoneKey in PhoneKeys(role, trimmed))
+        {
+            yield return phoneKey;
+        }
+    }
+
+    private static string EmailKey(UserRole role, string email) =>
+        $"{CachePrefix}{role}:email:{email.Trim().ToLowerInvariant()}";
+
+    private static IEnumerable<string> PhoneKeys(UserRole role, string? phone)
+    {
+        var digits = RegistrationContactMatcher.DigitsOnly(phone);
+        if (digits.Length < 8)
+        {
+            yield break;
+        }
+
+        yield return $"{CachePrefix}{role}:phone:{digits}";
+        var last9 = digits.Length > 9 ? digits[^9..] : digits;
+        yield return $"{CachePrefix}{role}:p9:{last9}";
+    }
+
+    private static DateTime AsUtcDateTime(DateTime value) => value.Kind switch
+    {
+        DateTimeKind.Utc => value,
+        DateTimeKind.Local => value.ToUniversalTime(),
+        _ => DateTime.SpecifyKind(value, DateTimeKind.Utc)
+    };
+
+    private static JsonSerializerOptions CreateJsonOptions()
+    {
+        var options = new JsonSerializerOptions(JsonSerializerDefaults.Web);
+        options.Converters.Add(new UtcDateTimeConverter());
+        options.Converters.Add(new UtcNullableDateTimeConverter());
+        return options;
+    }
+
     private sealed record RegistrationSessionDto(
         Guid Id,
         string Email,
@@ -397,4 +580,40 @@ public sealed class PendingRegistrationService : IPendingRegistrationService
         DateTime ExpiresAtUtc,
         Guid? ExistingUserId = null,
         string? LinkedOtpEmail = null);
+
+    private sealed class UtcDateTimeConverter : JsonConverter<DateTime>
+    {
+        public override DateTime Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            var value = reader.GetDateTime();
+            return AsUtcDateTime(value);
+        }
+
+        public override void Write(Utf8JsonWriter writer, DateTime value, JsonSerializerOptions options) =>
+            writer.WriteStringValue(AsUtcDateTime(value).ToString("O", CultureInfo.InvariantCulture));
+    }
+
+    private sealed class UtcNullableDateTimeConverter : JsonConverter<DateTime?>
+    {
+        public override DateTime? Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            if (reader.TokenType == JsonTokenType.Null)
+            {
+                return null;
+            }
+
+            return AsUtcDateTime(reader.GetDateTime());
+        }
+
+        public override void Write(Utf8JsonWriter writer, DateTime? value, JsonSerializerOptions options)
+        {
+            if (value is null)
+            {
+                writer.WriteNullValue();
+                return;
+            }
+
+            writer.WriteStringValue(AsUtcDateTime(value.Value).ToString("O", CultureInfo.InvariantCulture));
+        }
+    }
 }

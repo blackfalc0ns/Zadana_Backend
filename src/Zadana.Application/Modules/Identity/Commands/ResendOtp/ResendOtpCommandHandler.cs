@@ -1,11 +1,12 @@
 using MediatR;
+using Microsoft.Extensions.Localization;
 using Zadana.Application.Common.Interfaces;
+using Zadana.Application.Common.Localization;
 using Zadana.Application.Modules.Identity.DTOs;
 using Zadana.Application.Modules.Identity.Enums;
 using Zadana.Application.Modules.Identity.Interfaces;
+using Zadana.Application.Modules.Identity.Support;
 using Zadana.SharedKernel.Exceptions;
-using Zadana.Application.Common.Localization;
-using Microsoft.Extensions.Localization;
 
 namespace Zadana.Application.Modules.Identity.Commands.ResendOtp;
 
@@ -35,6 +36,15 @@ public class ResendOtpCommandHandler : IRequestHandler<ResendOtpCommand, AuthRes
             throw new BusinessRuleException("EMAIL_REQUIRED", _localizer["RequiredField", _localizer["Identifier"].Value]);
         }
 
+        if (request.Purpose != OtpResendPurpose.PasswordReset)
+        {
+            var pendingResponse = await TryResendPendingRegistrationAsync(request, cancellationToken);
+            if (pendingResponse is not null)
+            {
+                return pendingResponse;
+            }
+        }
+
         var resolvedPurpose = await _identityAccountService.ResolveOtpResendPurposeAsync(
             request.Identifier,
             request.Purpose,
@@ -44,64 +54,69 @@ public class ResendOtpCommandHandler : IRequestHandler<ResendOtpCommand, AuthRes
         return resolvedPurpose switch
         {
             OtpResendPurpose.PasswordReset => await ResendPasswordResetOtpAsync(request.Identifier, cancellationToken),
-            _ => await ResendRegistrationOtpAsync(request.Identifier, request.RegistrationToken, cancellationToken)
+            _ => await ResendLegacyRegistrationOtpAsync(request.Identifier, cancellationToken)
         };
     }
 
-    private async Task<AuthResponseDto> ResendRegistrationOtpAsync(
-        string identifier,
-        string? registrationToken,
+    private async Task<AuthResponseDto?> TryResendPendingRegistrationAsync(
+        ResendOtpCommand request,
         CancellationToken cancellationToken)
     {
-        if (!string.IsNullOrWhiteSpace(registrationToken))
+        var pendingResult = await _pendingRegistrationService.ResendOtpAsync(
+            request.RegistrationToken,
+            request.ExpectedRole,
+            request.Identifier,
+            cancellationToken);
+
+        if (pendingResult.Status == PendingOtpDispatchStatus.NotFound)
         {
-            var pendingResult = await _pendingRegistrationService.ResendOtpAsync(
-                registrationToken,
-                cancellationToken: cancellationToken);
-
-            if (pendingResult.Status == PendingOtpDispatchStatus.Succeeded &&
-                pendingResult.Pending is not null &&
-                !string.IsNullOrWhiteSpace(pendingResult.PlainOtpCode) &&
-                !string.IsNullOrWhiteSpace(pendingResult.RegistrationToken))
-            {
-                EnsureIdentifierMatchesPending(identifier, pendingResult.Pending);
-                await SendRegistrationOtpEmailAsync(
-                    pendingResult.Pending.Email,
-                    pendingResult.PlainOtpCode,
-                    cancellationToken);
-                var pendingUserDto = new CurrentUserDto(
-                    pendingResult.Pending.Id,
-                    pendingResult.Pending.FullName,
-                    pendingResult.Pending.Email,
-                    pendingResult.Pending.PhoneNumber,
-                    pendingResult.Pending.Role.ToString(),
-                    MustChangePassword: false,
-                    ProfilePhotoUrl: pendingResult.Pending.ProfilePhotoUrl);
-                return new AuthResponseDto(
-                    null,
-                    pendingUserDto,
-                    false,
-                    _localizer["OtpResentSuccessfully"],
-                    RegistrationToken: pendingResult.RegistrationToken);
-            }
-
-            if (pendingResult.Status == PendingOtpDispatchStatus.CooldownActive)
-            {
-                var pendingCooldown = pendingResult.CooldownSecondsRemaining ?? 0;
-                throw new BusinessRuleException("OTP_COOLDOWN", _localizer["OtpCooldown", pendingCooldown]);
-            }
-
-            if (pendingResult.Status == PendingOtpDispatchStatus.Expired)
-            {
-                throw new BusinessRuleException("INVALID_OTP", _localizer["InvalidOrExpiredOtp"]);
-            }
-
-            if (pendingResult.Status == PendingOtpDispatchStatus.NotFound)
-            {
-                throw new BusinessRuleException("USER_NOT_FOUND", _localizer["USER_NOT_FOUND", identifier]);
-            }
+            return null;
         }
 
+        if (pendingResult.Status == PendingOtpDispatchStatus.CooldownActive)
+        {
+            var pendingCooldown = pendingResult.CooldownSecondsRemaining ?? 0;
+            throw new BusinessRuleException("OTP_COOLDOWN", _localizer["OtpCooldown", pendingCooldown]);
+        }
+
+        if (pendingResult.Status == PendingOtpDispatchStatus.Expired)
+        {
+            throw new BusinessRuleException("INVALID_OTP", _localizer["InvalidOrExpiredOtp"]);
+        }
+
+        if (pendingResult.Status != PendingOtpDispatchStatus.Succeeded ||
+            pendingResult.Pending is null ||
+            string.IsNullOrWhiteSpace(pendingResult.PlainOtpCode) ||
+            string.IsNullOrWhiteSpace(pendingResult.RegistrationToken))
+        {
+            return null;
+        }
+
+        EnsureIdentifierMatchesPending(request.Identifier, pendingResult.Pending);
+        await SendRegistrationOtpEmailAsync(
+            pendingResult.Pending.Email,
+            pendingResult.PlainOtpCode,
+            cancellationToken);
+        var pendingUserDto = new CurrentUserDto(
+            pendingResult.Pending.Id,
+            pendingResult.Pending.FullName,
+            pendingResult.Pending.Email,
+            pendingResult.Pending.PhoneNumber,
+            pendingResult.Pending.Role.ToString(),
+            MustChangePassword: false,
+            ProfilePhotoUrl: pendingResult.Pending.ProfilePhotoUrl);
+        return new AuthResponseDto(
+            null,
+            pendingUserDto,
+            false,
+            _localizer["OtpResentSuccessfully"],
+            RegistrationToken: pendingResult.RegistrationToken);
+    }
+
+    private async Task<AuthResponseDto> ResendLegacyRegistrationOtpAsync(
+        string identifier,
+        CancellationToken cancellationToken)
+    {
         var otpResult = await _identityAccountService.ResendRegistrationOtpAsync(identifier, cancellationToken);
         if (otpResult.Status == OtpDispatchStatus.UserNotFound)
         {
@@ -206,22 +221,12 @@ public class ResendOtpCommandHandler : IRequestHandler<ResendOtpCommand, AuthRes
 
     private static void EnsureIdentifierMatchesPending(string identifier, PendingRegistrationSnapshot pending)
     {
-        if (MatchesEmailOrPhone(identifier, pending.Email, pending.PhoneNumber) ||
-            MatchesEmailOrPhone(identifier, pending.OtpDestinationEmail, null))
+        if (RegistrationContactMatcher.Matches(identifier, pending.Email, pending.PhoneNumber) ||
+            RegistrationContactMatcher.Matches(identifier, pending.OtpDestinationEmail, null))
         {
             return;
         }
 
         throw new BusinessRuleException("USER_NOT_FOUND", "USER_NOT_FOUND");
-    }
-
-    private static bool MatchesEmailOrPhone(string identifier, string? email, string? phone)
-    {
-        var trimmed = identifier.Trim();
-        var emailMatch = !string.IsNullOrWhiteSpace(email) &&
-                         string.Equals(email, trimmed, StringComparison.OrdinalIgnoreCase);
-        var phoneMatch = !string.IsNullOrWhiteSpace(phone) &&
-                         string.Equals(phone, trimmed, StringComparison.Ordinal);
-        return emailMatch || phoneMatch;
     }
 }

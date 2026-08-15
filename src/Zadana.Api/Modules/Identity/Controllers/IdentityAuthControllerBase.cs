@@ -41,22 +41,26 @@ public abstract class IdentityAuthControllerBase : ApiControllerBase
         return Ok(result);
     }
 
-    protected async Task<IActionResult> VerifyOtpAsync(VerifyOtpRequest request)
+    protected async Task<IActionResult> VerifyOtpAsync(VerifyOtpRequest request, params UserRole[] expectedRoles)
     {
+        var expectedRole = expectedRoles is { Length: > 0 } ? expectedRoles[0] : (UserRole?)null;
         var result = await Sender.Send(new VerifyOtpCommand(
             request.Identifier,
             request.OtpCode,
-            request.RegistrationToken));
+            request.RegistrationToken,
+            expectedRole));
         return Ok(result);
     }
 
-    protected async Task<IActionResult> ResendOtpAsync(ResendOtpRequest request)
+    protected async Task<IActionResult> ResendOtpAsync(ResendOtpRequest request, params UserRole[] expectedRoles)
     {
+        var expectedRole = expectedRoles is { Length: > 0 } ? expectedRoles[0] : (UserRole?)null;
         var result = await Sender.Send(new ResendOtpCommand(
             request.Identifier,
             OtpResendPurposeParser.Parse(request.Purpose),
             !string.IsNullOrWhiteSpace(request.Purpose),
-            request.RegistrationToken));
+            request.RegistrationToken,
+            expectedRole));
         return Ok(result);
     }
 

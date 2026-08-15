@@ -87,7 +87,8 @@ public class VendorAuthController : IdentityAuthControllerBase
         var result = await Sender.Send(new VerifyOtpCommand(
             request.Identifier,
             request.OtpCode,
-            request.RegistrationToken));
+            request.RegistrationToken,
+            UserRole.Vendor));
         WriteRefreshCookie(result.Tokens);
         return Ok(StripRefreshToken(result));
     }
@@ -95,7 +96,7 @@ public class VendorAuthController : IdentityAuthControllerBase
     [EnableRateLimiting(RateLimitPolicyNames.Auth)]
     [HttpPost("resend-otp")]
     public Task<IActionResult> ResendOtp([FromBody] ResendOtpRequest request) =>
-        ResendOtpAsync(request);
+        ResendOtpAsync(request, UserRole.Vendor);
 
     [EnableRateLimiting(RateLimitPolicyNames.Auth)]
     [HttpPost("resend-reset-otp")]

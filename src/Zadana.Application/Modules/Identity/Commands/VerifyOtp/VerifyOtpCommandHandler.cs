@@ -56,13 +56,16 @@ public class VerifyOtpCommandHandler : IRequestHandler<VerifyOtpCommand, AuthRes
             throw new BusinessRuleException("EMAIL_REQUIRED", _localizer["RequiredField", _localizer["Identifier"].Value]);
         }
 
-        if (!string.IsNullOrWhiteSpace(request.RegistrationToken))
+        var completion = await _pendingRegistrationService.VerifyAndCreateAccountAsync(
+            request.RegistrationToken,
+            request.OtpCode,
+            request.Identifier,
+            request.ExpectedRole,
+            cancellationToken);
+
+        if (completion.Status != PendingCompletionStatus.NotFound)
         {
-            return await CompletePendingRegistrationAsync(
-                request.Identifier,
-                request.RegistrationToken,
-                request.OtpCode,
-                cancellationToken);
+            return await CompletePendingRegistrationAsync(request.Identifier, completion, cancellationToken);
         }
 
         return await CompleteLegacyUserVerificationAsync(request.Identifier, request.OtpCode, cancellationToken);
@@ -70,15 +73,9 @@ public class VerifyOtpCommandHandler : IRequestHandler<VerifyOtpCommand, AuthRes
 
     private async Task<AuthResponseDto> CompletePendingRegistrationAsync(
         string identifier,
-        string registrationToken,
-        string otpCode,
+        PendingCompletionResult completion,
         CancellationToken cancellationToken)
     {
-        var completion = await _pendingRegistrationService.VerifyAndCreateAccountAsync(
-            registrationToken,
-            otpCode,
-            cancellationToken);
-
         if (completion.Status == PendingCompletionStatus.NotFound)
         {
             throw new BusinessRuleException("USER_NOT_FOUND", _localizer["USER_NOT_FOUND", identifier]);
@@ -224,22 +221,12 @@ public class VerifyOtpCommandHandler : IRequestHandler<VerifyOtpCommand, AuthRes
         string? registrationEmail,
         string? registrationPhone)
     {
-        if (MatchesEmailOrPhone(identifier, account.Email, account.PhoneNumber) ||
-            MatchesEmailOrPhone(identifier, registrationEmail, registrationPhone))
+        if (RegistrationContactMatcher.Matches(identifier, account.Email, account.PhoneNumber) ||
+            RegistrationContactMatcher.Matches(identifier, registrationEmail, registrationPhone))
         {
             return;
         }
 
         throw new BusinessRuleException("USER_NOT_FOUND", "USER_NOT_FOUND");
-    }
-
-    private static bool MatchesEmailOrPhone(string identifier, string? email, string? phone)
-    {
-        var trimmed = identifier.Trim();
-        var emailMatch = !string.IsNullOrWhiteSpace(email) &&
-                         string.Equals(email, trimmed, StringComparison.OrdinalIgnoreCase);
-        var phoneMatch = !string.IsNullOrWhiteSpace(phone) &&
-                         string.Equals(phone, trimmed, StringComparison.Ordinal);
-        return emailMatch || phoneMatch;
     }
 }

@@ -87,7 +87,44 @@ public class PendingRegistrationFlow_IntegrationTests : IClassFixture<ZadanaWebF
     }
 
     [Fact]
-    public async Task CustomerResendOtp_RequiresRegistrationToken_AndEnforcesCooldown()
+    public async Task CustomerVerifyOtp_WithoutRegistrationToken_Succeeds()
+    {
+        var email = $"pending_notoken_{Guid.NewGuid():N}@test.com";
+        var phone = "010" + Random.Shared.Next(10000000, 99999999);
+
+        var registerResponse = await _client.PostAsJsonAsync("/api/customers/auth/register", new
+        {
+            fullName = "Pending No Token",
+            email,
+            phone,
+            password = "P@ssword1234",
+            addressLine = "Test Address"
+        });
+
+        var registerContent = await registerResponse.Content.ReadAsStringAsync();
+        registerResponse.StatusCode.Should().Be(HttpStatusCode.OK, registerContent);
+
+        var otpCode = _factory.OtpSink.EmailDispatches.Single(d => d.Recipient == email).OtpCode;
+        var verifyResponse = await _client.PostAsJsonAsync("/api/customers/auth/verify-otp",
+            new { identifier = email, otpCode });
+        var verifyContent = await verifyResponse.Content.ReadAsStringAsync();
+        verifyResponse.StatusCode.Should().Be(HttpStatusCode.OK, verifyContent);
+
+        using var doc = JsonDocument.Parse(verifyContent);
+        doc.RootElement.GetProperty("isVerified").GetBoolean().Should().BeTrue();
+        doc.RootElement.GetProperty("tokens").GetProperty("accessToken").GetString().Should().NotBeNullOrWhiteSpace();
+
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var userManager = scope.ServiceProvider.GetRequiredService<UserManager<User>>();
+            var user = await userManager.FindByEmailAsync(email);
+            user.Should().NotBeNull();
+            user!.EmailConfirmed.Should().BeTrue();
+        }
+    }
+
+    [Fact]
+    public async Task CustomerResendOtp_WithoutRegistrationToken_UsesPendingSession_AndEnforcesCooldown()
     {
         var email = $"resend_cust_{Guid.NewGuid():N}@test.com";
         var phone = "010" + Random.Shared.Next(10000000, 99999999);
@@ -109,7 +146,9 @@ public class PendingRegistrationFlow_IntegrationTests : IClassFixture<ZadanaWebF
 
         var missingTokenResponse = await _client.PostAsJsonAsync("/api/customers/auth/resend-otp",
             new { identifier = email });
-        ((int)missingTokenResponse.StatusCode).Should().BeGreaterThan(399);
+        var missingTokenContent = await missingTokenResponse.Content.ReadAsStringAsync();
+        ((int)missingTokenResponse.StatusCode).Should().BeGreaterThan(399, missingTokenContent);
+        missingTokenContent.Should().ContainEquivalentOf("OTP_COOLDOWN");
 
         var cooldownResponse = await _client.PostAsJsonAsync("/api/customers/auth/resend-otp",
             new { identifier = email, registrationToken });

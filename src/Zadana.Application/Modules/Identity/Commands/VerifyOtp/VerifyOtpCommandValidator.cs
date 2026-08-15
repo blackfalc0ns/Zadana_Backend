@@ -2,6 +2,7 @@ using FluentValidation;
 using Microsoft.Extensions.Localization;
 using Zadana.Application.Common.Localization;
 using Zadana.Application.Common.Validation;
+using Zadana.Domain.Modules.Identity.Support;
 
 namespace Zadana.Application.Modules.Identity.Commands.VerifyOtp;
 
@@ -17,7 +18,8 @@ public class VerifyOtpCommandValidator : AbstractValidator<VerifyOtpCommand>
 
         RuleFor(x => x.OtpCode)
             .NotEmpty().WithMessage(localizer["RequiredField"].Value)
-            .Length(4).WithMessage(localizer["InvalidOtpLength"].Value)
+            .Must(code => OtpCodeNormalizer.Normalize(code).Length == 4)
+            .WithMessage(localizer["InvalidOtpLength"].Value)
             .WithName(localizer["OtpCode"].Value);
     }
 

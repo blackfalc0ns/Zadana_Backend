@@ -32,12 +32,12 @@ public class DriverAuthController : IdentityAuthControllerBase
     [EnableRateLimiting(RateLimitPolicyNames.Auth)]
     [HttpPost("verify-otp")]
     public Task<IActionResult> VerifyOtp([FromBody] VerifyOtpRequest request) =>
-        VerifyOtpAsync(request);
+        VerifyOtpAsync(request, UserRole.Driver);
 
     [EnableRateLimiting(RateLimitPolicyNames.Auth)]
     [HttpPost("resend-otp")]
     public Task<IActionResult> ResendOtp([FromBody] ResendOtpRequest request) =>
-        ResendOtpAsync(request);
+        ResendOtpAsync(request, UserRole.Driver);
 
     [EnableRateLimiting(RateLimitPolicyNames.Auth)]
     [HttpPost("resend-reset-otp")]

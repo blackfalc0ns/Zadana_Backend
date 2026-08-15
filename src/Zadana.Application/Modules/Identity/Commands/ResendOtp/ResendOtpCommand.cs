@@ -5,6 +5,7 @@ using Zadana.Application.Common.Localization;
 using Zadana.Application.Common.Validation;
 using Zadana.Application.Modules.Identity.DTOs;
 using Zadana.Application.Modules.Identity.Enums;
+using Zadana.Domain.Modules.Identity.Enums;
 
 namespace Zadana.Application.Modules.Identity.Commands.ResendOtp;
 
@@ -12,7 +13,8 @@ public record ResendOtpCommand(
     string Identifier,
     OtpResendPurpose Purpose = OtpResendPurpose.Registration,
     bool PurposeExplicitlyProvided = false,
-    string? RegistrationToken = null) : IRequest<AuthResponseDto>;
+    string? RegistrationToken = null,
+    UserRole? ExpectedRole = null) : IRequest<AuthResponseDto>;
 
 public class ResendOtpCommandValidator : AbstractValidator<ResendOtpCommand>
 {
