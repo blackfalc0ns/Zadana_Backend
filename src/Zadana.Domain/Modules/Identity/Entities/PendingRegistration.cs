@@ -1,4 +1,5 @@
 using Zadana.Domain.Modules.Identity.Enums;
+using Zadana.Domain.Modules.Identity.Support;
 
 namespace Zadana.Domain.Modules.Identity.Entities;
 
@@ -10,7 +11,7 @@ public class PendingRegistration
 {
     public const int MaxOtpAttempts = 5;
     public static readonly TimeSpan DefaultTtl = TimeSpan.FromHours(24);
-    public static readonly TimeSpan OtpLifetime = TimeSpan.FromMinutes(5);
+    public static readonly TimeSpan OtpLifetime = TimeSpan.FromMinutes(10);
     public static readonly TimeSpan ResendCooldown = TimeSpan.FromMinutes(1);
 
     public Guid Id { get; private set; }
@@ -92,12 +93,12 @@ public class PendingRegistration
             PayloadJson = payloadJson,
             ProfilePhotoUrl = profilePhotoUrl,
             OtpCodeHash = otpCodeHash,
-            OtpExpiryUtc = otpExpiryUtc,
+            OtpExpiryUtc = AsUtc(otpExpiryUtc),
             OtpAttempts = otpAttempts,
-            LastOtpSentAtUtc = lastOtpSentAtUtc,
-            CreatedAtUtc = createdAtUtc,
-            UpdatedAtUtc = updatedAtUtc,
-            ExpiresAtUtc = expiresAtUtc
+            LastOtpSentAtUtc = AsUtc(lastOtpSentAtUtc),
+            CreatedAtUtc = AsUtc(createdAtUtc),
+            UpdatedAtUtc = AsUtc(updatedAtUtc),
+            ExpiresAtUtc = AsUtc(expiresAtUtc)
         };
 
     public bool IsExpired() => DateTime.UtcNow > ExpiresAtUtc;
@@ -158,7 +159,7 @@ public class PendingRegistration
             return false;
         }
 
-        var providedHash = HashOtp(code?.Trim() ?? string.Empty);
+        var providedHash = HashOtp(OtpCodeNormalizer.Normalize(code));
         if (!FixedTimeEquals(OtpCodeHash, providedHash))
         {
             OtpAttempts++;
@@ -197,6 +198,15 @@ public class PendingRegistration
         var hash = System.Security.Cryptography.SHA256.HashData(bytes);
         return Convert.ToHexString(hash);
     }
+
+    private static DateTime AsUtc(DateTime value) => value.Kind switch
+    {
+        DateTimeKind.Utc => value,
+        DateTimeKind.Local => value.ToUniversalTime(),
+        _ => DateTime.SpecifyKind(value, DateTimeKind.Utc)
+    };
+
+    private static DateTime? AsUtc(DateTime? value) => value.HasValue ? AsUtc(value.Value) : null;
 
     private static bool FixedTimeEquals(string? a, string? b)
     {

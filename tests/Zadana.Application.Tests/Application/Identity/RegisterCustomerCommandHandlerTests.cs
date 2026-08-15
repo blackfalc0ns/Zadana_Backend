@@ -103,7 +103,7 @@ public class RegisterCustomerCommandHandlerTests
     }
 
     [Fact]
-    public async Task Handle_WhenLinkingExistingAccount_ShouldSendOtpToAccountEmail()
+    public async Task Handle_WhenLinkingExistingAccount_ShouldSendOtpToRegistrationEmail()
     {
         var pendingId = Guid.NewGuid();
         var pending = new PendingRegistrationSnapshot(
@@ -136,10 +136,10 @@ public class RegisterCustomerCommandHandlerTests
         await handler.Handle(CreateCommand("new-customer@test.com"), CancellationToken.None);
 
         _otpService.Verify(
-            o => o.SendOtpEmailAsync("driver@test.com", "1234", It.IsAny<CancellationToken>(), It.IsAny<int>()),
+            o => o.SendOtpEmailAsync("new-customer@test.com", "1234", It.IsAny<CancellationToken>(), It.IsAny<int>()),
             Times.Once);
         _otpService.Verify(
-            o => o.SendOtpEmailAsync("new-customer@test.com", It.IsAny<string>(), It.IsAny<CancellationToken>(), It.IsAny<int>()),
+            o => o.SendOtpSmsAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()),
             Times.Never);
     }
 }

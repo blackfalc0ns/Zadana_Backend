@@ -91,7 +91,7 @@ public class RegisterDriverCommandHandler : IRequestHandler<RegisterDriverComman
         }
 
         await _otpService.SendOtpEmailAsync(
-            startResult.Pending.OtpDestinationEmail,
+            startResult.Pending.Email,
             startResult.PlainOtpCode,
             cancellationToken);
 

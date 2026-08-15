@@ -66,7 +66,7 @@ public class ResendOtpCommandHandler : IRequestHandler<ResendOtpCommand, AuthRes
             {
                 EnsureIdentifierMatchesPending(identifier, pendingResult.Pending);
                 await SendRegistrationOtpEmailAsync(
-                    pendingResult.Pending.OtpDestinationEmail,
+                    pendingResult.Pending.Email,
                     pendingResult.PlainOtpCode,
                     cancellationToken);
                 var pendingUserDto = new CurrentUserDto(

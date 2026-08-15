@@ -99,7 +99,7 @@ public class RegisterVendorCommandHandler : IRequestHandler<RegisterVendorComman
         }
 
         await _otpService.SendOtpEmailAsync(
-            startResult.Pending.OtpDestinationEmail,
+            startResult.Pending.Email,
             startResult.PlainOtpCode,
             cancellationToken);
 

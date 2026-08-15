@@ -139,9 +139,9 @@ public class CrossPlatformAuth_IntegrationTests : IClassFixture<ZadanaWebFactory
         customerRegister.StatusCode.Should().Be(HttpStatusCode.OK, customerRegisterContent);
 
         var customerToken = JsonDocument.Parse(customerRegisterContent).RootElement.GetProperty("registrationToken").GetString();
-        _factory.OtpSink.EmailDispatches.Should().ContainSingle(d => d.Recipient == driverEmail);
-        _factory.OtpSink.EmailDispatches.Should().NotContain(d => d.Recipient == customerEmail);
-        var customerOtp = _factory.OtpSink.EmailDispatches.Single(d => d.Recipient == driverEmail).OtpCode;
+        _factory.OtpSink.EmailDispatches.Should().ContainSingle(d => d.Recipient == customerEmail);
+        _factory.OtpSink.EmailDispatches.Should().NotContain(d => d.Recipient == driverEmail);
+        var customerOtp = _factory.OtpSink.EmailDispatches.Single(d => d.Recipient == customerEmail).OtpCode;
         var customerVerify = await _client.PostAsJsonAsync(
             "/api/customers/auth/verify-otp",
             new { identifier = customerEmail, otpCode = customerOtp, registrationToken = customerToken });
@@ -201,9 +201,9 @@ public class CrossPlatformAuth_IntegrationTests : IClassFixture<ZadanaWebFactory
         driverRegister.StatusCode.Should().Be(HttpStatusCode.OK, driverRegisterContent);
 
         var driverToken = JsonDocument.Parse(driverRegisterContent).RootElement.GetProperty("registrationToken").GetString();
-        _factory.OtpSink.EmailDispatches.Should().ContainSingle(d => d.Recipient == customerEmail);
-        _factory.OtpSink.EmailDispatches.Should().NotContain(d => d.Recipient == driverEmail);
-        var driverOtp = _factory.OtpSink.EmailDispatches.Single(d => d.Recipient == customerEmail).OtpCode;
+        _factory.OtpSink.EmailDispatches.Should().ContainSingle(d => d.Recipient == driverEmail);
+        _factory.OtpSink.EmailDispatches.Should().NotContain(d => d.Recipient == customerEmail);
+        var driverOtp = _factory.OtpSink.EmailDispatches.Single(d => d.Recipient == driverEmail).OtpCode;
         var driverVerify = await _client.PostAsJsonAsync(
             "/api/drivers/auth/verify-otp",
             new { identifier = driverEmail, otpCode = driverOtp, registrationToken = driverToken });
@@ -264,9 +264,9 @@ public class CrossPlatformAuth_IntegrationTests : IClassFixture<ZadanaWebFactory
         vendorRegister.StatusCode.Should().Be(HttpStatusCode.OK, vendorRegisterContent);
 
         var vendorToken = JsonDocument.Parse(vendorRegisterContent).RootElement.GetProperty("registrationToken").GetString();
-        _factory.OtpSink.EmailDispatches.Should().ContainSingle(d => d.Recipient == customerEmail);
-        _factory.OtpSink.EmailDispatches.Should().NotContain(d => d.Recipient == vendorEmail);
-        var vendorOtp = _factory.OtpSink.EmailDispatches.Single(d => d.Recipient == customerEmail).OtpCode;
+        _factory.OtpSink.EmailDispatches.Should().ContainSingle(d => d.Recipient == vendorEmail);
+        _factory.OtpSink.EmailDispatches.Should().NotContain(d => d.Recipient == customerEmail);
+        var vendorOtp = _factory.OtpSink.EmailDispatches.Single(d => d.Recipient == vendorEmail).OtpCode;
         var vendorVerify = await _client.PostAsJsonAsync(
             "/api/vendors/auth/verify-otp",
             new { identifier = vendorEmail, otpCode = vendorOtp, registrationToken = vendorToken });

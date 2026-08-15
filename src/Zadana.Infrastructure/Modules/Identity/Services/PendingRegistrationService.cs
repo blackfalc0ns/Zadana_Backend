@@ -365,8 +365,7 @@ public sealed class PendingRegistrationService : IPendingRegistrationService
             pending.PhoneNumber,
             pending.Role,
             pending.ProfilePhotoUrl,
-            pending.ExistingUserId,
-            pending.LinkedOtpEmail);
+            pending.ExistingUserId);
 
     private Task<Guid?> ResolveLinkableAccountAsync(
         string email,

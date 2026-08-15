@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Identity;
 using Zadana.Domain.Modules.Identity.Enums;
+using Zadana.Domain.Modules.Identity.Support;
 using Zadana.SharedKernel.Primitives;
 
 namespace Zadana.Domain.Modules.Identity.Entities;
@@ -343,7 +344,7 @@ public class User : IdentityUser<Guid>
             return false;
         }
 
-        var providedHash = HashOtp(code?.Trim() ?? string.Empty);
+        var providedHash = HashOtp(OtpCodeNormalizer.Normalize(code));
         if (!FixedTimeEquals(OtpCode, providedHash))
         {
             OtpAttempts++;
