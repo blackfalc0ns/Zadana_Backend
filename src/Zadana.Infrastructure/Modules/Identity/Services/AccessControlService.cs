@@ -3,6 +3,7 @@ using Microsoft.Extensions.Logging;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Modules.Identity.DTOs;
 using Zadana.Application.Modules.Identity.Interfaces;
+using Zadana.Application.Modules.Identity.Support;
 using Zadana.Domain.Modules.Identity.Constants;
 using Zadana.Domain.Modules.Identity.Entities;
 using Zadana.Domain.Modules.Identity.Enums;
@@ -12,15 +13,37 @@ namespace Zadana.Infrastructure.Modules.Identity.Services;
 public class AccessControlService : IAccessControlService
 {
     private readonly IApplicationDbContext _context;
+    private readonly ICurrentUserService _currentUserService;
     private readonly ILogger<AccessControlService> _logger;
 
-    public AccessControlService(IApplicationDbContext context, ILogger<AccessControlService> logger)
+    public AccessControlService(
+        IApplicationDbContext context,
+        ICurrentUserService currentUserService,
+        ILogger<AccessControlService> logger)
     {
         _context = context;
+        _currentUserService = currentUserService;
         _logger = logger;
     }
 
-    public async Task<EffectiveAccessDto> GetEffectiveAccessAsync(Guid userId, CancellationToken cancellationToken = default)
+    public Task<EffectiveAccessDto> GetEffectiveAccessAsync(Guid userId, CancellationToken cancellationToken = default)
+    {
+        UserRole? sessionRole = null;
+        if (Enum.TryParse<UserRole>(_currentUserService.Role, true, out var parsed))
+        {
+            sessionRole = parsed;
+        }
+
+        return GetEffectiveAccessAsync(userId, sessionRole, cancellationToken);
+    }
+
+    public Task<EffectiveAccessDto> GetEffectiveAccessAsync(Guid userId, UserRole sessionRole, CancellationToken cancellationToken = default) =>
+        GetEffectiveAccessAsync(userId, (UserRole?)sessionRole, cancellationToken);
+
+    private async Task<EffectiveAccessDto> GetEffectiveAccessAsync(
+        Guid userId,
+        UserRole? sessionRole,
+        CancellationToken cancellationToken)
     {
         var user = await _context.Users
             .AsNoTracking()
@@ -42,9 +65,20 @@ public class AccessControlService : IAccessControlService
             return new EffectiveAccessDto(user.PermissionVersion, []);
         }
 
-        var activeScope = await _context.UserAccessScopes
+        var identityRole = sessionRole ?? user.Role;
+        var panelFromSession = sessionRole.HasValue
+            ? PlatformRoleMembership.ToPanelScope(sessionRole.Value)
+            : (PanelScope?)null;
+
+        var activeScopeQuery = _context.UserAccessScopes
             .AsNoTracking()
-            .FirstOrDefaultAsync(x => x.UserId == userId && x.IsActive, cancellationToken);
+            .Where(x => x.UserId == userId && x.IsActive);
+        if (panelFromSession.HasValue)
+        {
+            activeScopeQuery = activeScopeQuery.Where(x => x.PanelScope == panelFromSession.Value);
+        }
+
+        var activeScope = await activeScopeQuery.FirstOrDefaultAsync(cancellationToken);
 
         RoleDefinition? activeRole = null;
         if (activeScope is not null)
@@ -61,17 +95,17 @@ public class AccessControlService : IAccessControlService
                 .AsNoTracking()
                 .Include(x => x.RolePermissions)
                 .ThenInclude(x => x.PermissionDefinition)
-                .Where(x => x.IdentityRole == user.Role && x.IsActive)
+                .Where(x => x.IdentityRole == identityRole && x.IsActive)
                 .OrderByDescending(x => x.IsSystem)
                 .ThenBy(x => x.Code)
-                .FirstOrDefaultAsync(x => x.Code == IdentityRoleDefaults.ResolvePreferredRoleCode(user.Role), cancellationToken)
+                .FirstOrDefaultAsync(x => x.Code == IdentityRoleDefaults.ResolvePreferredRoleCode(identityRole), cancellationToken)
             : null;
         fallbackRole ??= activeScope is null
             ? await _context.RoleDefinitions
                 .AsNoTracking()
                 .Include(x => x.RolePermissions)
                 .ThenInclude(x => x.PermissionDefinition)
-                .Where(x => x.IdentityRole == user.Role && x.IsActive)
+                .Where(x => x.IdentityRole == identityRole && x.IsActive)
                 .OrderByDescending(x => x.IsSystem)
                 .ThenBy(x => x.Code)
                 .FirstOrDefaultAsync(cancellationToken)
@@ -106,7 +140,7 @@ public class AccessControlService : IAccessControlService
             permissions.Remove(overrideEntry.PermissionKey);
         }
 
-        ApplySessionBaselinePermissions(user.Role, panelScope, permissions);
+        ApplySessionBaselinePermissions(identityRole, panelScope, permissions);
 
         var scopeType = activeScope?.ScopeType ?? ResolveDefaultScopeType(panelScope);
         var (scopeEntityName, scopeClassification) = await ResolveScopePresentationAsync(
@@ -120,8 +154,8 @@ public class AccessControlService : IAccessControlService
             panelScope.ToString(),
             scopeType.ToString(),
             activeScope?.ScopeEntityId,
-            role?.Code ?? IdentityRoleDefaults.ResolvePreferredRoleCode(user.Role),
-            role?.Name ?? user.Role.ToString(),
+            role?.Code ?? IdentityRoleDefaults.ResolvePreferredRoleCode(identityRole),
+            role?.Name ?? identityRole.ToString(),
             scopeEntityName,
             scopeClassification);
 

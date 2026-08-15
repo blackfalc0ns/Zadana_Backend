@@ -15,6 +15,9 @@ public class RefreshTokenCommandHandler : IRequestHandler<RefreshTokenCommand, T
 
     public async Task<TokenPairDto> Handle(RefreshTokenCommand request, CancellationToken cancellationToken)
     {
-        return await _identityService.RefreshTokenAsync(request.RefreshToken, cancellationToken);
+        return await _identityService.RefreshTokenAsync(
+            request.RefreshToken,
+            cancellationToken,
+            request.ExpectedRoles);
     }
 }

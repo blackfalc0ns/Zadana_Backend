@@ -20,13 +20,13 @@ public class IdentityAccountService : IIdentityAccountService
     public async Task<IdentityAccountSnapshot?> FindByIdAsync(Guid userId, CancellationToken cancellationToken = default)
     {
         var user = await _userManager.FindByIdAsync(userId.ToString());
-        return user == null ? null : Map(user);
+        return user == null ? null : await MapAsync(user);
     }
 
     public async Task<IdentityAccountSnapshot?> FindByIdentifierAsync(string identifier, CancellationToken cancellationToken = default)
     {
         var user = await FindUserByIdentifierAsync(identifier, cancellationToken);
-        return user == null ? null : Map(user);
+        return user == null ? null : await MapAsync(user);
     }
 
     public async Task<bool> ExistsByIdAsync(Guid userId, CancellationToken cancellationToken = default) =>
@@ -73,7 +73,7 @@ public class IdentityAccountService : IIdentityAccountService
                 Errors: roleResult.Errors.Select(error => error.Description).ToArray());
         }
 
-        return new IdentityCreateResult(IdentityCreateStatus.Succeeded, Map(user));
+        return new IdentityCreateResult(IdentityCreateStatus.Succeeded, await MapAsync(user));
     }
 
     public async Task<IdentityCreateResult> CreateWithPasswordHashAsync(
@@ -131,7 +131,7 @@ public class IdentityAccountService : IIdentityAccountService
                 Errors: roleResult.Errors.Select(error => error.Description).ToArray());
         }
 
-        return new IdentityCreateResult(IdentityCreateStatus.Succeeded, Map(user));
+        return new IdentityCreateResult(IdentityCreateStatus.Succeeded, await MapAsync(user));
     }
 
     public async Task<IdentityOperationResult> ConfirmEmailAsync(Guid userId, CancellationToken cancellationToken = default)
@@ -152,7 +152,7 @@ public class IdentityAccountService : IIdentityAccountService
             }
         }
 
-        return new IdentityOperationResult(true, Account: Map(user));
+        return new IdentityOperationResult(true, Account: await MapAsync(user));
     }
 
     public async Task<IdentityOperationResult> DeleteAsync(Guid userId, CancellationToken cancellationToken = default)
@@ -199,7 +199,7 @@ public class IdentityAccountService : IIdentityAccountService
             await _userManager.ResetAccessFailedCountAsync(user);
         }
 
-        return new CredentialValidationResult(CredentialValidationStatus.Succeeded, Map(user));
+        return new CredentialValidationResult(CredentialValidationStatus.Succeeded, await MapAsync(user));
     }
 
     public async Task<IdentityOperationResult> RecordLoginAsync(Guid userId, CancellationToken cancellationToken = default)
@@ -262,7 +262,7 @@ public class IdentityAccountService : IIdentityAccountService
         user.UpdateProfile(fullName, email, phoneNumber);
         var updateResult = await PersistUserAsync(user);
         return updateResult.Succeeded
-            ? new IdentityOperationResult(true, Account: Map(user), EmailChanged: emailChanged)
+            ? new IdentityOperationResult(true, Account: await MapAsync(user), EmailChanged: emailChanged)
             : updateResult;
     }
 
@@ -325,6 +325,82 @@ public class IdentityAccountService : IIdentityAccountService
 
         user.UpdateRole(role);
         return await PersistUserAsync(user);
+    }
+
+    public async Task<IdentityOperationResult> AddPlatformRoleAsync(
+        Guid userId,
+        UserRole role,
+        CancellationToken cancellationToken = default)
+    {
+        var user = await _userManager.FindByIdAsync(userId.ToString());
+        if (user == null)
+        {
+            return new IdentityOperationResult(false, ["User account was not found."]);
+        }
+
+        var targetRole = role.ToString();
+        if (!await _userManager.IsInRoleAsync(user, targetRole))
+        {
+            var addResult = await _userManager.AddToRoleAsync(user, targetRole);
+            if (!addResult.Succeeded)
+            {
+                return new IdentityOperationResult(
+                    false,
+                    addResult.Errors.Select(error => error.Description).ToArray());
+            }
+        }
+
+        return new IdentityOperationResult(true, Account: await MapAsync(user));
+    }
+
+    public async Task<IdentityOperationResult> RemovePlatformRoleAsync(
+        Guid userId,
+        UserRole role,
+        CancellationToken cancellationToken = default)
+    {
+        var user = await _userManager.FindByIdAsync(userId.ToString());
+        if (user == null)
+        {
+            return new IdentityOperationResult(false, ["User account was not found."]);
+        }
+
+        var targetRole = role.ToString();
+        if (await _userManager.IsInRoleAsync(user, targetRole))
+        {
+            var removeResult = await _userManager.RemoveFromRoleAsync(user, targetRole);
+            if (!removeResult.Succeeded)
+            {
+                return new IdentityOperationResult(
+                    false,
+                    removeResult.Errors.Select(error => error.Description).ToArray());
+            }
+        }
+
+        if (user.Role == role)
+        {
+            var remaining = await _userManager.GetRolesAsync(user);
+            UserRole? nextPrimary = null;
+            foreach (var name in remaining)
+            {
+                if (Enum.TryParse<UserRole>(name, true, out var parsed))
+                {
+                    nextPrimary = parsed;
+                    break;
+                }
+            }
+
+            if (nextPrimary.HasValue)
+            {
+                user.UpdateRole(nextPrimary.Value);
+                var persistPrimary = await PersistUserAsync(user);
+                if (!persistPrimary.Succeeded)
+                {
+                    return persistPrimary;
+                }
+            }
+        }
+
+        return new IdentityOperationResult(true, Account: await MapAsync(user));
     }
 
     public async Task<IdentityOperationResult> ChangePasswordAsync(
@@ -477,7 +553,7 @@ public class IdentityAccountService : IIdentityAccountService
             return new OtpDispatchResult(OtpDispatchStatus.Failed, Errors: updateResult.Errors);
         }
 
-        return new OtpDispatchResult(OtpDispatchStatus.Succeeded, Map(user), otpCode);
+        return new OtpDispatchResult(OtpDispatchStatus.Succeeded, await MapAsync(user), otpCode);
     }
 
     public async Task<OtpDispatchResult> ResendRegistrationOtpAsync(string identifier, CancellationToken cancellationToken = default)
@@ -493,7 +569,7 @@ public class IdentityAccountService : IIdentityAccountService
             var secondsRemaining = Math.Max(0, 60 - (int)(DateTime.UtcNow - user.LastOtpSentAt!.Value).TotalSeconds);
             return new OtpDispatchResult(
                 OtpDispatchStatus.CooldownActive,
-                Map(user),
+                await MapAsync(user),
                 CooldownSecondsRemaining: secondsRemaining);
         }
 
@@ -504,7 +580,7 @@ public class IdentityAccountService : IIdentityAccountService
             return new OtpDispatchResult(OtpDispatchStatus.Failed, Errors: updateResult.Errors);
         }
 
-        return new OtpDispatchResult(OtpDispatchStatus.Succeeded, Map(user), otpCode);
+        return new OtpDispatchResult(OtpDispatchStatus.Succeeded, await MapAsync(user), otpCode);
     }
 
     public async Task<OtpVerificationResult> VerifyRegistrationOtpAsync(string identifier, string otpCode, CancellationToken cancellationToken = default)
@@ -527,7 +603,7 @@ public class IdentityAccountService : IIdentityAccountService
             return new OtpVerificationResult(OtpVerificationStatus.Failed, Errors: updateResult.Errors);
         }
 
-        return new OtpVerificationResult(OtpVerificationStatus.Succeeded, Map(user));
+        return new OtpVerificationResult(OtpVerificationStatus.Succeeded, await MapAsync(user));
     }
 
     public async Task<OtpDispatchResult> GeneratePasswordResetOtpAsync(string identifier, CancellationToken cancellationToken = default)
@@ -543,7 +619,7 @@ public class IdentityAccountService : IIdentityAccountService
             var secondsRemaining = Math.Max(0, 60 - (int)(DateTime.UtcNow - user.LastOtpSentAt!.Value).TotalSeconds);
             return new OtpDispatchResult(
                 OtpDispatchStatus.CooldownActive,
-                Map(user),
+                await MapAsync(user),
                 CooldownSecondsRemaining: secondsRemaining);
         }
 
@@ -554,7 +630,7 @@ public class IdentityAccountService : IIdentityAccountService
             return new OtpDispatchResult(OtpDispatchStatus.Failed, Errors: updateResult.Errors);
         }
 
-        return new OtpDispatchResult(OtpDispatchStatus.Succeeded, Map(user), otpCode);
+        return new OtpDispatchResult(OtpDispatchStatus.Succeeded, await MapAsync(user), otpCode);
     }
 
     public async Task<OtpResendPurpose> ResolveOtpResendPurposeAsync(
@@ -722,8 +798,19 @@ public class IdentityAccountService : IIdentityAccountService
                 ? error.Description
                 : $"{error.Code}: {error.Description}").ToArray();
 
-    private static IdentityAccountSnapshot Map(User user) =>
-        new(
+    private async Task<IdentityAccountSnapshot> MapAsync(User user)
+    {
+        var identityRoles = await _userManager.GetRolesAsync(user);
+        var platformRoles = new HashSet<UserRole> { user.Role };
+        foreach (var name in identityRoles)
+        {
+            if (Enum.TryParse<UserRole>(name, true, out var parsed))
+            {
+                platformRoles.Add(parsed);
+            }
+        }
+
+        return new IdentityAccountSnapshot(
             user.Id,
             user.FullName,
             user.Email,
@@ -737,5 +824,7 @@ public class IdentityAccountService : IIdentityAccountService
             user.EmailConfirmed,
             user.PhoneNumberConfirmed,
             user.MustChangePassword,
-            user.ProfilePhotoUrl);
+            user.ProfilePhotoUrl,
+            platformRoles.ToArray());
+    }
 }

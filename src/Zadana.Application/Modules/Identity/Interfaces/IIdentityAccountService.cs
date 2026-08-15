@@ -24,6 +24,8 @@ public interface IIdentityAccountService
     Task<IdentityOperationResult> UpdateProfileAsync(Guid userId, string fullName, string email, string phoneNumber, CancellationToken cancellationToken = default);
     Task<IdentityOperationResult> UpdateProfilePhotoAsync(Guid userId, string? profilePhotoUrl, CancellationToken cancellationToken = default);
     Task<IdentityOperationResult> UpdateRoleAsync(Guid userId, UserRole role, CancellationToken cancellationToken = default);
+    Task<IdentityOperationResult> AddPlatformRoleAsync(Guid userId, UserRole role, CancellationToken cancellationToken = default);
+    Task<IdentityOperationResult> RemovePlatformRoleAsync(Guid userId, UserRole role, CancellationToken cancellationToken = default);
     Task<IdentityOperationResult> ChangePasswordAsync(Guid userId, string currentPassword, string newPassword, CancellationToken cancellationToken = default);
     Task<IdentityOperationResult> ActivateAsync(Guid userId, CancellationToken cancellationToken = default);
     Task<IdentityOperationResult> SuspendAsync(Guid userId, CancellationToken cancellationToken = default);

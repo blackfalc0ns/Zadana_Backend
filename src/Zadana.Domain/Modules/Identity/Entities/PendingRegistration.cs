@@ -19,6 +19,8 @@ public class PendingRegistration
     public string PasswordHash { get; private set; } = null!;
     public string FullName { get; private set; } = null!;
     public UserRole Role { get; private set; }
+    public Guid? ExistingUserId { get; private set; }
+    public string? LinkedOtpEmail { get; private set; }
     public string PayloadJson { get; private set; } = null!;
     public string? ProfilePhotoUrl { get; private set; }
     public string? OtpCodeHash { get; private set; }
@@ -40,7 +42,9 @@ public class PendingRegistration
         string fullName,
         UserRole role,
         string payloadJson,
-        string? profilePhotoUrl = null)
+        string? profilePhotoUrl = null,
+        Guid? existingUserId = null,
+        string? linkedOtpEmail = null)
     {
         Id = Guid.NewGuid();
         Email = email.Trim().ToLowerInvariant();
@@ -48,6 +52,8 @@ public class PendingRegistration
         PasswordHash = passwordHash;
         FullName = fullName.Trim();
         Role = role;
+        ExistingUserId = existingUserId;
+        LinkedOtpEmail = string.IsNullOrWhiteSpace(linkedOtpEmail) ? null : linkedOtpEmail.Trim().ToLowerInvariant();
         PayloadJson = payloadJson;
         ProfilePhotoUrl = string.IsNullOrWhiteSpace(profilePhotoUrl) ? null : profilePhotoUrl.Trim();
         CreatedAtUtc = DateTime.UtcNow;
@@ -70,7 +76,9 @@ public class PendingRegistration
         DateTime? lastOtpSentAtUtc,
         DateTime createdAtUtc,
         DateTime updatedAtUtc,
-        DateTime expiresAtUtc) =>
+        DateTime expiresAtUtc,
+        Guid? existingUserId = null,
+        string? linkedOtpEmail = null) =>
         new()
         {
             Id = id,
@@ -79,6 +87,8 @@ public class PendingRegistration
             PasswordHash = passwordHash,
             FullName = fullName,
             Role = role,
+            ExistingUserId = existingUserId,
+            LinkedOtpEmail = linkedOtpEmail,
             PayloadJson = payloadJson,
             ProfilePhotoUrl = profilePhotoUrl,
             OtpCodeHash = otpCodeHash,

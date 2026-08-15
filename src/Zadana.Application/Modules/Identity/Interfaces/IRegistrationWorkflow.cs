@@ -1,5 +1,6 @@
 using Zadana.Application.Modules.Delivery.DTOs;
 using Zadana.Application.Modules.Identity.DTOs;
+using Zadana.Domain.Modules.Identity.Enums;
 
 namespace Zadana.Application.Modules.Identity.Interfaces;
 
@@ -25,7 +26,8 @@ public interface IRegistrationWorkflow
     Task<AuthResponseDto> BuildAuthResponseAsync(
         IdentityAccountSnapshot account,
         DriverOperationalStatusDto? driverStatus = null,
-        CancellationToken cancellationToken = default);
+        CancellationToken cancellationToken = default,
+        UserRole? sessionRole = null);
 
     Task CompensateAccountCreationFailureAsync(
         Guid userId,

@@ -101,7 +101,9 @@ public class AdminAuthController : IdentityAuthControllerBase
             });
         }
 
-        var pair = await Sender.Send(new RefreshTokenCommand(refreshToken));
+        var pair = await Sender.Send(new RefreshTokenCommand(
+            refreshToken,
+            new[] { UserRole.Admin, UserRole.SuperAdmin }));
 
         ClearCsrfCookie();
         AdminRefreshCookie.Write(

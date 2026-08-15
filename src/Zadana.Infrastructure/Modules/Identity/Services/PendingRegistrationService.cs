@@ -7,6 +7,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.IdentityModel.Tokens;
 using Zadana.Application.Modules.Identity.DTOs;
 using Zadana.Application.Modules.Identity.Interfaces;
+using Zadana.Application.Modules.Identity.Support;
 using Zadana.Domain.Modules.Identity.Entities;
 using Zadana.Domain.Modules.Identity.Enums;
 
@@ -44,9 +45,17 @@ public sealed class PendingRegistrationService : IPendingRegistrationService
         var email = request.Email.Trim().ToLowerInvariant();
         var phone = string.IsNullOrWhiteSpace(request.PhoneNumber) ? null : request.PhoneNumber?.Trim();
 
-        if (await _identityAccountService.ExistsByEmailOrPhoneAsync(email, phone, cancellationToken))
+        var existingUserId = await ResolveLinkableAccountAsync(email, phone, request.Role, cancellationToken);
+        if (existingUserId == Guid.Empty)
         {
             return new PendingRegistrationStartResult(PendingRegistrationStartStatus.DuplicateEmailOrPhone);
+        }
+
+        string? linkedOtpEmail = null;
+        if (existingUserId.HasValue)
+        {
+            var existing = await _identityAccountService.FindByIdAsync(existingUserId.Value, cancellationToken);
+            linkedOtpEmail = existing?.Email;
         }
 
         var pending = new PendingRegistration(
@@ -56,7 +65,9 @@ public sealed class PendingRegistrationService : IPendingRegistrationService
             request.FullName,
             request.Role,
             request.PayloadJson,
-            request.ProfilePhotoUrl);
+            request.ProfilePhotoUrl,
+            existingUserId,
+            linkedOtpEmail);
 
         var otp = pending.GenerateOtp();
         var token = CreateToken(pending);
@@ -130,6 +141,39 @@ public sealed class PendingRegistrationService : IPendingRegistrationService
                 RegistrationToken: rotated);
         }
 
+        if (pending.ExistingUserId.HasValue)
+        {
+            var addRoleResult = await _identityAccountService.AddPlatformRoleAsync(
+                pending.ExistingUserId.Value,
+                pending.Role,
+                cancellationToken);
+            if (!addRoleResult.Succeeded || addRoleResult.Account is null)
+            {
+                return new PendingCompletionResult(
+                    PendingCompletionStatus.Failed,
+                    Errors: addRoleResult.Errors ?? ["PLATFORM_ROLE_LINK_FAILED"]);
+            }
+
+            var linked = addRoleResult.Account;
+            if (!linked.EmailConfirmed)
+            {
+                var confirmResult = await _identityAccountService.ConfirmEmailAsync(linked.Id, cancellationToken);
+                if (confirmResult.Succeeded && confirmResult.Account is not null)
+                {
+                    linked = confirmResult.Account;
+                }
+            }
+
+            return new PendingCompletionResult(
+                PendingCompletionStatus.Succeeded,
+                linked,
+                pending.Role,
+                pending.PayloadJson,
+                LinkedExistingAccount: true,
+                RegistrationEmail: pending.Email,
+                RegistrationPhone: pending.PhoneNumber);
+        }
+
         var createResult = await _identityAccountService.CreateWithPasswordHashAsync(
             new CreateIdentityAccountRequest(
                 pending.FullName,
@@ -160,7 +204,9 @@ public sealed class PendingRegistrationService : IPendingRegistrationService
             PendingCompletionStatus.Succeeded,
             createResult.Account,
             pending.Role,
-            pending.PayloadJson);
+            pending.PayloadJson,
+            RegistrationEmail: pending.Email,
+            RegistrationPhone: pending.PhoneNumber);
     }
 
     private string CreateToken(PendingRegistration pending)
@@ -266,7 +312,9 @@ public sealed class PendingRegistrationService : IPendingRegistrationService
                 session.LastOtpSentAtUtc,
                 session.CreatedAtUtc,
                 session.UpdatedAtUtc,
-                session.ExpiresAtUtc);
+                session.ExpiresAtUtc,
+                session.ExistingUserId,
+                session.LinkedOtpEmail);
             return true;
         }
         catch (SecurityTokenException)
@@ -305,7 +353,9 @@ public sealed class PendingRegistrationService : IPendingRegistrationService
             pending.LastOtpSentAtUtc,
             pending.CreatedAtUtc,
             pending.UpdatedAtUtc,
-            pending.ExpiresAtUtc);
+            pending.ExpiresAtUtc,
+            pending.ExistingUserId,
+            pending.LinkedOtpEmail);
 
     private static PendingRegistrationSnapshot Map(PendingRegistration pending) =>
         new(
@@ -314,7 +364,21 @@ public sealed class PendingRegistrationService : IPendingRegistrationService
             pending.Email,
             pending.PhoneNumber,
             pending.Role,
-            pending.ProfilePhotoUrl);
+            pending.ProfilePhotoUrl,
+            pending.ExistingUserId,
+            pending.LinkedOtpEmail);
+
+    private Task<Guid?> ResolveLinkableAccountAsync(
+        string email,
+        string? phone,
+        UserRole registeringAs,
+        CancellationToken cancellationToken) =>
+        PlatformAccountLinkResolver.ResolveAsync(
+            _identityAccountService,
+            email,
+            phone,
+            registeringAs,
+            cancellationToken);
 
     private sealed record RegistrationSessionDto(
         Guid Id,
@@ -331,5 +395,7 @@ public sealed class PendingRegistrationService : IPendingRegistrationService
         DateTime? LastOtpSentAtUtc,
         DateTime CreatedAtUtc,
         DateTime UpdatedAtUtc,
-        DateTime ExpiresAtUtc);
+        DateTime ExpiresAtUtc,
+        Guid? ExistingUserId = null,
+        string? LinkedOtpEmail = null);
 }

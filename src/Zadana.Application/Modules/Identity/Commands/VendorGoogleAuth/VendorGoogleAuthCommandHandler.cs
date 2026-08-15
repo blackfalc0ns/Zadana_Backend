@@ -4,6 +4,7 @@ using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Common.Localization;
 using Zadana.Application.Modules.Identity.DTOs;
 using Zadana.Application.Modules.Identity.Interfaces;
+using Zadana.Application.Modules.Identity.Support;
 using Zadana.Domain.Modules.Identity.Enums;
 using Zadana.SharedKernel.Exceptions;
 
@@ -56,11 +57,16 @@ public sealed class VendorGoogleAuthCommandHandler : IRequestHandler<VendorGoogl
                     profile.Subject));
         }
 
-        if (!AllowedRoles.Contains(existing.Role))
+        if (!PlatformRoleMembership.HasAnyRole(existing, AllowedRoles))
         {
-            throw new BusinessRuleException(
-                "GOOGLE_ACCOUNT_WRONG_APP",
-                "This Google account is already registered for another Zadana app. Use a different Google account or sign in from the correct app.");
+            return new VendorGoogleAuthResultDto(
+                "continue_registration",
+                Profile: new VendorGoogleProfileDto(
+                    profile.Email,
+                    profile.FullName,
+                    profile.GivenName,
+                    profile.FamilyName,
+                    profile.Subject));
         }
 
         if (existing.ArchivedAtUtc.HasValue)
@@ -88,13 +94,16 @@ public sealed class VendorGoogleAuthCommandHandler : IRequestHandler<VendorGoogl
             existing = confirmResult.Account;
         }
 
-        var tokens = await _jwtTokenService.GenerateTokenPairAsync(existing, cancellationToken);
+        var sessionUser = PlatformRoleMembership.WithSessionRole(
+            existing,
+            PlatformRoleMembership.ResolveSessionRole(existing, AllowedRoles) ?? existing.Role);
+        var tokens = await _jwtTokenService.GenerateTokenPairAsync(sessionUser, cancellationToken);
         _refreshTokenStore.Add(new NewRefreshToken(
-            existing.Id,
+            sessionUser.Id,
             tokens.RefreshToken,
             DateTime.UtcNow.AddDays(7)));
 
-        var recordLoginResult = await _identityAccountService.RecordLoginAsync(existing.Id, cancellationToken);
+        var recordLoginResult = await _identityAccountService.RecordLoginAsync(sessionUser.Id, cancellationToken);
         if (!recordLoginResult.Succeeded)
         {
             throw new BusinessRuleException(
@@ -104,16 +113,16 @@ public sealed class VendorGoogleAuthCommandHandler : IRequestHandler<VendorGoogl
 
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
-        var access = await _accessControlService.GetEffectiveAccessAsync(existing.Id, cancellationToken);
+        var access = await _accessControlService.GetEffectiveAccessAsync(sessionUser.Id, sessionUser.Role, cancellationToken);
         var userDto = new CurrentUserDto(
-            existing.Id,
-            existing.FullName,
-            existing.Email,
-            existing.PhoneNumber,
-            existing.Role.ToString(),
-            existing.MustChangePassword,
+            sessionUser.Id,
+            sessionUser.FullName,
+            sessionUser.Email,
+            sessionUser.PhoneNumber,
+            sessionUser.Role.ToString(),
+            sessionUser.MustChangePassword,
             Access: access,
-            ProfilePhotoUrl: existing.ProfilePhotoUrl);
+            ProfilePhotoUrl: sessionUser.ProfilePhotoUrl);
 
         var auth = new AuthResponseDto(tokens, userDto, IsVerified: true);
         return new VendorGoogleAuthResultDto("login", Auth: auth);

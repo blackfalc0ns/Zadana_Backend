@@ -77,7 +77,7 @@ public class VendorAuthController : IdentityAuthControllerBase
     [BotChallenge]
     [HttpPost("forgot-password")]
     public Task<IActionResult> ForgotPassword([FromBody] ForgotPasswordRequest request) =>
-        ForgotPasswordAsync(request);
+        ForgotPasswordAsync(request, UserRole.Vendor, UserRole.VendorStaff);
 
     [EnableRateLimiting(RateLimitPolicyNames.Auth)]
     [HttpPost("verify-otp")]
@@ -132,7 +132,9 @@ public class VendorAuthController : IdentityAuthControllerBase
             });
         }
 
-        var pair = await Sender.Send(new RefreshTokenCommand(refreshToken));
+        var pair = await Sender.Send(new RefreshTokenCommand(
+            refreshToken,
+            new[] { UserRole.Vendor, UserRole.VendorStaff }));
         VendorRefreshCookie.Write(
             Response,
             _environment,

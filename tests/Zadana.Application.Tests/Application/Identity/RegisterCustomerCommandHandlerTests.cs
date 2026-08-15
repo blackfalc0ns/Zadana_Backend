@@ -101,4 +101,45 @@ public class RegisterCustomerCommandHandlerTests
                 It.IsAny<CancellationToken>()),
             Times.Once);
     }
+
+    [Fact]
+    public async Task Handle_WhenLinkingExistingAccount_ShouldSendOtpToAccountEmail()
+    {
+        var pendingId = Guid.NewGuid();
+        var pending = new PendingRegistrationSnapshot(
+            pendingId,
+            "Ahmed Ali",
+            "new-customer@test.com",
+            "01011122233",
+            UserRole.Customer,
+            null,
+            Guid.NewGuid(),
+            "driver@test.com");
+
+        _pendingRegistrationService
+            .Setup(x => x.StartAsync(It.IsAny<StartPendingRegistrationRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new PendingRegistrationStartResult(
+                PendingRegistrationStartStatus.Succeeded,
+                pending,
+                "1234",
+                "reg-token"));
+
+        _registrationWorkflow
+            .Setup(x => x.BuildPendingAuthResponse(pending, "reg-token", null))
+            .Returns(new AuthResponseDto(
+                null,
+                new CurrentUserDto(pendingId, "Ahmed Ali", "new-customer@test.com", "01011122233", "Customer", false),
+                false,
+                RegistrationToken: "reg-token"));
+
+        var handler = CreateHandler();
+        await handler.Handle(CreateCommand("new-customer@test.com"), CancellationToken.None);
+
+        _otpService.Verify(
+            o => o.SendOtpEmailAsync("driver@test.com", "1234", It.IsAny<CancellationToken>(), It.IsAny<int>()),
+            Times.Once);
+        _otpService.Verify(
+            o => o.SendOtpEmailAsync("new-customer@test.com", It.IsAny<string>(), It.IsAny<CancellationToken>(), It.IsAny<int>()),
+            Times.Never);
+    }
 }

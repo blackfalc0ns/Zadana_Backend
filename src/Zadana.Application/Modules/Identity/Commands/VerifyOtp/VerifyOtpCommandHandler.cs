@@ -6,6 +6,7 @@ using Zadana.Application.Common.Localization;
 using Zadana.Application.Modules.Delivery.DTOs;
 using Zadana.Application.Modules.Identity.DTOs;
 using Zadana.Application.Modules.Identity.Interfaces;
+using Zadana.Application.Modules.Identity.Support;
 using Zadana.Domain.Modules.Identity.Enums;
 using Zadana.SharedKernel.Exceptions;
 
@@ -107,7 +108,11 @@ public class VerifyOtpCommandHandler : IRequestHandler<VerifyOtpCommand, AuthRes
             throw new BusinessRuleException("VERIFICATION_FAILED", $"{_localizer["VERIFICATION_FAILED"]}: {errors}");
         }
 
-        EnsureIdentifierMatchesAccount(identifier, completion.Account);
+        EnsureIdentifierMatchesAccount(
+            identifier,
+            completion.Account,
+            completion.RegistrationEmail,
+            completion.RegistrationPhone);
 
         try
         {
@@ -119,7 +124,11 @@ public class VerifyOtpCommandHandler : IRequestHandler<VerifyOtpCommand, AuthRes
         }
         catch
         {
-            await _registrationWorkflow.CompensateAccountCreationFailureAsync(completion.Account.Id, cancellationToken);
+            if (!completion.LinkedExistingAccount)
+            {
+                await _registrationWorkflow.CompensateAccountCreationFailureAsync(completion.Account.Id, cancellationToken);
+            }
+
             throw;
         }
 
@@ -127,7 +136,7 @@ public class VerifyOtpCommandHandler : IRequestHandler<VerifyOtpCommand, AuthRes
         var account = await _identityAccountService.FindByIdAsync(completion.Account.Id, cancellationToken)
             ?? completion.Account;
 
-        return await BuildVerifiedAuthResponseAsync(account, cancellationToken);
+        return await BuildVerifiedAuthResponseAsync(account, completion.Role.Value, cancellationToken);
     }
 
     private async Task<AuthResponseDto> CompleteLegacyUserVerificationAsync(
@@ -156,11 +165,12 @@ public class VerifyOtpCommandHandler : IRequestHandler<VerifyOtpCommand, AuthRes
             throw new BusinessRuleException("INVALID_OTP", _localizer["InvalidOrExpiredOtp"]);
         }
 
-        return await BuildVerifiedAuthResponseAsync(verificationResult.Account, cancellationToken);
+        return await BuildVerifiedAuthResponseAsync(verificationResult.Account, verificationResult.Account.Role, cancellationToken);
     }
 
     private async Task<AuthResponseDto> BuildVerifiedAuthResponseAsync(
         IdentityAccountSnapshot user,
+        UserRole sessionRole,
         CancellationToken cancellationToken)
     {
         if (user.IsLoginLocked || user.AccountStatus != AccountStatus.Active)
@@ -168,37 +178,38 @@ public class VerifyOtpCommandHandler : IRequestHandler<VerifyOtpCommand, AuthRes
             throw new UnauthorizedException(_localizer["AccountLoginDenied", user.AccountStatus]);
         }
 
-        var tokens = await _jwtTokenService.GenerateTokenPairAsync(user, cancellationToken);
-        _refreshTokenStore.Add(new NewRefreshToken(user.Id, tokens.RefreshToken, DateTime.UtcNow.AddDays(7)));
+        var sessionUser = PlatformRoleMembership.WithSessionRole(user, sessionRole);
+        var tokens = await _jwtTokenService.GenerateTokenPairAsync(sessionUser, cancellationToken);
+        _refreshTokenStore.Add(new NewRefreshToken(sessionUser.Id, tokens.RefreshToken, DateTime.UtcNow.AddDays(7)));
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
         DriverOperationalStatusDto? driverStatus = null;
-        if (user.Role == UserRole.Driver)
+        if (sessionUser.Role == UserRole.Driver)
         {
             var driver = await _context.Drivers
-                .FirstOrDefaultAsync(d => d.UserId == user.Id, cancellationToken);
+                .FirstOrDefaultAsync(d => d.UserId == sessionUser.Id, cancellationToken);
 
             if (driver is not null)
             {
                 driverStatus = DriverOperationalStatusFactory.Create(
                     driver,
-                    isLoginLocked: user.IsLoginLocked,
-                    lockedAtUtc: user.LockedAtUtc);
+                    isLoginLocked: sessionUser.IsLoginLocked,
+                    lockedAtUtc: sessionUser.LockedAtUtc);
             }
         }
 
-        var access = await _accessControlService.GetEffectiveAccessAsync(user.Id, cancellationToken);
+        var access = await _accessControlService.GetEffectiveAccessAsync(sessionUser.Id, sessionUser.Role, cancellationToken);
         var userDto = new CurrentUserDto(
-            user.Id,
-            user.FullName,
-            user.Email,
-            user.PhoneNumber,
-            user.Role.ToString(),
-            user.MustChangePassword,
+            sessionUser.Id,
+            sessionUser.FullName,
+            sessionUser.Email,
+            sessionUser.PhoneNumber,
+            sessionUser.Role.ToString(),
+            sessionUser.MustChangePassword,
             Access: access,
-            ProfilePhotoUrl: user.ProfilePhotoUrl);
+            ProfilePhotoUrl: sessionUser.ProfilePhotoUrl);
 
-        var isVerified = AuthResponseVerificationResolver.Resolve(user, driverStatus);
+        var isVerified = AuthResponseVerificationResolver.Resolve(sessionUser, driverStatus);
         return new AuthResponseDto(
             tokens,
             userDto,
@@ -207,17 +218,28 @@ public class VerifyOtpCommandHandler : IRequestHandler<VerifyOtpCommand, AuthRes
             DriverStatus: driverStatus);
     }
 
-    private static void EnsureIdentifierMatchesAccount(string identifier, IdentityAccountSnapshot account)
+    private static void EnsureIdentifierMatchesAccount(
+        string identifier,
+        IdentityAccountSnapshot account,
+        string? registrationEmail,
+        string? registrationPhone)
+    {
+        if (MatchesEmailOrPhone(identifier, account.Email, account.PhoneNumber) ||
+            MatchesEmailOrPhone(identifier, registrationEmail, registrationPhone))
+        {
+            return;
+        }
+
+        throw new BusinessRuleException("USER_NOT_FOUND", "USER_NOT_FOUND");
+    }
+
+    private static bool MatchesEmailOrPhone(string identifier, string? email, string? phone)
     {
         var trimmed = identifier.Trim();
-        var emailMatch = !string.IsNullOrWhiteSpace(account.Email) &&
-                         string.Equals(account.Email, trimmed, StringComparison.OrdinalIgnoreCase);
-        var phoneMatch = !string.IsNullOrWhiteSpace(account.PhoneNumber) &&
-                         string.Equals(account.PhoneNumber, trimmed, StringComparison.Ordinal);
-
-        if (!emailMatch && !phoneMatch)
-        {
-            throw new BusinessRuleException("USER_NOT_FOUND", "USER_NOT_FOUND");
-        }
+        var emailMatch = !string.IsNullOrWhiteSpace(email) &&
+                         string.Equals(email, trimmed, StringComparison.OrdinalIgnoreCase);
+        var phoneMatch = !string.IsNullOrWhiteSpace(phone) &&
+                         string.Equals(phone, trimmed, StringComparison.Ordinal);
+        return emailMatch || phoneMatch;
     }
 }

@@ -3,6 +3,7 @@ using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Modules.Delivery.Interfaces;
 using Zadana.Application.Modules.Delivery.Support;
 using Zadana.Application.Modules.Identity.Interfaces;
+using Zadana.Application.Modules.Identity.Support;
 using Zadana.Application.Modules.Vendors.Interfaces;
 using Zadana.Domain.Modules.Identity.Enums;
 using Zadana.Domain.Modules.Orders.Enums;
@@ -85,7 +86,7 @@ public sealed class AccountClosureService : IAccountClosureService
             _dbContext.Carts.RemoveRange(carts);
         }
 
-        await FinalizeClosureAsync(userId, reason, cancellationToken);
+        await FinalizePlatformClosureAsync(userId, UserRole.Customer, reason, cancellationToken);
     }
 
     public async Task CloseDriverAccountAsync(
@@ -173,7 +174,7 @@ public sealed class AccountClosureService : IAccountClosureService
             driver.Suspend("Account closed by driver");
         }
 
-        await FinalizeClosureAsync(userId, reason, cancellationToken);
+        await FinalizePlatformClosureAsync(userId, UserRole.Driver, reason, cancellationToken);
     }
 
     public async Task CloseVendorAccountAsync(
@@ -238,7 +239,7 @@ public sealed class AccountClosureService : IAccountClosureService
         var closeReason = NormalizeReason(reason);
         vendor.Archive(closeReason);
 
-        await FinalizeClosureAsync(userId, closeReason, cancellationToken);
+        await FinalizePlatformClosureAsync(userId, UserRole.Vendor, closeReason, cancellationToken);
     }
 
     private async Task EnsureNoActiveSettlementAsync(
@@ -321,7 +322,7 @@ public sealed class AccountClosureService : IAccountClosureService
         var account = await _identityAccountService.FindByIdAsync(userId, cancellationToken)
             ?? throw new UnauthorizedException("USER_NOT_AUTHENTICATED");
 
-        if (account.Role != expectedRole)
+        if (!PlatformRoleMembership.HasAnyRole(account, expectedRole))
         {
             throw new ForbiddenAccessException(
                 "هذا المسار غير متاح لنوع الحساب الحالي.|This endpoint is not available for the current account type.",
@@ -342,6 +343,39 @@ public sealed class AccountClosureService : IAccountClosureService
                 "كلمة المرور غير صحيحة.|The password is incorrect.",
                 "ACCOUNT_CLOSE_INVALID_PASSWORD");
         }
+    }
+
+    private async Task FinalizePlatformClosureAsync(
+        Guid userId,
+        UserRole closedRole,
+        string? reason,
+        CancellationToken cancellationToken)
+    {
+        var account = await _identityAccountService.FindByIdAsync(userId, cancellationToken)
+            ?? throw new UnauthorizedException("USER_NOT_AUTHENTICATED");
+
+        var remainingRoles = PlatformRoleMembership.OwnedRoles(account)
+            .Where(role => role != closedRole)
+            .ToArray();
+
+        if (remainingRoles.Length == 0)
+        {
+            await FinalizeClosureAsync(userId, reason, cancellationToken);
+            return;
+        }
+
+        var removeResult = await _identityAccountService.RemovePlatformRoleAsync(
+            userId,
+            closedRole,
+            cancellationToken);
+        if (!removeResult.Succeeded)
+        {
+            throw new BusinessRuleException(
+                "ACCOUNT_CLOSE_FAILED",
+                string.Join(", ", removeResult.Errors ?? ["Unable to close the account."]));
+        }
+
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
     }
 
     private async Task FinalizeClosureAsync(

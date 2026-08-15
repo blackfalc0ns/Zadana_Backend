@@ -96,7 +96,12 @@ public sealed record PendingRegistrationSnapshot(
     string Email,
     string? PhoneNumber,
     UserRole Role,
-    string? ProfilePhotoUrl);
+    string? ProfilePhotoUrl,
+    Guid? ExistingUserId = null,
+    string? OtpEmail = null)
+{
+    public string OtpDestinationEmail => string.IsNullOrWhiteSpace(OtpEmail) ? Email : OtpEmail;
+}
 
 public enum PendingRegistrationStartStatus
 {
@@ -144,4 +149,7 @@ public sealed record PendingCompletionResult(
     UserRole? Role = null,
     string? PayloadJson = null,
     string? RegistrationToken = null,
-    IReadOnlyCollection<string>? Errors = null);
+    IReadOnlyCollection<string>? Errors = null,
+    bool LinkedExistingAccount = false,
+    string? RegistrationEmail = null,
+    string? RegistrationPhone = null);

@@ -34,9 +34,10 @@ public abstract class IdentityAuthControllerBase : ApiControllerBase
         return Ok(result);
     }
 
-    protected async Task<IActionResult> RefreshTokenAsync(RefreshTokenRequest request)
+    protected async Task<IActionResult> RefreshTokenAsync(RefreshTokenRequest request, params UserRole[] roles)
     {
-        var result = await Sender.Send(new RefreshTokenCommand(request.RefreshToken));
+        var expectedRoles = roles is { Length: > 0 } ? roles : null;
+        var result = await Sender.Send(new RefreshTokenCommand(request.RefreshToken, expectedRoles));
         return Ok(result);
     }
 

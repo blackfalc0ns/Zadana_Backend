@@ -4,6 +4,7 @@ using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Modules.Geography.Support;
 using Zadana.Application.Modules.Identity.DTOs;
 using Zadana.Application.Modules.Identity.Interfaces;
+using Zadana.Application.Modules.Identity.Support;
 using Zadana.Application.Modules.Finances.Services;
 using Zadana.Application.Modules.Vendors.Interfaces;
 using Zadana.Domain.Modules.Identity.Enums;
@@ -98,7 +99,7 @@ public class RegisterVendorCommandHandler : IRequestHandler<RegisterVendorComman
         }
 
         await _otpService.SendOtpEmailAsync(
-            startResult.Pending.Email,
+            startResult.Pending.OtpDestinationEmail,
             startResult.PlainOtpCode,
             cancellationToken);
 
@@ -118,19 +119,53 @@ public class RegisterVendorCommandHandler : IRequestHandler<RegisterVendorComman
         }
 
         var password = GenerateSecurePassword();
-        var user = await _registrationWorkflow.RegisterAccountAsync(
-            new CreateIdentityAccountRequest(
-                request.FullName,
-                request.Email,
-                request.Phone,
-                UserRole.Vendor,
-                password),
+        var linkableUserId = await PlatformAccountLinkResolver.ResolveAsync(
+            _identityAccountService,
+            request.Email.Trim().ToLowerInvariant(),
+            string.IsNullOrWhiteSpace(request.Phone) ? null : request.Phone.Trim(),
+            UserRole.Vendor,
             cancellationToken);
+        var linkedExisting = false;
+        IdentityAccountSnapshot user;
+        if (linkableUserId == Guid.Empty)
+        {
+            throw new BusinessRuleException("USER_ALREADY_EXISTS", "User already exists.");
+        }
+
+        if (linkableUserId.HasValue)
+        {
+            var addRole = await _identityAccountService.AddPlatformRoleAsync(
+                linkableUserId.Value,
+                UserRole.Vendor,
+                cancellationToken);
+            if (!addRole.Succeeded || addRole.Account is null)
+            {
+                throw new BusinessRuleException("CREATION_FAILED", string.Join(", ", addRole.Errors ?? []));
+            }
+
+            user = addRole.Account;
+            linkedExisting = true;
+        }
+        else
+        {
+            user = await _registrationWorkflow.RegisterAccountAsync(
+                new CreateIdentityAccountRequest(
+                    request.FullName,
+                    request.Email,
+                    request.Phone,
+                    UserRole.Vendor,
+                    password),
+                cancellationToken);
+        }
 
         var confirmResult = await _identityAccountService.ConfirmEmailAsync(user.Id, cancellationToken);
         if (!confirmResult.Succeeded || confirmResult.Account is null)
         {
-            await _registrationWorkflow.CompensateAccountCreationFailureAsync(user.Id, cancellationToken);
+            if (!linkedExisting)
+            {
+                await _registrationWorkflow.CompensateAccountCreationFailureAsync(user.Id, cancellationToken);
+            }
+
             throw new BusinessRuleException("IDENTITY_OPERATION_FAILED", "Unable to confirm Google email.");
         }
 
@@ -209,13 +244,18 @@ public class RegisterVendorCommandHandler : IRequestHandler<RegisterVendorComman
 
             authResponse = await _registrationWorkflow.BuildAuthResponseAsync(
                 user,
-                cancellationToken: cancellationToken);
+                cancellationToken: cancellationToken,
+                sessionRole: UserRole.Vendor);
 
             await _unitOfWork.SaveChangesAsync(cancellationToken);
         }
         catch
         {
-            await _registrationWorkflow.CompensateAccountCreationFailureAsync(user.Id, cancellationToken);
+            if (!linkedExisting)
+            {
+                await _registrationWorkflow.CompensateAccountCreationFailureAsync(user.Id, cancellationToken);
+            }
+
             throw;
         }
 

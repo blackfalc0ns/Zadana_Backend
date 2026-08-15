@@ -146,6 +146,35 @@ public class PendingRegistrationFlow_IntegrationTests : IClassFixture<ZadanaWebF
     }
 
     [Fact]
+    public async Task CustomerRegister_WhenPhoneAlreadyUsedByCustomer_ReturnsUserAlreadyExists()
+    {
+        var email = $"exists_phone_{Guid.NewGuid():N}@test.com";
+        var phone = "010" + Random.Shared.Next(10000000, 99999999);
+
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var userManager = scope.ServiceProvider.GetRequiredService<UserManager<User>>();
+            var user = new User("Existing", email, phone, Domain.Modules.Identity.Enums.UserRole.Customer);
+            (await userManager.CreateAsync(user, "P@ssword1234")).Succeeded.Should().BeTrue();
+            (await userManager.AddToRoleAsync(user, Domain.Modules.Identity.Enums.UserRole.Customer.ToString()))
+                .Succeeded.Should().BeTrue();
+        }
+
+        var response = await _client.PostAsJsonAsync("/api/customers/auth/register", new
+        {
+            fullName = "Clash Customer",
+            email = $"other_{Guid.NewGuid():N}@test.com",
+            phone,
+            password = "P@ssword1234",
+            addressLine = "Test Address"
+        });
+
+        ((int)response.StatusCode).Should().BeGreaterThan(399);
+        var content = await response.Content.ReadAsStringAsync();
+        content.Should().ContainEquivalentOf("USER_ALREADY_EXISTS");
+    }
+
+    [Fact]
     public async Task CustomerLogin_BeforeOtp_TreatsAsAccountNotFound()
     {
         var email = $"ghost_cust_{Guid.NewGuid():N}@test.com";

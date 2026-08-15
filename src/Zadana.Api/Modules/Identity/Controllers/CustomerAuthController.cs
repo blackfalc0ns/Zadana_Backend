@@ -55,7 +55,7 @@ public class CustomerAuthController : IdentityAuthControllerBase
     [EnableRateLimiting(RateLimitPolicyNames.Auth)]
     [HttpPost("refresh-token")]
     public Task<IActionResult> RefreshToken([FromBody] RefreshTokenRequest request) =>
-        RefreshTokenAsync(request);
+        RefreshTokenAsync(request, UserRole.Customer);
 
     [EnableRateLimiting(RateLimitPolicyNames.Auth)]
     [HttpPost("verify-otp")]
@@ -76,7 +76,7 @@ public class CustomerAuthController : IdentityAuthControllerBase
     [BotChallenge]
     [HttpPost("forgot-password")]
     public Task<IActionResult> ForgotPassword([FromBody] ForgotPasswordRequest request) =>
-        ForgotPasswordAsync(request);
+        ForgotPasswordAsync(request, UserRole.Customer);
 
     [EnableRateLimiting(RateLimitPolicyNames.Auth)]
     [HttpPost("verify-reset-otp")]

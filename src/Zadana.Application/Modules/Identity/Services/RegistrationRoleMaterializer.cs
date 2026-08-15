@@ -104,6 +104,11 @@ public sealed class RegistrationRoleMaterializer : IRegistrationRoleMaterializer
         string payloadJson,
         CancellationToken cancellationToken)
     {
+        var existingVendor = await _vendorRepository.GetByUserIdAsync(account.Id, cancellationToken);
+        if (existingVendor is not null)
+        {
+            return;
+        }
         var payload = Deserialize<PendingVendorPayload>(payloadJson);
         var payoutDay = await _settlementProcessingSettingsService.ResolveConfiguredPayoutDayAsync(
             payload.PayoutDay,
@@ -182,6 +187,12 @@ public sealed class RegistrationRoleMaterializer : IRegistrationRoleMaterializer
         string payloadJson,
         CancellationToken cancellationToken)
     {
+        var existingDriver = await _driverRepository.GetByUserIdAsync(account.Id, cancellationToken);
+        if (existingDriver is not null)
+        {
+            await EnsureDriverAccessScopeAsync(account.Id, existingDriver.Id, cancellationToken);
+            return;
+        }
         var payload = Deserialize<PendingDriverPayload>(payloadJson);
         var driver = new Driver(
             account.Id,
@@ -230,7 +241,9 @@ public sealed class RegistrationRoleMaterializer : IRegistrationRoleMaterializer
         }
 
         var existingScope = await _context.UserAccessScopes
-            .FirstOrDefaultAsync(scope => scope.UserId == userId && scope.IsActive, cancellationToken);
+            .FirstOrDefaultAsync(
+                scope => scope.UserId == userId && scope.IsActive && scope.PanelScope == PanelScope.DriverApp,
+                cancellationToken);
 
         var userEntity = await _context.Users.FirstOrDefaultAsync(user => user.Id == userId, cancellationToken)
             ?? throw new NotFoundException("User", userId);

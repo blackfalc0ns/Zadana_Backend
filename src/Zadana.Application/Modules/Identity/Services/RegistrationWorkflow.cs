@@ -4,6 +4,8 @@ using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Common.Localization;
 using Zadana.Application.Modules.Identity.DTOs;
 using Zadana.Application.Modules.Identity.Interfaces;
+using Zadana.Application.Modules.Identity.Support;
+using Zadana.Domain.Modules.Identity.Enums;
 using Zadana.SharedKernel.Exceptions;
 
 namespace Zadana.Application.Modules.Identity.Services;
@@ -85,19 +87,24 @@ public class RegistrationWorkflow : IRegistrationWorkflow
     public async Task<AuthResponseDto> BuildAuthResponseAsync(
         IdentityAccountSnapshot account,
         DriverOperationalStatusDto? driverStatus = null,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        UserRole? sessionRole = null)
     {
-        if (!account.EmailConfirmed)
+        var sessionAccount = sessionRole.HasValue
+            ? PlatformRoleMembership.WithSessionRole(account, sessionRole.Value)
+            : account;
+
+        if (!sessionAccount.EmailConfirmed)
         {
             var pendingUserDto = new CurrentUserDto(
-                account.Id,
-                account.FullName,
-                account.Email,
-                account.PhoneNumber,
-                account.Role.ToString(),
-                account.MustChangePassword,
-                Access: await _accessControlService.GetEffectiveAccessAsync(account.Id, cancellationToken),
-                ProfilePhotoUrl: account.ProfilePhotoUrl);
+                sessionAccount.Id,
+                sessionAccount.FullName,
+                sessionAccount.Email,
+                sessionAccount.PhoneNumber,
+                sessionAccount.Role.ToString(),
+                sessionAccount.MustChangePassword,
+                Access: await _accessControlService.GetEffectiveAccessAsync(sessionAccount.Id, sessionAccount.Role, cancellationToken),
+                ProfilePhotoUrl: sessionAccount.ProfilePhotoUrl);
 
             return new AuthResponseDto(
                 Tokens: null,
@@ -107,20 +114,20 @@ public class RegistrationWorkflow : IRegistrationWorkflow
                 DriverStatus: driverStatus);
         }
 
-        var tokens = await _jwtTokenService.GenerateTokenPairAsync(account, cancellationToken);
-        _refreshTokenStore.Add(new NewRefreshToken(account.Id, tokens.RefreshToken, DateTime.UtcNow.Add(RefreshTokenLifetime)));
+        var tokens = await _jwtTokenService.GenerateTokenPairAsync(sessionAccount, cancellationToken);
+        _refreshTokenStore.Add(new NewRefreshToken(sessionAccount.Id, tokens.RefreshToken, DateTime.UtcNow.Add(RefreshTokenLifetime)));
 
         var userDto = new CurrentUserDto(
-            account.Id,
-            account.FullName,
-            account.Email,
-            account.PhoneNumber,
-            account.Role.ToString(),
-            account.MustChangePassword,
-            Access: await _accessControlService.GetEffectiveAccessAsync(account.Id, cancellationToken),
-            ProfilePhotoUrl: account.ProfilePhotoUrl);
+            sessionAccount.Id,
+            sessionAccount.FullName,
+            sessionAccount.Email,
+            sessionAccount.PhoneNumber,
+            sessionAccount.Role.ToString(),
+            sessionAccount.MustChangePassword,
+            Access: await _accessControlService.GetEffectiveAccessAsync(sessionAccount.Id, sessionAccount.Role, cancellationToken),
+            ProfilePhotoUrl: sessionAccount.ProfilePhotoUrl);
 
-        var isVerified = AuthResponseVerificationResolver.Resolve(account, driverStatus);
+        var isVerified = AuthResponseVerificationResolver.Resolve(sessionAccount, driverStatus);
 
         return new AuthResponseDto(tokens, userDto, IsVerified: isVerified, DriverStatus: driverStatus);
     }

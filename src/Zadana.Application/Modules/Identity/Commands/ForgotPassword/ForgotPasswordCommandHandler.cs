@@ -2,6 +2,7 @@ using MediatR;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Modules.Identity.DTOs;
 using Zadana.Application.Modules.Identity.Interfaces;
+using Zadana.Application.Modules.Identity.Support;
 using Zadana.SharedKernel.Exceptions;
 using Microsoft.Extensions.Localization;
 using Zadana.Application.Common.Localization;
@@ -45,7 +46,8 @@ public class ForgotPasswordCommandHandler : IRequestHandler<ForgotPasswordComman
         }
 
         var user = otpResult.Account;
-        if (request.ExpectedRoles is { Length: > 0 } && !request.ExpectedRoles.Contains(user.Role))
+        if (request.ExpectedRoles is { Length: > 0 } &&
+            !PlatformRoleMembership.HasAnyRole(user, request.ExpectedRoles))
         {
             return;
         }

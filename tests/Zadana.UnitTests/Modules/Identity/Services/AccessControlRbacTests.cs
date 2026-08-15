@@ -335,7 +335,7 @@ public class AccessControlRbacTests
     }
 
     private static AccessControlService CreateAccessControlService(ApplicationDbContext context) =>
-        new(context, NullLogger<AccessControlService>.Instance);
+        new(context, new FakeCurrentUserService(), NullLogger<AccessControlService>.Instance);
 
     private static AdminAccessValidationService CreateValidationService(
         ApplicationDbContext context,

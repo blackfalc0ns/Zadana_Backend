@@ -65,7 +65,10 @@ public class ResendOtpCommandHandler : IRequestHandler<ResendOtpCommand, AuthRes
                 !string.IsNullOrWhiteSpace(pendingResult.RegistrationToken))
             {
                 EnsureIdentifierMatchesPending(identifier, pendingResult.Pending);
-                await SendRegistrationOtpEmailAsync(pendingResult.Pending.Email, pendingResult.PlainOtpCode, cancellationToken);
+                await SendRegistrationOtpEmailAsync(
+                    pendingResult.Pending.OtpDestinationEmail,
+                    pendingResult.PlainOtpCode,
+                    cancellationToken);
                 var pendingUserDto = new CurrentUserDto(
                     pendingResult.Pending.Id,
                     pendingResult.Pending.FullName,
@@ -203,12 +206,22 @@ public class ResendOtpCommandHandler : IRequestHandler<ResendOtpCommand, AuthRes
 
     private static void EnsureIdentifierMatchesPending(string identifier, PendingRegistrationSnapshot pending)
     {
-        var trimmed = identifier.Trim();
-        var emailMatch = string.Equals(pending.Email, trimmed, StringComparison.OrdinalIgnoreCase);
-        var phoneMatch = string.Equals(pending.PhoneNumber, trimmed, StringComparison.Ordinal);
-        if (!emailMatch && !phoneMatch)
+        if (MatchesEmailOrPhone(identifier, pending.Email, pending.PhoneNumber) ||
+            MatchesEmailOrPhone(identifier, pending.OtpDestinationEmail, null))
         {
-            throw new BusinessRuleException("USER_NOT_FOUND", "USER_NOT_FOUND");
+            return;
         }
+
+        throw new BusinessRuleException("USER_NOT_FOUND", "USER_NOT_FOUND");
+    }
+
+    private static bool MatchesEmailOrPhone(string identifier, string? email, string? phone)
+    {
+        var trimmed = identifier.Trim();
+        var emailMatch = !string.IsNullOrWhiteSpace(email) &&
+                         string.Equals(email, trimmed, StringComparison.OrdinalIgnoreCase);
+        var phoneMatch = !string.IsNullOrWhiteSpace(phone) &&
+                         string.Equals(phone, trimmed, StringComparison.Ordinal);
+        return emailMatch || phoneMatch;
     }
 }

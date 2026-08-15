@@ -52,7 +52,8 @@ public record IdentityAccountSnapshot(
     bool EmailConfirmed,
     bool PhoneNumberConfirmed,
     bool MustChangePassword,
-    string? ProfilePhotoUrl = null);
+    string? ProfilePhotoUrl = null,
+    IReadOnlyCollection<UserRole>? PlatformRoles = null);
 
 public record RegistrationOtpDispatch(
     IdentityAccountSnapshot Account,

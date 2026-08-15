@@ -3,6 +3,7 @@ using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Modules.Delivery.DTOs;
 using Zadana.Application.Modules.Identity.DTOs;
 using Zadana.Application.Modules.Identity.Interfaces;
+using Zadana.Application.Modules.Identity.Support;
 using Zadana.Domain.Modules.Identity.Entities;
 using Zadana.Domain.Modules.Identity.Enums;
 using Zadana.SharedKernel.Exceptions;
@@ -52,6 +53,18 @@ public class IdentityService : IIdentityService
             throw new UnauthorizedException(_localizer["InvalidCredentials"]);
         }
 
+        var existing = await _identityAccountService.FindByIdentifierAsync(identifier, cancellationToken);
+        if (existing is null)
+        {
+            throw new UnauthorizedException(_localizer["AccountNotFound"]);
+        }
+
+        var sessionRole = PlatformRoleMembership.ResolveSessionRole(existing, expectedRoles);
+        if (expectedRoles is { Length: > 0 } && sessionRole is null)
+        {
+            throw new UnauthorizedException(_localizer["AccountNotFound"]);
+        }
+
         var credentialValidation = await _identityAccountService.ValidateCredentialsAsync(identifier, password, cancellationToken);
         if (credentialValidation.Status == CredentialValidationStatus.UserNotFound)
         {
@@ -63,12 +76,9 @@ public class IdentityService : IIdentityService
             throw new UnauthorizedException(_localizer["InvalidCredentials"]);
         }
 
-        var user = credentialValidation.Account;
-
-        if (expectedRoles != null && expectedRoles.Length > 0 && !expectedRoles.Contains(user.Role))
-        {
-            throw new UnauthorizedException(_localizer["UnauthorizedAppAccess"]);
-        }
+        var user = PlatformRoleMembership.WithSessionRole(
+            credentialValidation.Account,
+            sessionRole ?? credentialValidation.Account.Role);
 
         // Closed accounts must look deleted to the end user on every login attempt.
         if (user.ArchivedAtUtc.HasValue)
@@ -122,7 +132,7 @@ public class IdentityService : IIdentityService
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
         var favoritesCount = await _context.CustomerFavorites.CountAsync(x => x.UserId == user.Id, cancellationToken);
-        var access = await _accessControlService.GetEffectiveAccessAsync(user.Id, cancellationToken);
+        var access = await _accessControlService.GetEffectiveAccessAsync(user.Id, user.Role, cancellationToken);
         var userDto = new CurrentUserDto(user.Id, user.FullName, user.Email, user.PhoneNumber, user.Role.ToString(), user.MustChangePassword, favoritesCount, access, user.ProfilePhotoUrl);
         DriverOperationalStatusDto? driverStatus = null;
 
@@ -145,7 +155,10 @@ public class IdentityService : IIdentityService
         return new AuthResponseDto(tokens, userDto, IsVerified: isVerified, DriverStatus: driverStatus);
     }
 
-    public async Task<TokenPairDto> RefreshTokenAsync(string refreshToken, CancellationToken cancellationToken = default)
+    public async Task<TokenPairDto> RefreshTokenAsync(
+        string refreshToken,
+        CancellationToken cancellationToken = default,
+        UserRole[]? expectedRoles = null)
     {
         var tokenEntity = await _refreshTokenStore.GetByTokenWithUserAsync(refreshToken, cancellationToken);
 
@@ -197,9 +210,19 @@ public class IdentityService : IIdentityService
 
         EnsureEmailVerified(tokenEntity.User);
 
-        var refreshedUser = tokenEntity.User.Role == UserRole.Driver
-            ? await EnsureDriverAccessScopeAsync(tokenEntity.User, cancellationToken)
-            : tokenEntity.User;
+        var account = await _identityAccountService.FindByIdAsync(tokenEntity.User.Id, cancellationToken)
+            ?? tokenEntity.User;
+        var sessionRole = PlatformRoleMembership.ResolveSessionRole(account, expectedRoles);
+        if (expectedRoles is { Length: > 0 } && sessionRole is null)
+        {
+            throw new UnauthorizedException(_localizer["InvalidRefreshToken"]);
+        }
+
+        var refreshedUser = PlatformRoleMembership.WithSessionRole(account, sessionRole ?? account.Role);
+        if (refreshedUser.Role == UserRole.Driver)
+        {
+            refreshedUser = await EnsureDriverAccessScopeAsync(refreshedUser, cancellationToken);
+        }
 
         var newTokens = await _jwtTokenService.GenerateTokenPairAsync(refreshedUser, cancellationToken);
         await _refreshTokenStore.RevokeAsync(refreshToken, cancellationToken);
@@ -259,8 +282,14 @@ public class IdentityService : IIdentityService
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
         var favoritesCount = await _context.CustomerFavorites.CountAsync(x => x.UserId == user.Id, cancellationToken);
-        var access = await _accessControlService.GetEffectiveAccessAsync(user.Id, cancellationToken);
-        return new CurrentUserDto(user.Id, user.FullName, user.Email, user.PhoneNumber, user.Role.ToString(), user.MustChangePassword, favoritesCount, access, user.ProfilePhotoUrl);
+        var sessionRole = Enum.TryParse<UserRole>(_currentUserService.Role, true, out var parsedRole)
+            ? parsedRole
+            : user.Role;
+        var sessionUser = PlatformRoleMembership.HasAnyRole(user, sessionRole)
+            ? PlatformRoleMembership.WithSessionRole(user, sessionRole)
+            : user;
+        var access = await _accessControlService.GetEffectiveAccessAsync(sessionUser.Id, sessionUser.Role, cancellationToken);
+        return new CurrentUserDto(sessionUser.Id, sessionUser.FullName, sessionUser.Email, sessionUser.PhoneNumber, sessionUser.Role.ToString(), sessionUser.MustChangePassword, favoritesCount, access, sessionUser.ProfilePhotoUrl);
     }
 
     private void EnsureEmailVerified(IdentityAccountSnapshot user)
@@ -305,7 +334,9 @@ public class IdentityService : IIdentityService
         }
 
         var existingScope = await _context.UserAccessScopes
-            .FirstOrDefaultAsync(scope => scope.UserId == account.Id && scope.IsActive, cancellationToken);
+            .FirstOrDefaultAsync(
+                scope => scope.UserId == account.Id && scope.IsActive && scope.PanelScope == PanelScope.DriverApp,
+                cancellationToken);
 
         var changed = false;
 

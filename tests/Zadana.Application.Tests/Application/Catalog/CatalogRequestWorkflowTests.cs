@@ -471,6 +471,8 @@ public class CatalogRequestWorkflowTests
         public Task<IdentityOperationResult> UpdateProfileAsync(Guid userId, string fullName, string email, string phoneNumber, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<IdentityOperationResult> UpdateProfilePhotoAsync(Guid userId, string? profilePhotoUrl, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<IdentityOperationResult> UpdateRoleAsync(Guid userId, UserRole role, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task<IdentityOperationResult> AddPlatformRoleAsync(Guid userId, UserRole role, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task<IdentityOperationResult> RemovePlatformRoleAsync(Guid userId, UserRole role, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<IdentityOperationResult> ChangePasswordAsync(Guid userId, string currentPassword, string newPassword, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<IdentityOperationResult> ActivateAsync(Guid userId, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<IdentityOperationResult> SuspendAsync(Guid userId, CancellationToken cancellationToken = default) => throw new NotImplementedException();
