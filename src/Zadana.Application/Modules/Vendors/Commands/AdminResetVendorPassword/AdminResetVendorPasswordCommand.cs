@@ -16,7 +16,12 @@ public class AdminResetVendorPasswordCommandValidator : AbstractValidator<AdminR
     public AdminResetVendorPasswordCommandValidator(IStringLocalizer<SharedResource> localizer)
     {
         RuleFor(x => x.VendorId).NotEmpty();
-        RuleFor(x => x.NewPassword).NotEmpty().MinimumLength(8);
+        RuleFor(x => x.NewPassword)
+            .NotEmpty().WithMessage(localizer["RequiredField"].Value)
+            .MinimumLength(8).WithMessage(localizer["PasswordMinLength"].Value)
+            .Matches("[a-z]").WithMessage(localizer["PasswordComplexity"].Value)
+            .Matches("[0-9]").WithMessage(localizer["PasswordComplexity"].Value)
+            .WithName(localizer["NewPassword"].Value);
     }
 }
 
@@ -56,7 +61,12 @@ public class AdminResetVendorPasswordCommandHandler : IRequestHandler<AdminReset
         var resetResult = await _identityAccountService.ResetPasswordByAdminAsync(vendor.UserId, request.NewPassword, cancellationToken);
         if (!resetResult.Succeeded)
         {
-            throw new BusinessRuleException("IDENTITY_RESET_PASSWORD_FAILED", string.Join(", ", resetResult.Errors ?? []));
+            var details = string.Join(" ", resetResult.Errors ?? []);
+            throw new BusinessRuleException(
+                "IDENTITY_RESET_PASSWORD_FAILED",
+                string.IsNullOrWhiteSpace(details)
+                    ? "فشل إعادة تعيين كلمة المرور. لازم 8 أحرف على الأقل مع حرف إنجليزي صغير ورقم.|Password reset failed. Use at least 8 characters with a lowercase letter and a number."
+                    : details);
         }
 
         await _refreshTokenStore.RevokeAllByUserAsync(vendor.UserId, cancellationToken);

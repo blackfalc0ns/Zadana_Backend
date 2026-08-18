@@ -221,6 +221,9 @@
   <data name="PasswordMinLength" xml:space="preserve">
     <value>كلمة المرور لازم تكون 8 أحرف على الأقل.</value>
   </data>
+  <data name="PasswordComplexity" xml:space="preserve">
+    <value>كلمة المرور لازم 8 أحرف على الأقل، وفيها حرف إنجليزي صغير ورقم.</value>
+  </data>
   <data name="InvalidResetAttempt" xml:space="preserve">
     <value>محاولة إعادة التعيين غير صحيحة.</value>
   </data>
@@ -803,7 +806,7 @@
     <value>فشل قفل الحساب. حاول مرة أخرى.</value>
   </data>
   <data name="IDENTITY_RESET_PASSWORD_FAILED" xml:space="preserve">
-    <value>فشل إعادة تعيين كلمة المرور. حاول مرة أخرى.</value>
+    <value>فشل إعادة تعيين كلمة المرور. لازم 8 أحرف على الأقل مع حرف إنجليزي صغير ورقم.</value>
   </data>
   <data name="IDENTITY_SUSPEND_FAILED" xml:space="preserve">
     <value>فشل تعليق الحساب. حاول مرة أخرى.</value>

@@ -524,18 +524,20 @@ public class IdentityAccountService : IIdentityAccountService
             return new IdentityOperationResult(false, ["User account was not found."]);
         }
 
-        var resetToken = await _userManager.GeneratePasswordResetTokenAsync(user);
-        var result = await _userManager.ResetPasswordAsync(user, resetToken, newPassword);
-        if (result.Succeeded)
+        var policyErrors = await ValidatePasswordPolicyAsync(user, newPassword);
+        if (policyErrors.Length > 0)
         {
-            user.CompletePasswordChange();
-            await PersistUserAsync(user);
-            return new IdentityOperationResult(true);
+            return new IdentityOperationResult(false, policyErrors);
         }
 
-        return new IdentityOperationResult(
-            false,
-            result.Errors.Select(error => error.Description).ToArray());
+        var setResult = await SetPasswordAfterOtpVerificationAsync(user, newPassword);
+        if (!setResult.Succeeded)
+        {
+            return setResult;
+        }
+
+        user.CompletePasswordChange();
+        return await PersistUserAsync(user);
     }
 
     public async Task<OtpDispatchResult> GenerateRegistrationOtpAsync(Guid userId, CancellationToken cancellationToken = default)
@@ -792,11 +794,39 @@ public class IdentityAccountService : IIdentityAccountService
             MapIdentityErrors(result.Errors));
     }
 
+    private async Task<string[]> ValidatePasswordPolicyAsync(User user, string newPassword)
+    {
+        var errors = new List<IdentityError>();
+        foreach (var validator in _userManager.PasswordValidators)
+        {
+            var result = await validator.ValidateAsync(_userManager, user, newPassword);
+            if (!result.Succeeded)
+            {
+                errors.AddRange(result.Errors);
+            }
+        }
+
+        return MapIdentityErrors(errors);
+    }
+
     private static string[] MapIdentityErrors(IEnumerable<IdentityError> errors) =>
         errors.Select(error =>
-            string.IsNullOrWhiteSpace(error.Code)
-                ? error.Description
-                : $"{error.Code}: {error.Description}").ToArray();
+            error.Code switch
+            {
+                "PasswordTooShort" =>
+                    "كلمة المرور لازم 8 أحرف على الأقل.|Password must be at least 8 characters.",
+                "PasswordRequiresDigit" =>
+                    "كلمة المرور لازم فيها رقم.|Password must include a number.",
+                "PasswordRequiresLower" =>
+                    "كلمة المرور لازم فيها حرف إنجليزي صغير.|Password must include a lowercase letter.",
+                "PasswordRequiresUpper" =>
+                    "كلمة المرور لازم فيها حرف إنجليزي كبير.|Password must include an uppercase letter.",
+                "PasswordRequiresNonAlphanumeric" =>
+                    "كلمة المرور لازم فيها رمز.|Password must include a symbol.",
+                _ => string.IsNullOrWhiteSpace(error.Code)
+                    ? error.Description
+                    : $"{error.Code}: {error.Description}"
+            }).ToArray();
 
     private async Task<IdentityAccountSnapshot> MapAsync(User user)
     {

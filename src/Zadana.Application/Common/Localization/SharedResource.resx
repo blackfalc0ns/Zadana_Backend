@@ -224,6 +224,9 @@
   <data name="PasswordMinLength" xml:space="preserve">
     <value>Password must be at least 8 characters.</value>
   </data>
+  <data name="PasswordComplexity" xml:space="preserve">
+    <value>Password must be at least 8 characters and include a lowercase letter and a number.</value>
+  </data>
   <data name="InvalidResetAttempt" xml:space="preserve">
     <value>Invalid reset attempt.</value>
   </data>
@@ -802,7 +805,7 @@
     <value>Failed to lock the account. Please try again.</value>
   </data>
   <data name="IDENTITY_RESET_PASSWORD_FAILED" xml:space="preserve">
-    <value>Failed to reset password. Please try again.</value>
+    <value>Failed to reset password. Use at least 8 characters with a lowercase letter and a number.</value>
   </data>
   <data name="IDENTITY_SUSPEND_FAILED" xml:space="preserve">
     <value>Failed to suspend the account. Please try again.</value>
