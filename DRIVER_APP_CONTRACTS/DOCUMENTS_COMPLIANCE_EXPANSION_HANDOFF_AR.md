@@ -323,7 +323,7 @@ Important:
 - `missing_documents`
 - `expired_documents`
 - `rejected_documents`
-- `missing_region_city`
+- `missing_region`
 
 ## Recommended Mobile UI Logic
 

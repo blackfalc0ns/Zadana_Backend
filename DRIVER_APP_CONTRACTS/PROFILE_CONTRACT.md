@@ -3,6 +3,7 @@
 ## Status
 
 - `implemented`
+- Updated: 2026-08-19 (Eastern metro — region-only geography)
 
 ## Purpose
 
@@ -26,7 +27,7 @@ Example response:
   "fullName": "Ahmed Driver",
   "email": "yahya123@gmail.com",
   "phone": "01289078938",
-  "address": "Riyadh",
+  "address": "Al Khobar",
   "vehicleType": "Motorcycle",
   "licenseNumber": "DRV-1001",
   "nationalId": "29801011234567",
@@ -34,8 +35,12 @@ Example response:
   "nationalIdImageUrl": "https://...",
   "licenseImageUrl": "https://...",
   "vehicleImageUrl": "https://...",
-  "primaryZoneId": "77777777-7777-7777-7777-777777777777",
-  "zoneName": "Riyadh - Al Olaya",
+  "region": "EASTERN",
+  "city": null,
+  "regionNameAr": "المنطقة الشرقية",
+  "regionNameEn": "Eastern Region",
+  "cityNameAr": null,
+  "cityNameEn": null,
   "verificationStatus": "UnderReview",
   "accountStatus": "Pending",
   "reviewNote": null,
@@ -46,6 +51,12 @@ Example response:
   "canSubmitForReview": true
 }
 ```
+
+Notes:
+
+- `region` is the operational geography field (`EASTERN` only at signup).
+- `city` may be null; dispatch does not use it. Do not show a city picker.
+- `primaryZoneId` / `zoneName` are **not** used in v2 profile APIs.
 
 ### 2. Update Personal Section
 
@@ -58,7 +69,7 @@ body:
   "fullName": "Ahmed Driver",
   "email": "yahya123@gmail.com",
   "phone": "01289078938",
-  "address": "Riyadh"
+  "address": "Al Khobar"
 }
 ```
 
@@ -78,15 +89,17 @@ body:
   "vehicleType": "Motorcycle",
   "nationalId": "29801011234567",
   "licenseNumber": "DRV-1001",
-  "primaryZoneId": "77777777-7777-7777-7777-777777777777"
+  "region": "EASTERN"
 }
 ```
 
 Notes:
 
-- `primaryZoneId` يجب أن تكون active zone
+- **`region` is required** — must be `EASTERN`.
+- **`city` is optional** — if sent, backend stores it but ignores it for offer dispatch.
+- Do **not** send `primaryZoneId`; use `region` instead.
 - هذا endpoint يعتبر sensitive update
-- إذا كان السائق Approved ثم عدّل vehicle/zone، يرجع إلى `UnderReview`
+- إذا كان السائق Approved ثم عدّل vehicle/region، يرجع إلى `UnderReview`
 
 ### 4. Update Documents Section
 
@@ -117,7 +130,7 @@ Notes:
 - `missing_personal_info`
 - `missing_vehicle_info`
 - `missing_documents`
-- `missing_zone_selection`
+- `missing_region`
 
 تقريب completion الحالي:
 
@@ -127,11 +140,14 @@ Notes:
 - `25` عند ثلاثة نواقص
 - `0` عند أربعة أو أكثر
 
+Geography completion: only `region = EASTERN` is required. An empty/null `city` with a valid region does **not** block completion.
+
 ## Important Notes
 
 - شاشة profile يجب أن تعتمد على `GET /api/drivers/me/profile`
 - لا تعتمد على `GET /api/drivers/auth/me` لهذه الشاشة
 - `auth/me` يبقى مفيدًا للجلسة الحالية فقط، وليس profile completion source
+- Operational geography UI: see `OPERATIONAL_GEOGRAPHY_HANDOFF_AR.md` — one Eastern metro field, no city dropdown
 - في v1 لا توجد حقول:
   - `vehicleBrand`
   - `vehicleModel`
