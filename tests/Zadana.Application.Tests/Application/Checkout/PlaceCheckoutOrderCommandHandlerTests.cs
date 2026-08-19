@@ -518,7 +518,7 @@ public class PlaceCheckoutOrderCommandHandlerTests
         var deliveryPricingMock = new Mock<IDeliveryPricingService>();
         deliveryPricingMock
             .Setup(service => service.QuoteAsync(branch.Id, address.Id, It.IsAny<CancellationToken>(), It.IsAny<decimal?>()))
-            .ReturnsAsync(new DeliveryPriceQuote(10m, 5m, 0m, 15m, 20m, "zone", "Zone rule", 1m, 5m, 3m, 12m, "driver", "vendor", false, "manual", null, "locked", DateTime.UtcNow, 1, false));
+            .ReturnsAsync(new DeliveryPriceQuote(10m, 5m, 0m, 15m, 55m, "zone", "Zone rule", 1m, 55m, 3m, 12m, "driver", "vendor", false, "manual", null, "locked", DateTime.UtcNow, 1, false));
 
         var handler = new PlaceCheckoutOrderCommandHandler(
             dbContext,

@@ -257,8 +257,7 @@ public class DriverProfileController : ApiControllerBase
             HasChanged(driver.VehicleLicenseExpiryDate, vehicleLicenseExpiryDate);
         var vehicleChanged =
             driver.VehicleType != parsedVehicleType ||
-            HasChanged(driver.Region, region) ||
-            HasChanged(driver.City, city);
+            HasChanged(driver.Region, region);
 
         driver.UpdateDetails(
             parsedVehicleType,

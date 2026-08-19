@@ -113,8 +113,7 @@ public class UpdateDriverProfileCommandHandler : IRequestHandler<UpdateDriverPro
             HasChanged(driver.VehicleLicenseExpiryDate, vehicleLicenseExpiryDate);
         var vehicleChanged =
             driver.VehicleType != vehicleType ||
-            HasChanged(driver.Region, request.Region) ||
-            HasChanged(driver.City, request.City);
+            HasChanged(driver.Region, request.Region);
 
         if (personalChanged)
         {

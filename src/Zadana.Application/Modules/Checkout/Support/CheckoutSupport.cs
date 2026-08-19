@@ -1187,11 +1187,6 @@ internal static class CheckoutSupport
             return false;
         }
 
-        if (branch.DeliveryRadiusKm <= 0m)
-        {
-            return false;
-        }
-
         var branchHasCoordinates = HasUsableCoordinates(branch.Latitude, branch.Longitude);
         var addressHasCoordinates = HasUsableCoordinates(address);
 
@@ -1200,7 +1195,7 @@ internal static class CheckoutSupport
             return false;
         }
 
-        return quote.VendorToCustomerDistanceKm > branch.DeliveryRadiusKm;
+        return quote.VendorToCustomerDistanceKm > DeliveryProximityLimits.MaxMatchKm;
     }
 
     private static bool IsSameCityDelivery(string? branchCity, string? customerCity)
