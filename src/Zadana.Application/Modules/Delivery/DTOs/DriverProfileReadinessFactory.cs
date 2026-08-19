@@ -23,7 +23,6 @@ public static class DriverProfileReadinessFactory
         var licenseNumber = ResolveText(overlay?.LicenseNumber, driver.LicenseNumber);
         var vehicleLicenseNumber = ResolveText(overlay?.VehicleLicenseNumber, driver.VehicleLicenseNumber);
         var region = ResolveText(overlay?.Region, driver.Region);
-        var city = ResolveText(overlay?.City, driver.City);
 
         if (string.IsNullOrWhiteSpace(user.FullName) ||
             string.IsNullOrWhiteSpace(user.Email) ||
@@ -71,9 +70,9 @@ public static class DriverProfileReadinessFactory
             missing.Add("rejected_documents");
         }
 
-        if (string.IsNullOrWhiteSpace(region) || string.IsNullOrWhiteSpace(city))
+        if (string.IsNullOrWhiteSpace(region))
         {
-            missing.Add("missing_region_city");
+            missing.Add("missing_region");
         }
 
         return missing;
@@ -176,8 +175,8 @@ public static class DriverProfileReadinessFactory
                 true),
             createItem(
                 "region_city_selection",
-                !missingRequirements.Contains("missing_region_city"),
-                missingRequirements.Contains("missing_region_city") ? "missing_region_city_note" : null,
+                !missingRequirements.Contains("missing_region"),
+                missingRequirements.Contains("missing_region") ? "missing_region_note" : null,
                 false)
         ];
 

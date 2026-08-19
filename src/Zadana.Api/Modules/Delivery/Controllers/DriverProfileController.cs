@@ -123,17 +123,16 @@ public class DriverProfileController : ApiControllerBase
             parsedVehicleType = resolvedVehicleType;
         }
 
-        if (string.IsNullOrWhiteSpace(request.Region) || string.IsNullOrWhiteSpace(request.City))
+        if (string.IsNullOrWhiteSpace(request.Region))
         {
             throw new BusinessRuleException(
                 "DRIVER_SERVICE_AREA_REQUIRED",
-                "لازم تختار منطقة ومدينة التشغيل للمندوب.");
+                "لازم تختار منطقة التشغيل للمندوب.");
         }
 
         await OperationalGeographyScope.EnsureDriverServiceAreaAsync(
             context,
             request.Region,
-            request.City,
             cancellationToken);
 
         var payload = new DriverVehicleProfileChangePayload(

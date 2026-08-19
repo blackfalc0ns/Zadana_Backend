@@ -69,17 +69,22 @@ public static class OperationalGeographyScope
     public static async Task EnsureDriverServiceAreaAsync(
         IApplicationDbContext context,
         string? regionCode,
-        string? cityCode,
         CancellationToken cancellationToken)
     {
-        await EnsureOperationalRegionCityAsync(context, regionCode, cityCode, cancellationToken);
+        var normalizedRegion = NormalizeCode(regionCode);
+        if (normalizedRegion.Length == 0)
+        {
+            throw new BusinessRuleException(
+                "SERVICE_REGION_REQUIRED",
+                "لازم تختار منطقة التشغيل.");
+        }
 
-        var normalizedCity = NormalizeCode(cityCode);
-        var city = await context.SaudiCities
-            .AsNoTracking()
-            .Where(item => item.Code == normalizedCity && item.Region.Code == EasternRegionCode)
-            .Select(item => new OperationalCityLookup(item.Code, item.NameAr, item.NameEn))
-            .FirstAsync(cancellationToken);
+        if (normalizedRegion != EasternRegionCode)
+        {
+            throw new BusinessRuleException(
+                "UNSUPPORTED_OPERATIONAL_REGION",
+                "حاليًا التشغيل متاح في المنطقة الشرقية بس.");
+        }
 
         var hasActiveVendor = await context.VendorBranches
             .AsNoTracking()
@@ -90,27 +95,27 @@ public static class OperationalGeographyScope
                     && branch.Vendor.AcceptOrders
                     && branch.Vendor.LockedAtUtc == null
                     && (
-                        branch.City == city.Code
-                        || branch.City == city.NameAr
-                        || branch.City == city.NameEn
-                        || (
-                            branch.City == string.Empty
-                            && (
-                                branch.Vendor.City == city.Code
-                                || branch.Vendor.City == city.NameAr
-                                || branch.Vendor.City == city.NameEn))),
+                        branch.Region == EasternRegionCode
+                        || branch.Vendor.Region == EasternRegionCode
+                        || branch.City == "DAMMAM"
+                        || branch.City == "KHOBAR"
+                        || branch.City == "DHAHRAN"
+                        || branch.City == "الدمام"
+                        || branch.City == "الخبر"
+                        || branch.City == "الظهران"
+                        || branch.City == "Dammam"
+                        || branch.City == "Al Khobar"
+                        || branch.City == "Dhahran"),
                 cancellationToken);
 
         if (!hasActiveVendor)
         {
             throw new BusinessRuleException(
-                "DRIVER_CITY_HAS_NO_ACTIVE_VENDOR",
-                "المدينة هذي ما فيها متاجر متاحة حاليًا. اختر مدينة ثانية من المدن المدعومة.");
+                "DRIVER_REGION_HAS_NO_ACTIVE_VENDOR",
+                "المنطقة الشرقية ما فيها متاجر متاحة حاليًا.");
         }
     }
 
     private static string NormalizeCode(string? value) =>
         (value ?? string.Empty).Trim().ToUpperInvariant();
-
-    private sealed record OperationalCityLookup(string Code, string NameAr, string NameEn);
 }

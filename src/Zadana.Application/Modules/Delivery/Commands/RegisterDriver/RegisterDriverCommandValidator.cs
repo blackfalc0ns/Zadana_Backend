@@ -53,7 +53,6 @@ public class RegisterDriverCommandValidator : AbstractValidator<RegisterDriverCo
             .MaximumLength(50).WithMessage(localizer["MaxLength"].Value)
             .WithName("Region");
         RuleFor(x => x.City)
-            .NotEmpty().WithMessage(localizer["RequiredField"].Value)
             .MaximumLength(50).WithMessage(localizer["MaxLength"].Value)
             .WithName("City");
         RuleFor(x => x.NationalIdExpiryDate)

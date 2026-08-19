@@ -34,17 +34,16 @@ public class RegisterDriverCommandHandler : IRequestHandler<RegisterDriverComman
 
     public async Task<AuthResponseDto> Handle(RegisterDriverCommand request, CancellationToken cancellationToken)
     {
-        if (string.IsNullOrWhiteSpace(request.Region) || string.IsNullOrWhiteSpace(request.City))
+        if (string.IsNullOrWhiteSpace(request.Region))
         {
             throw new BusinessRuleException(
                 "DRIVER_SERVICE_AREA_REQUIRED",
-                "لازم تختار منطقة ومدينة التشغيل للمندوب.");
+                "لازم تختار منطقة التشغيل للمندوب.");
         }
 
         await OperationalGeographyScope.EnsureDriverServiceAreaAsync(
             _context,
             request.Region,
-            request.City,
             cancellationToken);
 
         var payloadJson = PendingRegistrationPayloadSerializer.Serialize(

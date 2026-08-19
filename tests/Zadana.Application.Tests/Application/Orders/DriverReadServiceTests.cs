@@ -227,7 +227,8 @@ public class DriverReadServiceTests
         result.MissingRequirements.Should().Contain("missing_personal_info");
         result.MissingRequirements.Should().Contain("missing_vehicle_info");
         result.MissingRequirements.Should().Contain("missing_documents");
-        result.MissingRequirements.Should().Contain("missing_region_city");
+        result.MissingRequirements.Should().Contain("missing_region");
+        result.MissingRequirements.Should().NotContain("missing_region_city");
         result.CanSubmitForReview.Should().BeFalse();
         result.RejectionPolicy.DailyRejections.Should().Be(0);
         result.RejectionPolicy.DailyLimit.Should().Be(3);

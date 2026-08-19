@@ -38,7 +38,7 @@ public class UpdateDriverProfileCommandValidator : AbstractValidator<UpdateDrive
         RuleFor(x => x.Email).NotEmpty().EmailAddress().MaximumLength(150);
         RuleFor(x => x.PhoneNumber).NotEmpty().MaximumLength(50);
         RuleFor(x => x.Region).NotEmpty().MaximumLength(50);
-        RuleFor(x => x.City).NotEmpty().MaximumLength(50);
+        RuleFor(x => x.City).MaximumLength(50);
     }
 }
 
@@ -77,17 +77,16 @@ public class UpdateDriverProfileCommandHandler : IRequestHandler<UpdateDriverPro
             parsedVehicleType = resolvedVehicleType;
         }
 
-        if (string.IsNullOrWhiteSpace(request.Region) || string.IsNullOrWhiteSpace(request.City))
+        if (string.IsNullOrWhiteSpace(request.Region))
         {
             throw new BusinessRuleException(
                 "DRIVER_SERVICE_AREA_REQUIRED",
-                "لازم تختار منطقة ومدينة التشغيل للمندوب.");
+                "لازم تختار منطقة التشغيل للمندوب.");
         }
 
         await OperationalGeographyScope.EnsureDriverServiceAreaAsync(
             _context,
             request.Region,
-            request.City,
             cancellationToken);
 
         var nationalId = CoalesceTextUpdate(request.NationalId, driver.NationalId);
@@ -204,7 +203,6 @@ public class UpdateDriverProfileCommandHandler : IRequestHandler<UpdateDriverPro
         driver.DriverLicenseExpiryDate.HasValue &&
         driver.VehicleLicenseExpiryDate.HasValue &&
         !string.IsNullOrWhiteSpace(driver.Region) &&
-        !string.IsNullOrWhiteSpace(driver.City) &&
         !DriverProfileReadinessFactory.HasExpiredRequiredDocuments(driver);
 
     private static bool HasChanged(string? currentValue, string? requestedValue) =>

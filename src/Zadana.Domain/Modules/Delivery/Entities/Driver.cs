@@ -46,8 +46,7 @@ public class Driver : BaseEntity
         !IsLocationUpdatesBlocked;
 
     public bool HasServiceArea =>
-        !string.IsNullOrWhiteSpace(Region) &&
-        !string.IsNullOrWhiteSpace(City);
+        !string.IsNullOrWhiteSpace(Region);
 
     public bool CanReactivate =>
         VerificationStatus == DriverVerificationStatus.Approved &&

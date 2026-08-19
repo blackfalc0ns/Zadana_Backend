@@ -39,8 +39,51 @@ public class DriverRegistrationRegionCityTests
 
         var result = await validator.ValidateAsync(command);
 
-        result.IsValid.Should().BeFalse();
-        result.Errors.Should().Contain(error => error.PropertyName == "City");
+        result.IsValid.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task Handle_WhenOnlyEasternRegionProvided_ShouldStartPending()
+    {
+        await using var dbContext = CreateDbContext();
+        var operationalRegion = new Domain.Modules.Geography.Entities.SaudiRegion(
+            Guid.NewGuid(), "EASTERN", "المنطقة الشرقية", "Eastern Region", 26.4, 50.0, 6, 1);
+        dbContext.SaudiRegions.Add(operationalRegion);
+        await dbContext.SaveChangesAsync();
+        var operationalCity = new Domain.Modules.Geography.Entities.SaudiCity(
+            Guid.NewGuid(), operationalRegion.Id, "KHOBAR", "الخبر", "Al Khobar", 26.2, 50.2, 10, 1);
+        dbContext.SaudiCities.Add(operationalCity);
+        SeedActiveVendorInCity(dbContext, "EASTERN", "KHOBAR");
+        await dbContext.SaveChangesAsync();
+
+        var pending = new PendingRegistrationSnapshot(
+            Guid.NewGuid(), "Ahmed Driver", "ahmed.driver@example.com", "+201001112233", UserRole.Driver, null);
+        var pendingRegistrationService = new Mock<IPendingRegistrationService>();
+        pendingRegistrationService
+            .Setup(service => service.StartAsync(It.IsAny<StartPendingRegistrationRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new PendingRegistrationStartResult(
+                PendingRegistrationStartStatus.Succeeded, pending, "1234", "reg-token"));
+        var registrationWorkflow = new Mock<IRegistrationWorkflow>();
+        registrationWorkflow
+            .Setup(workflow => workflow.BuildPendingAuthResponse(pending, "reg-token", null))
+            .Returns(new AuthResponseDto(null, null, IsVerified: false, RegistrationToken: "reg-token"));
+
+        var handler = new RegisterDriverCommandHandler(
+            pendingRegistrationService.Object,
+            registrationWorkflow.Object,
+            dbContext,
+            Mock.Of<IOtpService>(),
+            CreateLocalizer().Object);
+
+        var result = await handler.Handle(CreateCommand(region: "EASTERN", city: null), CancellationToken.None);
+
+        result.RegistrationToken.Should().Be("reg-token");
+        pendingRegistrationService.Verify(
+            service => service.StartAsync(
+                It.Is<StartPendingRegistrationRequest>(request =>
+                    request.PayloadJson.Contains("EASTERN") && !request.PayloadJson.Contains("DAMMAM")),
+                It.IsAny<CancellationToken>()),
+            Times.Once);
     }
 
     [Fact]
@@ -136,7 +179,7 @@ public class DriverRegistrationRegionCityTests
             CancellationToken.None);
 
         await action.Should().ThrowAsync<BusinessRuleException>()
-            .Where(exception => exception.ErrorCode == "UNSUPPORTED_OPERATIONAL_CITY");
+            .Where(exception => exception.ErrorCode == "DRIVER_REGION_HAS_NO_ACTIVE_VENDOR");
         pendingRegistrationService.Verify(
             service => service.StartAsync(It.IsAny<StartPendingRegistrationRequest>(), It.IsAny<CancellationToken>()),
             Times.Never);
@@ -144,8 +187,12 @@ public class DriverRegistrationRegionCityTests
 
     private static RegisterDriverCommand CreateCommand(
         string? region = null,
-        string? city = null) =>
-        new(
+        string? city = null)
+    {
+        var resolvedRegion = region ?? "EASTERN";
+        var resolvedCity = region is null && city is null ? "DAMMAM" : city;
+
+        return new RegisterDriverCommand(
             "Ahmed Driver",
             "ahmed.driver@example.com",
             "+201001112233",
@@ -158,13 +205,14 @@ public class DriverRegistrationRegionCityTests
             "VEH-4421",
             DateTime.UtcNow.Date.AddYears(1),
             "Nasr City, Cairo",
-            region ?? "EASTERN",
-            city ?? "DAMMAM",
+            resolvedRegion,
+            resolvedCity,
             "https://cdn.example.com/driver/national-id-front.jpg",
             "https://cdn.example.com/driver/national-id-back.jpg",
             "https://cdn.example.com/driver/license.jpg",
             "https://cdn.example.com/driver/vehicle.jpg",
             "https://cdn.example.com/driver/photo.jpg");
+    }
 
     private static ApplicationDbContext CreateDbContext()
     {
