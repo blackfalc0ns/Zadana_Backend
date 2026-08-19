@@ -1561,7 +1561,6 @@ internal static class CheckoutSupport
 
         var branches = await context.VendorBranches
             .AsNoTracking()
-            .Include(item => item.Vendor)
             .Where(item => item.VendorId == vendorId && item.IsActive)
             .OrderByDescending(item => item.IsPrimary)
             .ThenBy(item => item.CreatedAtUtc)
@@ -1572,17 +1571,26 @@ internal static class CheckoutSupport
             return null;
         }
 
-        var preferredBranches = !string.IsNullOrWhiteSpace(address?.City)
-            ? branches
-                .Where(branch => DeliveryCityMatcher.Matches(ResolveBranchCity(branch), address.City))
-                .ToList()
-            : [];
+        var orderedCandidates = NearestBranchSelector.Order(
+            branches,
+            address?.Latitude,
+            address?.Longitude,
+            branch => branch.Latitude,
+            branch => branch.Longitude,
+            branch => branch.IsPrimary,
+            branch => branch.CreatedAtUtc).ToList();
 
-        var orderedCandidates = preferredBranches.Count > 0
-            ? preferredBranches
-            : branches;
+        if (orderedCandidates.Count == 0)
+        {
+            if (address is not null && (!string.IsNullOrWhiteSpace(address.City) || HasUsableCoordinates(address)))
+            {
+                return null;
+            }
 
-        var fulfillablePreferredBranch = orderedCandidates
+            orderedCandidates = branches;
+        }
+
+        var fulfillableBranch = orderedCandidates
             .Select(branch => new
             {
                 Branch = branch,
@@ -1593,44 +1601,15 @@ internal static class CheckoutSupport
                     requiredQuantityByProductId)
             })
             .Where(item => item.Availability.CanFulfillCart)
-            .OrderByDescending(item => item.Branch.IsPrimary)
-            .ThenBy(item => item.Branch.CreatedAtUtc)
             .Select(item => item.Branch.Id)
             .FirstOrDefault();
 
-        if (fulfillablePreferredBranch != Guid.Empty)
+        if (fulfillableBranch != Guid.Empty)
         {
-            return fulfillablePreferredBranch;
-        }
-
-        if (preferredBranches.Count > 0)
-        {
-            var fulfillableAnyBranch = branches
-                .Except(preferredBranches)
-                .Select(branch => new
-                {
-                    Branch = branch,
-                    Availability = EvaluateBranchCartAvailability(
-                        offers,
-                        vendorId,
-                        branch.Id,
-                        requiredQuantityByProductId)
-                })
-                .Where(item => item.Availability.CanFulfillCart)
-                .OrderByDescending(item => item.Branch.IsPrimary)
-                .ThenBy(item => item.Branch.CreatedAtUtc)
-                .Select(item => item.Branch.Id)
-                .FirstOrDefault();
-
-            if (fulfillableAnyBranch != Guid.Empty)
-            {
-                return fulfillableAnyBranch;
-            }
+            return fulfillableBranch;
         }
 
         return orderedCandidates
-            .OrderByDescending(branch => branch.IsPrimary)
-            .ThenBy(branch => branch.CreatedAtUtc)
             .Select(branch => (Guid?)branch.Id)
             .FirstOrDefault();
     }

@@ -47,6 +47,24 @@ public class NearestBranchSelectorTests
         ordered.Should().ContainSingle().Which.Id.Should().Be(khobar.Id);
     }
 
+    [Fact]
+    public void Order_ShouldPreferCloserBranchOverPrimaryBranchFartherAway()
+    {
+        var farPrimary = new FakeBranch(Guid.NewGuid(), 26.62m, 50.19m, IsPrimary: true);
+        var nearBranch = new FakeBranch(Guid.NewGuid(), 26.22m, 50.19m, IsPrimary: false);
+        var ordered = NearestBranchSelector.Order(
+            [farPrimary, nearBranch],
+            customerLatitude: 26.2172m,
+            customerLongitude: 50.1971m,
+            latitude: b => b.Latitude,
+            longitude: b => b.Longitude,
+            isPrimary: b => b.IsPrimary,
+            createdAtUtc: b => b.CreatedAtUtc).ToList();
+
+        ordered.Should().HaveCount(2);
+        ordered[0].Id.Should().Be(nearBranch.Id);
+    }
+
     private sealed record FakeBranch(
         Guid Id,
         decimal Latitude,
