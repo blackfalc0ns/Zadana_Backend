@@ -518,3 +518,7 @@ $RECYCLE.BIN/
 **/temp-test-build/
 **/temp-build/
 test-publish/
+
+# Isolated git worktrees and SDD scratch (not source)
+.worktrees/
+.superpowers/
