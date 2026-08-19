@@ -6,6 +6,7 @@ using Zadana.Domain.Modules.Identity.Enums;
 using Zadana.Domain.Modules.Vendors.Entities;
 using Zadana.Infrastructure.Persistence;
 using Zadana.Infrastructure.Persistence.Interceptors;
+using Zadana.SharedKernel.Exceptions;
 
 namespace Zadana.Application.Tests.Application.Geography;
 
@@ -61,6 +62,48 @@ public class OperationalGeographyScopeDriverTests
             CancellationToken.None);
 
         await action.Should().NotThrowAsync();
+    }
+
+    [Fact]
+    public async Task EnsureDriverServiceAreaAsync_WhenRegionMissing_ShouldThrowServiceRegionRequired()
+    {
+        await using var dbContext = CreateDbContext();
+
+        var action = () => OperationalGeographyScope.EnsureDriverServiceAreaAsync(
+            dbContext,
+            "",
+            CancellationToken.None);
+
+        await action.Should().ThrowAsync<BusinessRuleException>()
+            .Where(exception => exception.ErrorCode == "SERVICE_REGION_REQUIRED");
+    }
+
+    [Fact]
+    public async Task EnsureDriverServiceAreaAsync_WhenUnsupportedRegion_ShouldThrowUnsupportedOperationalRegion()
+    {
+        await using var dbContext = CreateDbContext();
+
+        var action = () => OperationalGeographyScope.EnsureDriverServiceAreaAsync(
+            dbContext,
+            "RIYADH",
+            CancellationToken.None);
+
+        await action.Should().ThrowAsync<BusinessRuleException>()
+            .Where(exception => exception.ErrorCode == "UNSUPPORTED_OPERATIONAL_REGION");
+    }
+
+    [Fact]
+    public async Task EnsureDriverServiceAreaAsync_WhenEasternWithoutActiveVendor_ShouldThrowDriverRegionHasNoActiveVendor()
+    {
+        await using var dbContext = CreateDbContext();
+
+        var action = () => OperationalGeographyScope.EnsureDriverServiceAreaAsync(
+            dbContext,
+            "EASTERN",
+            CancellationToken.None);
+
+        await action.Should().ThrowAsync<BusinessRuleException>()
+            .Where(exception => exception.ErrorCode == "DRIVER_REGION_HAS_NO_ACTIVE_VENDOR");
     }
 
     private static ApplicationDbContext CreateDbContext()

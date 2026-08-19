@@ -208,6 +208,43 @@ public class DriverReadServiceTests
     }
 
     [Fact]
+    public async Task GetDriverProfileAsync_WhenEasternRegionWithoutCity_ShouldNotRequireMissingRegion()
+    {
+        await using var dbContext = CreateDbContext();
+        var user = new User("Driver Eastern Region User", "driver.eastern.region@test.com", "01000000085", UserRole.Driver);
+        var driver = new Driver(
+            user.Id,
+            DriverVehicleType.Car,
+            "12345678901243",
+            "LIC-113",
+            nationalIdExpiryDate: DateTime.UtcNow.Date.AddYears(1),
+            driverLicenseExpiryDate: DateTime.UtcNow.Date.AddYears(1),
+            vehicleLicenseNumber: "VEH-113",
+            vehicleLicenseExpiryDate: DateTime.UtcNow.Date.AddYears(1),
+            address: "Khobar",
+            nationalIdFrontImageUrl: "https://cdn.example.com/drivers/id-front.jpg",
+            nationalIdBackImageUrl: "https://cdn.example.com/drivers/id-back.jpg",
+            licenseImageUrl: "https://cdn.example.com/drivers/license.jpg",
+            vehicleImageUrl: "https://cdn.example.com/drivers/vehicle.jpg",
+            personalPhotoUrl: "https://cdn.example.com/drivers/photo.jpg",
+            region: "EASTERN",
+            city: null);
+        driver.Approve(Guid.NewGuid());
+        ApproveRequiredDocuments(driver);
+
+        dbContext.Users.Add(user);
+        dbContext.Drivers.Add(driver);
+        await dbContext.SaveChangesAsync();
+
+        var service = CreateService(dbContext);
+        var result = await service.GetDriverProfileAsync(user.Id);
+
+        result.Should().NotBeNull();
+        result!.MissingRequirements.Should().NotContain("missing_region");
+        result.MissingRequirements.Should().NotContain("missing_region_city");
+    }
+
+    [Fact]
     public async Task GetDriverProfileAsync_ShouldCalculateCompletionAndMissingRequirements()
     {
         await using var dbContext = CreateDbContext();

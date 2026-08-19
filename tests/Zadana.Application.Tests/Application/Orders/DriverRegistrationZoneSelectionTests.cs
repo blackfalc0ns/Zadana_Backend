@@ -32,7 +32,7 @@ public class DriverRegistrationRegionCityTests
     }
 
     [Fact]
-    public async Task RegisterDriverCommandValidator_ShouldRequireCity()
+    public async Task RegisterDriverCommandValidator_ShouldAllowOptionalCity()
     {
         var validator = new RegisterDriverCommandValidator(CreateLocalizer().Object);
         var command = CreateCommand(city: "");
@@ -149,20 +149,12 @@ public class DriverRegistrationRegionCityTests
     }
 
     [Fact]
-    public async Task Handle_WhenCityDoesNotBelongToRegion_ShouldThrowBusinessRuleException()
+    public async Task Handle_WhenEasternRegionHasNoActiveVendor_ShouldThrowBusinessRuleException()
     {
         await using var dbContext = CreateDbContext();
 
-        var region = new Domain.Modules.Geography.Entities.SaudiRegion(Guid.NewGuid(), "RIYADH", "الرياض", "Riyadh", 24.7, 46.7, 6, 1);
-        var otherRegion = new Domain.Modules.Geography.Entities.SaudiRegion(Guid.NewGuid(), "MAKKAH", "مكة", "Makkah", 21.4, 39.8, 6, 2);
-        dbContext.SaudiRegions.AddRange(
-            region,
-            otherRegion,
-            new Domain.Modules.Geography.Entities.SaudiRegion(Guid.NewGuid(), "EASTERN", "Eastern", "Eastern", 26.4, 50.0, 6, 3));
-        await dbContext.SaveChangesAsync();
-
-        var city = new Domain.Modules.Geography.Entities.SaudiCity(Guid.NewGuid(), otherRegion.Id, "JEDDAH", "جدة", "Jeddah", 21.5, 39.2, 10, 1);
-        dbContext.SaudiCities.Add(city);
+        dbContext.SaudiRegions.Add(
+            new Domain.Modules.Geography.Entities.SaudiRegion(Guid.NewGuid(), "EASTERN", "Eastern", "Eastern", 26.4, 50.0, 6, 1));
         await dbContext.SaveChangesAsync();
 
         var pendingRegistrationService = new Mock<IPendingRegistrationService>();
@@ -175,7 +167,7 @@ public class DriverRegistrationRegionCityTests
             CreateLocalizer().Object);
 
         var action = () => handler.Handle(
-            CreateCommand(region: "EASTERN", city: "JEDDAH"),
+            CreateCommand(region: "EASTERN", city: null),
             CancellationToken.None);
 
         await action.Should().ThrowAsync<BusinessRuleException>()
