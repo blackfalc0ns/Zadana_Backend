@@ -1,6 +1,5 @@
 using Microsoft.EntityFrameworkCore;
 using Zadana.Application.Common.Interfaces;
-using Zadana.Application.Modules.Delivery.Support;
 using Zadana.Domain.Modules.Identity.Entities;
 
 namespace Zadana.Application.Modules.Orders.Support;
@@ -75,55 +74,25 @@ internal static class CartBranchSelectionSupport
             return null;
         }
 
-        // 1) Prefer a branch in the same city as the customer's address.
-        var sameCityBranch = branches
-            .Where(branch => DeliveryCityMatcher.Matches(branch.City, address.City))
-            .OrderByDescending(branch => branch.IsPrimary)
-            .ThenBy(branch => branch.CreatedAtUtc)
-            .FirstOrDefault();
+        var ordered = NearestBranchSelector.Order(
+            branches,
+            address.Latitude,
+            address.Longitude,
+            branch => branch.Latitude,
+            branch => branch.Longitude,
+            branch => branch.IsPrimary,
+            branch => branch.CreatedAtUtc).ToList();
 
-        if (sameCityBranch is not null)
+        if (ordered.Count > 0)
         {
-            return sameCityBranch;
+            return ordered[0];
         }
 
-        // 2) No same-city branch: fall back to the nearest branch within its delivery
-        //    radius when both the address and the branch expose usable coordinates.
-        if (HasUsableCoordinates(address))
-        {
-            var addressLatitude = address.Latitude!.Value;
-            var addressLongitude = address.Longitude!.Value;
-            var nearestWithinRadius = branches
-                .Where(branch => HasUsableCoordinates(branch.Latitude, branch.Longitude))
-                .Select(branch =>
-                {
-                    var distanceKm = ApproximateDistanceKm(branch.Latitude, branch.Longitude, addressLatitude, addressLongitude);
-                    var isInsideRadius = branch.DeliveryRadiusKm <= 0m || distanceKm <= (double)branch.DeliveryRadiusKm;
-                    return new AddressBranchDistance(branch, distanceKm, isInsideRadius);
-                })
-                .Where(item => item.IsInsideRadius)
-                .OrderBy(item => item.DistanceKm)
-                .ThenByDescending(item => item.Branch.IsPrimary)
-                .ThenBy(item => item.Branch.CreatedAtUtc)
-                .Select(item => item.Branch)
-                .FirstOrDefault();
-
-            if (nearestWithinRadius is not null)
-            {
-                return nearestWithinRadius;
-            }
-        }
-
-        // 3) The customer's location is known (has a city and/or coordinates) but no branch
-        //    can serve it -> return null so the product is reported as "unavailable" for this
-        //    vendor instead of silently being priced from an unrelated branch.
         if (!string.IsNullOrWhiteSpace(address.City) || HasUsableCoordinates(address))
         {
             return null;
         }
 
-        // 4) Location is completely unknown (no city, no coordinates): don't penalize the
-        //    customer; fall back to the vendor's primary/earliest active branch.
         return branches
             .OrderByDescending(branch => branch.IsPrimary)
             .ThenBy(branch => branch.CreatedAtUtc)
@@ -132,26 +101,6 @@ internal static class CartBranchSelectionSupport
 
     private static bool HasUsableCoordinates(CustomerAddress address) =>
         address.Latitude.HasValue && address.Longitude.HasValue;
-
-    private static bool HasUsableCoordinates(decimal? latitude, decimal? longitude) =>
-        latitude.HasValue && longitude.HasValue;
-
-    private static double ApproximateDistanceKm(decimal? fromLatitude, decimal? fromLongitude, decimal toLatitude, decimal toLongitude)
-    {
-        const double earthRadiusKm = 6371d;
-        var lat1 = DegreesToRadians((double)fromLatitude!.Value);
-        var lat2 = DegreesToRadians((double)toLatitude);
-        var deltaLat = DegreesToRadians((double)(toLatitude - fromLatitude.Value));
-        var deltaLon = DegreesToRadians((double)(toLongitude - fromLongitude!.Value));
-
-        var a = Math.Sin(deltaLat / 2) * Math.Sin(deltaLat / 2) +
-                Math.Cos(lat1) * Math.Cos(lat2) *
-                Math.Sin(deltaLon / 2) * Math.Sin(deltaLon / 2);
-        var c = 2 * Math.Atan2(Math.Sqrt(a), Math.Sqrt(1 - a));
-        return earthRadiusKm * c;
-    }
-
-    private static double DegreesToRadians(double degrees) => degrees * Math.PI / 180d;
 
     private sealed record AddressBranchCandidate(
         Guid VendorId,
@@ -162,9 +111,4 @@ internal static class CartBranchSelectionSupport
         string? City,
         bool IsPrimary,
         DateTime CreatedAtUtc);
-
-    private sealed record AddressBranchDistance(
-        AddressBranchCandidate Branch,
-        double DistanceKm,
-        bool IsInsideRadius);
 }

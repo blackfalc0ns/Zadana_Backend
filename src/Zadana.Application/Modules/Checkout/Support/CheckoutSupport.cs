@@ -255,42 +255,21 @@ internal static class CheckoutSupport
             return branches[0].Id;
         }
 
-        var sameCityBranch = branches
-            .Where(branch => IsSameCityDelivery(branch.City, address.City))
-            .OrderByDescending(branch => branch.IsPrimary)
-            .ThenBy(branch => branch.CreatedAtUtc)
-            .FirstOrDefault();
+        var ordered = NearestBranchSelector.Order(
+            branches,
+            address.Latitude,
+            address.Longitude,
+            branch => branch.Latitude,
+            branch => branch.Longitude,
+            branch => branch.IsPrimary,
+            branch => branch.CreatedAtUtc).ToList();
 
-        if (sameCityBranch is not null)
+        if (ordered.Count > 0)
         {
-            return sameCityBranch.Id;
+            return ordered[0].Id;
         }
 
-        if (HasUsableCoordinates(address))
-        {
-            var addressLatitude = address.Latitude!.Value;
-            var addressLongitude = address.Longitude!.Value;
-            var nearestBranch = branches
-                .Where(branch => HasUsableCoordinates(branch.Latitude, branch.Longitude))
-                .Select(branch =>
-                {
-                    var distanceKm = ApproximateDistanceKm(branch.Latitude, branch.Longitude, addressLatitude, addressLongitude);
-                    var isInsideRadius = branch.DeliveryRadiusKm <= 0m || distanceKm <= branch.DeliveryRadiusKm;
-                    return new BranchDistanceSnapshot(branch, distanceKm, isInsideRadius);
-                })
-                .OrderByDescending(item => item.IsInsideRadius)
-                .ThenBy(item => item.DistanceKm)
-                .ThenByDescending(item => item.Branch.IsPrimary)
-                .ThenBy(item => item.Branch.CreatedAtUtc)
-                .FirstOrDefault();
-
-            if (nearestBranch is not null)
-            {
-                return nearestBranch.Branch.Id;
-            }
-        }
-
-        if (!string.IsNullOrWhiteSpace(address.City))
+        if (!string.IsNullOrWhiteSpace(address.City) || HasUsableCoordinates(address))
         {
             return null;
         }
@@ -944,61 +923,15 @@ internal static class CheckoutSupport
 
     private static IEnumerable<AddressBranchCandidate> OrderBranchesForAddress(
         IReadOnlyCollection<AddressBranchCandidate> branches,
-        CustomerAddress address)
-    {
-        if (branches.Count == 0)
-        {
-            return [];
-        }
-
-        var sameCityBranches = branches
-            .Where(branch => IsSameCityDelivery(branch.City, address.City))
-            .OrderByDescending(branch => branch.IsPrimary)
-            .ThenBy(branch => branch.CreatedAtUtc)
-            .ToList();
-
-        if (sameCityBranches.Count > 0)
-        {
-            // Same city delivery is city-wide: any active branch in the city can serve
-            // the address, so inventory availability decides which branch is best.
-            return sameCityBranches;
-        }
-
-        if (!string.IsNullOrWhiteSpace(address.City))
-        {
-            return [];
-        }
-
-        if (HasUsableCoordinates(address))
-        {
-            var addressLatitude = address.Latitude!.Value;
-            var addressLongitude = address.Longitude!.Value;
-            var nearestBranches = branches
-                .Where(branch => HasUsableCoordinates(branch.Latitude, branch.Longitude))
-                .Select(branch =>
-                {
-                    var distanceKm = ApproximateDistanceKm(branch.Latitude, branch.Longitude, addressLatitude, addressLongitude);
-                    var isInsideRadius = branch.DeliveryRadiusKm <= 0m || distanceKm <= branch.DeliveryRadiusKm;
-                    return new AddressBranchDistance(branch, distanceKm, isInsideRadius);
-                })
-                .Where(item => item.IsInsideRadius)
-                .OrderBy(item => item.DistanceKm)
-                .ThenByDescending(item => item.Branch.IsPrimary)
-                .ThenBy(item => item.Branch.CreatedAtUtc)
-                .Select(item => item.Branch)
-                .ToList();
-
-            if (nearestBranches.Count > 0)
-            {
-                return nearestBranches;
-            }
-        }
-
-        return branches
-            .OrderByDescending(branch => branch.IsPrimary)
-            .ThenBy(branch => branch.CreatedAtUtc)
-            .ToList();
-    }
+        CustomerAddress address) =>
+        NearestBranchSelector.Order(
+            branches,
+            address.Latitude,
+            address.Longitude,
+            branch => branch.Latitude,
+            branch => branch.Longitude,
+            branch => branch.IsPrimary,
+            branch => branch.CreatedAtUtc);
 
     private static bool HasUsableCoordinates(CustomerAddress address) =>
         address.Latitude.HasValue &&
