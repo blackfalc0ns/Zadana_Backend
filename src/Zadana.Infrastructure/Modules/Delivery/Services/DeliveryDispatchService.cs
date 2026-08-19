@@ -635,21 +635,9 @@ public class DeliveryDispatchService : IDeliveryDispatchService
 
         var customerCity = customerAddress?.City?.Trim();
 
-        if (string.IsNullOrWhiteSpace(pickupCity))
+        if (!pickupLat.HasValue || !pickupLng.HasValue || pickupLat.Value == 0m || pickupLng.Value == 0m)
         {
-            await TrackDispatchQueueNoteAsync(order, "Dispatch pending: missing-pickup-city", cancellationToken);
-            return null;
-        }
-
-        if (string.IsNullOrWhiteSpace(customerCity))
-        {
-            await TrackDispatchQueueNoteAsync(order, "Dispatch pending: missing-customer-city", cancellationToken);
-            return null;
-        }
-
-        if (!DeliveryCityMatcher.Matches(pickupCity, customerCity))
-        {
-            await TrackDispatchQueueNoteAsync(order, "Dispatch pending: pickup-customer-city-mismatch", cancellationToken);
+            await TrackDispatchQueueNoteAsync(order, "Dispatch pending: missing-pickup-coordinates", cancellationToken);
             return null;
         }
 
@@ -679,10 +667,24 @@ public class DeliveryDispatchService : IDeliveryDispatchService
                 !busyDriverIds.Contains(driver.Id))
             .ToListAsync(cancellationToken);
 
+        var baseEligibleDriverIds = baseEligibleDrivers.Select(driver => driver.Id).ToList();
+        var now = DateTime.UtcNow;
+
+        var latestLocations = (await _context.DriverLocations
+                .AsNoTracking()
+                .Where(location => baseEligibleDriverIds.Contains(location.DriverId))
+                .ToListAsync(cancellationToken))
+            .GroupBy(location => location.DriverId)
+            .ToDictionary(
+                group => group.Key,
+                group => group.OrderByDescending(item => item.RecordedAtUtc).First());
+
         var eligibleDrivers = SelectDriversForDeliveryArea(
             baseEligibleDrivers,
-            pickupCity,
-            customerCity,
+            latestLocations,
+            now,
+            pickupLat,
+            pickupLng,
             rejectedDriverIds,
             timedOutDriverIds,
             includeTimedOutDrivers: false);
@@ -691,8 +693,10 @@ public class DeliveryDispatchService : IDeliveryDispatchService
         {
             eligibleDrivers = SelectDriversForDeliveryArea(
                 baseEligibleDrivers,
-                pickupCity,
-                customerCity,
+                latestLocations,
+                now,
+                pickupLat,
+                pickupLng,
                 rejectedDriverIds,
                 timedOutDriverIds,
                 includeTimedOutDrivers: true);
@@ -738,17 +742,6 @@ public class DeliveryDispatchService : IDeliveryDispatchService
         }
 
         driverIds = eligibleDrivers.Select(driver => driver.Id).ToList();
-        var now = DateTime.UtcNow;
-
-        // Avoid EF GroupBy(...).OrderBy(...).First() translation failures on SQL Server.
-        var latestLocations = (await _context.DriverLocations
-                .AsNoTracking()
-                .Where(location => driverIds.Contains(location.DriverId))
-                .ToListAsync(cancellationToken))
-            .GroupBy(location => location.DriverId)
-            .ToDictionary(
-                group => group.Key,
-                group => group.OrderByDescending(item => item.RecordedAtUtc).First());
 
         var activeTaskCounts = await _context.DeliveryAssignments
             .Where(item =>
@@ -981,15 +974,29 @@ public class DeliveryDispatchService : IDeliveryDispatchService
 
     private static List<Driver> SelectDriversForDeliveryArea(
         IEnumerable<Driver> drivers,
-        string? storeCity,
-        string? customerCity,
+        IReadOnlyDictionary<Guid, DriverLocation> latestLocations,
+        DateTime utcNow,
+        decimal? pickupLatitude,
+        decimal? pickupLongitude,
         HashSet<Guid> rejectedDriverIds,
         HashSet<Guid> timedOutDriverIds,
         bool includeTimedOutDrivers) =>
-        DeliveryPickupAreaMatcher.FilterDrivers(drivers, storeCity, customerCity)
+        drivers
             .Where(driver =>
                 !rejectedDriverIds.Contains(driver.Id) &&
                 (includeTimedOutDrivers || !timedOutDriverIds.Contains(driver.Id)))
+            .Where(driver =>
+            {
+                latestLocations.TryGetValue(driver.Id, out var location);
+                var gpsFresh = location is not null
+                    && (utcNow - location.RecordedAtUtc) <= DeliveryDispatchScoring.GpsFreshnessThreshold;
+                return DeliveryPickupAreaMatcher.DriverMatchesPickup(
+                    location?.Latitude,
+                    location?.Longitude,
+                    pickupLatitude,
+                    pickupLongitude,
+                    gpsFresh);
+            })
             .ToList();
 
     private async Task<bool> DriverMatchesDeliveryAreaAsync(
@@ -997,15 +1004,29 @@ public class DeliveryDispatchService : IDeliveryDispatchService
         Domain.Modules.Orders.Entities.Order order,
         CancellationToken cancellationToken)
     {
-        var pickupCity = FirstNonBlank(order.VendorBranch?.City, order.Vendor?.City);
-        var customerAddress = await _context.CustomerAddresses
-            .AsNoTracking()
-            .FirstOrDefaultAsync(item => item.Id == order.CustomerAddressId, cancellationToken);
+        var pickupLatitude = order.VendorBranch?.Latitude;
+        var pickupLongitude = order.VendorBranch?.Longitude;
 
-        return DeliveryPickupAreaMatcher.DriverMatchesDeliveryArea(
-            driver,
-            pickupCity,
-            customerAddress?.City);
+        if (!pickupLatitude.HasValue || !pickupLongitude.HasValue || pickupLatitude.Value == 0m || pickupLongitude.Value == 0m)
+        {
+            return false;
+        }
+
+        var latestLocation = await _context.DriverLocations
+            .AsNoTracking()
+            .Where(item => item.DriverId == driver.Id)
+            .OrderByDescending(item => item.RecordedAtUtc)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        var gpsFresh = latestLocation is not null
+            && (DateTime.UtcNow - latestLocation.RecordedAtUtc) <= DeliveryDispatchScoring.GpsFreshnessThreshold;
+
+        return DeliveryPickupAreaMatcher.DriverMatchesPickup(
+            latestLocation?.Latitude,
+            latestLocation?.Longitude,
+            pickupLatitude,
+            pickupLongitude,
+            gpsFresh);
     }
 
     private static string? FirstNonBlank(params string?[] values) =>

@@ -72,7 +72,7 @@ public class DeliveryDispatchServiceTests
 
         decision.Should().NotBeNull();
         decision!.DriverId.Should().Be(scenario.SameZoneFreshDriver.Id);
-        decision.MatchReason.Should().Be("region-city-live-gps");
+        decision.MatchReason.Should().Be("pickup-live-gps");
 
         var assignment = await dbContext.DeliveryAssignments.SingleAsync();
         assignment.DriverId.Should().Be(scenario.SameZoneFreshDriver.Id);
@@ -89,9 +89,13 @@ public class DeliveryDispatchServiceTests
             vendorCity: "Riyadh",
             branchRegion: "Makkah",
             branchCity: "Jeddah",
+            branchLatitude: 21.5433m,
+            branchLongitude: 39.1728m,
             customerCity: "Jeddah",
             sameZoneDriverRegion: "MAKKAH",
-            sameZoneDriverCity: "JEDDAH");
+            sameZoneDriverCity: "JEDDAH",
+            sameZoneFreshDriverLatitude: 21.5440m,
+            sameZoneFreshDriverLongitude: 39.1730m);
         var service = CreateDispatchService(dbContext);
 
         var decision = await service.TryAutoDispatchAsync(scenario.Order.Id, cancellationToken: CancellationToken.None);
@@ -111,7 +115,15 @@ public class DeliveryDispatchServiceTests
             dbContext,
             branchRegion: "Makkah",
             branchCity: "Jeddah",
-            customerCity: "Jeddah");
+            branchLatitude: 21.5433m,
+            branchLongitude: 39.1728m,
+            customerCity: "Jeddah",
+            sameZoneFreshDriverLatitude: 24.7140m,
+            sameZoneFreshDriverLongitude: 46.6755m,
+            secondSameZoneDriverLatitude: 24.7144m,
+            secondSameZoneDriverLongitude: 46.6757m,
+            sameCityFallbackDriverLatitude: 24.8301m,
+            sameCityFallbackDriverLongitude: 46.6420m);
         var service = CreateDispatchService(dbContext);
 
         var decision = await service.TryAutoDispatchAsync(scenario.Order.Id, cancellationToken: CancellationToken.None);
@@ -119,6 +131,62 @@ public class DeliveryDispatchServiceTests
         decision.Should().BeNull();
         var assignments = await dbContext.DeliveryAssignments.ToListAsync();
         assignments.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task TryAutoDispatchAsync_WhenCustomerCityDiffersFromBranchCity_ShouldStillOfferNearestDriver()
+    {
+        await using var dbContext = CreateDbContext();
+        const decimal branchLatitude = 26.3927m;
+        const decimal branchLongitude = 49.9777m;
+        var scenario = await SeedDispatchScenarioAsync(
+            dbContext,
+            branchRegion: "Eastern Province",
+            branchCity: "DAMMAM",
+            branchLatitude: branchLatitude,
+            branchLongitude: branchLongitude,
+            customerCity: "الخبر",
+            sameZoneDriverRegion: "EASTERN",
+            sameZoneDriverCity: "KHOBAR",
+            sameZoneFreshDriverLatitude: 26.40m,
+            sameZoneFreshDriverLongitude: 50.00m,
+            secondSameZoneDriverRegion: "EASTERN",
+            secondSameZoneDriverCity: "DAMMAM",
+            secondSameZoneDriverLatitude: 26.20m,
+            secondSameZoneDriverLongitude: 50.20m);
+        var service = CreateDispatchService(dbContext);
+
+        var decision = await service.TryAutoDispatchAsync(scenario.Order.Id, cancellationToken: CancellationToken.None);
+
+        decision.Should().NotBeNull();
+        decision!.DriverId.Should().Be(scenario.SameZoneFreshDriver.Id);
+    }
+
+    [Fact]
+    public async Task TryAutoDispatchAsync_WhenDriverGpsBeyondFiftyKm_ShouldNotOfferThatDriver()
+    {
+        await using var dbContext = CreateDbContext();
+        var scenario = await SeedDispatchScenarioAsync(
+            dbContext,
+            branchRegion: "Eastern Province",
+            branchCity: "DAMMAM",
+            branchLatitude: 26.3927m,
+            branchLongitude: 49.9777m,
+            customerCity: "DAMMAM",
+            sameZoneDriverRegion: "RIYADH",
+            sameZoneDriverCity: "RIYADH",
+            sameZoneFreshDriverLatitude: 24.7137m,
+            sameZoneFreshDriverLongitude: 46.6754m);
+        scenario.SameCityFallbackDriver.ToggleAvailability(false);
+        scenario.SecondSameZoneDriver.ToggleAvailability(false);
+        await dbContext.SaveChangesAsync();
+
+        var service = CreateDispatchService(dbContext);
+
+        var decision = await service.TryAutoDispatchAsync(scenario.Order.Id, cancellationToken: CancellationToken.None);
+
+        decision.Should().BeNull();
+        (await dbContext.DeliveryAssignments.CountAsync()).Should().Be(0);
     }
 
     [Fact]
@@ -132,7 +200,7 @@ public class DeliveryDispatchServiceTests
 
         decision.Should().NotBeNull();
         decision!.DriverId.Should().Be(scenario.SecondSameZoneDriver.Id);
-        decision.MatchReason.Should().Be("region-city-live-gps");
+        decision.MatchReason.Should().Be("pickup-live-gps");
     }
 
     [Fact]
@@ -297,9 +365,13 @@ public class DeliveryDispatchServiceTests
             dbContext,
             branchRegion: "Eastern Province",
             branchCity: "Khobar",
+            branchLatitude: 26.2794m,
+            branchLongitude: 50.2083m,
             customerCity: "Khobar",
             sameZoneDriverRegion: "EASTERN",
             sameZoneDriverCity: "DAMMAM",
+            sameZoneFreshDriverLatitude: 24.7137m,
+            sameZoneFreshDriverLongitude: 46.6754m,
             sameCityFallbackDriverRegion: "MAKKAH",
             sameCityFallbackDriverCity: "JEDDAH",
             secondSameZoneDriverRegion: "MAKKAH",
@@ -387,19 +459,36 @@ public class DeliveryDispatchServiceTests
         string vendorCity = "Riyadh",
         string branchRegion = "Riyadh",
         string branchCity = "Riyadh",
+        decimal? branchLatitude = null,
+        decimal? branchLongitude = null,
         string customerCity = "Riyadh",
         string sameZoneDriverRegion = "RIYADH",
         string sameZoneDriverCity = "RIYADH",
+        decimal? sameZoneFreshDriverLatitude = null,
+        decimal? sameZoneFreshDriverLongitude = null,
         string sameCityFallbackDriverRegion = "RIYADH",
         string sameCityFallbackDriverCity = "RIYADH",
+        decimal? sameCityFallbackDriverLatitude = null,
+        decimal? sameCityFallbackDriverLongitude = null,
         string secondSameZoneDriverRegion = "RIYADH",
-        string secondSameZoneDriverCity = "RIYADH")
+        string secondSameZoneDriverCity = "RIYADH",
+        decimal? secondSameZoneDriverLatitude = null,
+        decimal? secondSameZoneDriverLongitude = null)
     {
         var customer = new User("Dispatch Customer", "dispatch.customer@test.com", "01000000992", UserRole.Customer);
         var vendorUser = new User("Dispatch Vendor", "dispatch.vendor@test.com", "01000000993", UserRole.Vendor);
         var sameZoneUser = new User("Fresh Zone Driver", "dispatch.driver.zone@test.com", "01000000994", UserRole.Driver);
         var secondZoneUser = new User("Fallback Zone Driver", "dispatch.driver.city@test.com", "01000000995", UserRole.Driver);
         var reserveZoneUser = new User("Second Same Zone Driver", "dispatch.driver.zone2@test.com", "01000000996", UserRole.Driver);
+
+        var resolvedBranchLatitude = branchLatitude ?? 24.7137m;
+        var resolvedBranchLongitude = branchLongitude ?? 46.6754m;
+        var resolvedSameZoneLatitude = sameZoneFreshDriverLatitude ?? resolvedBranchLatitude + 0.0003m;
+        var resolvedSameZoneLongitude = sameZoneFreshDriverLongitude ?? resolvedBranchLongitude + 0.0001m;
+        var resolvedSecondSameZoneLatitude = secondSameZoneDriverLatitude ?? resolvedBranchLatitude + 0.0007m;
+        var resolvedSecondSameZoneLongitude = secondSameZoneDriverLongitude ?? resolvedBranchLongitude + 0.0003m;
+        var resolvedSameCityFallbackLatitude = sameCityFallbackDriverLatitude ?? resolvedBranchLatitude + 0.1164m;
+        var resolvedSameCityFallbackLongitude = sameCityFallbackDriverLongitude ?? resolvedBranchLongitude - 0.0334m;
 
         var pickupZone = new DeliveryZone("Riyadh", "Al Olaya", 24.7136m, 46.6753m, 6m);
         var sameCityZone = new DeliveryZone("Riyadh", "Al Yasmin", 24.8296m, 46.6423m, 7m);
@@ -425,8 +514,8 @@ public class DeliveryDispatchServiceTests
             "King Fahd Rd",
             branchRegion,
             branchCity,
-            24.7137m,
-            46.6754m,
+            resolvedBranchLatitude,
+            resolvedBranchLongitude,
             "01000000998",
             "Dispatch Manager",
             "01000000999",
@@ -504,18 +593,18 @@ public class DeliveryDispatchServiceTests
 
         dbContext.DriverLocations.Add(new DriverLocation(
             sameZoneFreshDriver.Id,
-            24.7140m,
-            46.6755m,
+            resolvedSameZoneLatitude,
+            resolvedSameZoneLongitude,
             lowConfidenceFreshDriver ? 150m : 12m));
         dbContext.DriverLocations.Add(new DriverLocation(
             secondSameZoneDriver.Id,
-            24.7144m,
-            46.6757m,
+            resolvedSecondSameZoneLatitude,
+            resolvedSecondSameZoneLongitude,
             10m));
         dbContext.DriverLocations.Add(new DriverLocation(
             sameCityFallbackDriver.Id,
-            24.8301m,
-            46.6420m,
+            resolvedSameCityFallbackLatitude,
+            resolvedSameCityFallbackLongitude,
             8m));
 
         await dbContext.SaveChangesAsync();

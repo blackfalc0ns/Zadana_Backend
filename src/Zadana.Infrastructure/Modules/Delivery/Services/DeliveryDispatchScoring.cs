@@ -63,29 +63,14 @@ internal static class DeliveryDispatchScoring
         var gpsFresh = latestLocation is not null && (utcNow - latestLocation.RecordedAtUtc) <= GpsFreshnessThreshold;
         var lowConfidenceGps = latestLocation?.AccuracyMeters > LowConfidenceAccuracyMeters;
 
-        // Driver-level region/city match (aligned with vendor geography)
-        var sameRegionCity = !string.IsNullOrWhiteSpace(driver.Region)
-            && !string.IsNullOrWhiteSpace(driver.City)
-            && DeliveryRegionMatcher.Matches(driver.Region, context.PickupRegion)
-            && CityMatchesNormalized(driver.City, context.PickupCity);
-
-        var sameRegion = !sameRegionCity
-            && !string.IsNullOrWhiteSpace(context.PickupRegion)
-            && DeliveryRegionMatcher.Matches(driver.Region, context.PickupRegion);
-
-        var sameCity = !sameRegionCity
-            && !sameRegion
-            && !string.IsNullOrWhiteSpace(context.PickupCity)
-            && CityMatchesNormalized(driver.City, context.PickupCity);
-
         var inPickupZone = gpsFresh
             && latestLocation is not null
             && context.PickupZone is not null
             && IsPointWithinZone(context.PickupZone, latestLocation.Latitude, latestLocation.Longitude);
 
-        var distanceKm = ResolveDistanceKm(driver, latestLocation, context, gpsFresh, lowConfidenceGps);
+        var distanceKm = ResolveDistanceKm(latestLocation, context, gpsFresh, lowConfidenceGps);
         var distanceBucket = BuildDistanceBucket(distanceKm);
-        var tier = ResolveTier(sameRegionCity, sameRegion, sameCity, gpsFresh, lowConfidenceGps, inPickupZone);
+        var tier = ResolveTier(gpsFresh, lowConfidenceGps, inPickupZone);
         var matchReason = ResolveMatchReason(tier);
         var commitmentAdjustment = ResolveCommitmentAdjustment(commitmentScore);
         var commitmentAdjustmentReason = ResolveCommitmentAdjustmentReason(commitmentScore);
@@ -157,29 +142,24 @@ internal static class DeliveryDispatchScoring
     }
 
     private static int ResolveTier(
-        bool sameRegionCity,
-        bool sameRegion,
-        bool sameCity,
         bool gpsFresh,
         bool lowConfidenceGps,
         bool inPickupZone) =>
-        sameRegionCity && gpsFresh && !lowConfidenceGps && inPickupZone ? 1
-        : sameRegionCity ? 2
-        : sameRegion ? 2
-        : sameCity ? 3
+        gpsFresh && !lowConfidenceGps && inPickupZone ? 1
+        : gpsFresh && !lowConfidenceGps ? 2
+        : gpsFresh ? 3
         : 4;
 
     private static string ResolveMatchReason(int tier) =>
         tier switch
         {
-            1 => "region-city-live-gps",
-            2 => "same-region-city",
-            3 => "same-city-fallback",
-            _ => "out-of-area-low-priority"
+            1 => "pickup-live-gps",
+            2 => "pickup-live-gps",
+            3 => "pickup-low-confidence-gps",
+            _ => "no-fresh-gps-fallback"
         };
 
     private static decimal ResolveDistanceKm(
-        Driver driver,
         DriverLocation? latestLocation,
         DeliveryDispatchContext context,
         bool gpsFresh,
