@@ -400,7 +400,6 @@ public class DriverProfileController : ApiControllerBase
         driver.DriverLicenseExpiryDate.HasValue &&
         driver.VehicleLicenseExpiryDate.HasValue &&
         !string.IsNullOrWhiteSpace(driver.Region) &&
-        !string.IsNullOrWhiteSpace(driver.City) &&
         !DriverProfileReadinessFactory.HasExpiredRequiredDocuments(driver);
 
     private static void ResetDocumentReviewIfReady(Domain.Modules.Delivery.Entities.Driver driver, DriverDocumentType type)

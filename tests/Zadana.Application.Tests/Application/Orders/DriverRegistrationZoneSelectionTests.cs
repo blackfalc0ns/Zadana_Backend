@@ -149,6 +149,50 @@ public class DriverRegistrationRegionCityTests
     }
 
     [Fact]
+    public async Task Handle_WhenCityProvidedForBackwardCompat_ShouldStillStartPending()
+    {
+        await using var dbContext = CreateDbContext();
+        var operationalRegion = new Domain.Modules.Geography.Entities.SaudiRegion(
+            Guid.NewGuid(), "EASTERN", "المنطقة الشرقية", "Eastern Region", 26.4, 50.0, 6, 1);
+        dbContext.SaudiRegions.Add(operationalRegion);
+        await dbContext.SaveChangesAsync();
+        var operationalCity = new Domain.Modules.Geography.Entities.SaudiCity(
+            Guid.NewGuid(), operationalRegion.Id, "DAMMAM", "الدمام", "Dammam", 26.4, 50.0, 10, 1);
+        dbContext.SaudiCities.Add(operationalCity);
+        SeedActiveVendorInCity(dbContext, "EASTERN", "DAMMAM");
+        await dbContext.SaveChangesAsync();
+
+        var pending = new PendingRegistrationSnapshot(
+            Guid.NewGuid(), "Ahmed Driver", "ahmed.driver@example.com", "+201001112233", UserRole.Driver, null);
+        var pendingRegistrationService = new Mock<IPendingRegistrationService>();
+        pendingRegistrationService
+            .Setup(service => service.StartAsync(It.IsAny<StartPendingRegistrationRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new PendingRegistrationStartResult(
+                PendingRegistrationStartStatus.Succeeded, pending, "1234", "reg-token"));
+        var registrationWorkflow = new Mock<IRegistrationWorkflow>();
+        registrationWorkflow
+            .Setup(workflow => workflow.BuildPendingAuthResponse(pending, "reg-token", null))
+            .Returns(new AuthResponseDto(null, null, IsVerified: false, RegistrationToken: "reg-token"));
+
+        var handler = new RegisterDriverCommandHandler(
+            pendingRegistrationService.Object,
+            registrationWorkflow.Object,
+            dbContext,
+            Mock.Of<IOtpService>(),
+            CreateLocalizer().Object);
+
+        var result = await handler.Handle(CreateCommand(region: "EASTERN", city: "DAMMAM"), CancellationToken.None);
+
+        result.RegistrationToken.Should().Be("reg-token");
+        pendingRegistrationService.Verify(
+            service => service.StartAsync(
+                It.Is<StartPendingRegistrationRequest>(request =>
+                    request.PayloadJson.Contains("EASTERN") && request.PayloadJson.Contains("DAMMAM")),
+                It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+
+    [Fact]
     public async Task Handle_WhenEasternRegionHasNoActiveVendor_ShouldThrowBusinessRuleException()
     {
         await using var dbContext = CreateDbContext();

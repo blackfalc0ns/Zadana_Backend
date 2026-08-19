@@ -17,7 +17,7 @@ public record RegisterDriverRequest(
     DateTime? VehicleLicenseExpiryDate,
     string? Address,
     [Required] string? Region,
-    [Required] string? City,
+    string? City,
     string? NationalIdFrontImageUrl,
     string? NationalIdBackImageUrl,
     string? LicenseImageUrl,

@@ -17,7 +17,7 @@ public record UpdateDriverVehicleProfileRequest(
     string? VehicleLicenseNumber,
     DateTime? VehicleLicenseExpiryDate,
     [Required] string? Region,
-    [Required] string? City);
+    string? City);
 
 public record UpdateDriverDocumentsRequest(
     string? PersonalPhotoUrl,

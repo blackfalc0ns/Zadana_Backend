@@ -8,6 +8,7 @@ namespace Zadana.Application.Modules.Geography.Support;
 public static class OperationalGeographyScope
 {
     public const string EasternRegionCode = "EASTERN";
+    public const bool DriverShowsCityPicker = false;
 
     public static Task EnsureOperationalRegionCityIfProvidedAsync(
         IApplicationDbContext context,
