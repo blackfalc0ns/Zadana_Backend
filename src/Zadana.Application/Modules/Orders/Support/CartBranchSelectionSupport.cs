@@ -83,24 +83,8 @@ internal static class CartBranchSelectionSupport
             branch => branch.IsPrimary,
             branch => branch.CreatedAtUtc).ToList();
 
-        if (ordered.Count > 0)
-        {
-            return ordered[0];
-        }
-
-        if (!string.IsNullOrWhiteSpace(address.City) || HasUsableCoordinates(address))
-        {
-            return null;
-        }
-
-        return branches
-            .OrderByDescending(branch => branch.IsPrimary)
-            .ThenBy(branch => branch.CreatedAtUtc)
-            .FirstOrDefault();
+        return ordered.Count > 0 ? ordered[0] : null;
     }
-
-    private static bool HasUsableCoordinates(CustomerAddress address) =>
-        address.Latitude.HasValue && address.Longitude.HasValue;
 
     private sealed record AddressBranchCandidate(
         Guid VendorId,

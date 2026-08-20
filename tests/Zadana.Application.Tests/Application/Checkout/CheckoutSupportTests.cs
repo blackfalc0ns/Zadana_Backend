@@ -189,6 +189,92 @@ public class CheckoutSupportTests
         assessment.DeliveryCheck.IsDeliverable.Should().BeFalse();
     }
 
+    [Fact]
+    public async Task EvaluateDeliveryAsync_WhenSameCityButBeyondFiftyKm_ShouldBeUndeliverable()
+    {
+        await using var dbContext = CreateDbContext();
+        var customer = new User("Same City Customer", "checkout.samecity.customer@test.com", "01000000220", UserRole.Customer);
+        var vendorUser = new User("Same City Vendor", "checkout.samecity.vendor@test.com", "01000000221", UserRole.Vendor);
+        var vendor = new Vendor(
+            vendorUser.Id,
+            "متجر",
+            "Same City Store",
+            "Groceries",
+            "1234567877",
+            "checkout.samecity.vendor@test.com",
+            "01000000221",
+            city: "Dammam");
+        vendor.Approve(10m, Guid.NewGuid());
+
+        var branch = new VendorBranch(
+            vendor.Id,
+            "Dammam Branch",
+            "BR-DMM-2",
+            isPrimary: true,
+            "King Fahd Road",
+            "EASTERN",
+            "DAMMAM",
+            latitude: 26.43m,
+            longitude: 50.08m,
+            contactPhone: "01000000222",
+            managerName: "Branch Manager",
+            managerContact: "01000000223",
+            deliveryRadiusKm: 100m);
+        var address = new CustomerAddress(
+            customer.Id,
+            "Same City Customer",
+            "01000000220",
+            "Far District",
+            AddressLabel.Home,
+            city: "Dammam",
+            latitude: 26.62m,
+            longitude: 50.19m);
+
+        dbContext.Users.AddRange(customer, vendorUser);
+        dbContext.Vendors.Add(vendor);
+        dbContext.VendorBranches.Add(branch);
+        dbContext.CustomerAddresses.Add(address);
+        await dbContext.SaveChangesAsync();
+
+        const decimal vendorToCustomerDistanceKm = 52m;
+        vendorToCustomerDistanceKm.Should().BeGreaterThan(DeliveryProximityLimits.MaxMatchKm);
+
+        var deliveryPricingMock = new Mock<IDeliveryPricingService>();
+        deliveryPricingMock
+            .Setup(service => service.QuoteAsync(branch.Id, address.Id, It.IsAny<CancellationToken>(), It.IsAny<decimal?>()))
+            .ReturnsAsync(new DeliveryPriceQuote(
+                10m,
+                5m,
+                0m,
+                15m,
+                vendorToCustomerDistanceKm,
+                "zone",
+                "Same city beyond platform radius",
+                1m,
+                vendorToCustomerDistanceKm,
+                3m,
+                12m,
+                "driver",
+                "vendor",
+                false,
+                "manual",
+                null,
+                "locked",
+                DateTime.UtcNow,
+                1,
+                false));
+
+        var assessment = await CheckoutSupport.EvaluateDeliveryAsync(
+            dbContext,
+            deliveryPricingMock.Object,
+            branch.Id,
+            address,
+            CancellationToken.None);
+
+        assessment.DeliveryCheck.Status.Should().Be("undeliverable");
+        assessment.DeliveryCheck.IsDeliverable.Should().BeFalse();
+    }
+
     private static ApplicationDbContext CreateDbContext()
     {
         var options = new DbContextOptionsBuilder<ApplicationDbContext>()

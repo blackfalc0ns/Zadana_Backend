@@ -124,6 +124,7 @@ if (builder.Environment.IsProduction())
     {
         requiredProductionSettings.Add("WapilotOtp:ApiKey");
         requiredProductionSettings.Add("WapilotOtp:InstanceId");
+        requiredProductionSettings.Add("WapilotOtp:WebhookSecret");
     }
 
     if (builder.Configuration.GetValue<bool>("WhatsAppCloudOtp:Enabled"))

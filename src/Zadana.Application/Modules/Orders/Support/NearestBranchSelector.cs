@@ -21,9 +21,7 @@ public static class NearestBranchSelector
 
         if (!GeoDistance.HasUsableCoordinates(customerLatitude, customerLongitude))
         {
-            return branches
-                .OrderByDescending(isPrimary)
-                .ThenBy(createdAtUtc);
+            return [];
         }
 
         return branches

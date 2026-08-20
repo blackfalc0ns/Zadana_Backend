@@ -1155,7 +1155,7 @@
     <value>الملاحظة مطلوبة.</value>
   </data>
   <data name="DRIVER_CITY_MISMATCH" xml:space="preserve">
-    <value>ما نقدر نعيّن المندوب لأن مدينته مختلفة عن مدينة المتجر والعميل.</value>
+    <value>ما نقدر نعيّن المندوب لأن موقعه الحالي خارج نطاق القرب المسموح للاستلام.</value>
   </data>
   <data name="INVALID_DISPATCH_STATE" xml:space="preserve">
     <value>البيانات غير صحيح.</value>

@@ -178,11 +178,11 @@ public class AdminOrdersController : ApiControllerBase
                 "Driver must be approved, online, unrestricted, and ready to receive new offers before assignment.");
         }
 
-        if (!await DriverMatchesDeliveryAreaAsync(driver, order, cancellationToken))
+        if (!await DriverMatchesPickupAsync(driver, order, cancellationToken))
         {
             throw new BusinessRuleException(
                 "DRIVER_CITY_MISMATCH",
-                "Driver cannot be assigned because their city does not match the store and customer city.");
+                "Driver cannot be assigned because their current location is outside the allowed pickup proximity radius.");
         }
 
         if (order.PaymentMethod == PaymentMethodType.CashOnDelivery
@@ -669,17 +669,31 @@ public class AdminOrdersController : ApiControllerBase
         return parsed;
     }
 
-    private async Task<bool> DriverMatchesDeliveryAreaAsync(Driver driver, Order order, CancellationToken cancellationToken)
+    private async Task<bool> DriverMatchesPickupAsync(Driver driver, Order order, CancellationToken cancellationToken)
     {
-        var pickupCity = FirstNonBlank(order.VendorBranch?.City, order.Vendor?.City);
-        var customerAddress = await _dbContext.CustomerAddresses
-            .AsNoTracking()
-            .FirstOrDefaultAsync(item => item.Id == order.CustomerAddressId, cancellationToken);
+        var pickupLatitude = order.VendorBranch?.Latitude;
+        var pickupLongitude = order.VendorBranch?.Longitude;
 
-        return DeliveryPickupAreaMatcher.DriverMatchesDeliveryArea(
-            driver,
-            pickupCity,
-            customerAddress?.City);
+        if (!pickupLatitude.HasValue || !pickupLongitude.HasValue || pickupLatitude.Value == 0m || pickupLongitude.Value == 0m)
+        {
+            return false;
+        }
+
+        var latestLocation = await _dbContext.DriverLocations
+            .AsNoTracking()
+            .Where(item => item.DriverId == driver.Id)
+            .OrderByDescending(item => item.RecordedAtUtc)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        var gpsFresh = latestLocation is not null
+            && (DateTime.UtcNow - latestLocation.RecordedAtUtc) <= DeliveryProximityLimits.GpsFreshnessThreshold;
+
+        return DeliveryPickupAreaMatcher.DriverMatchesPickup(
+            latestLocation?.Latitude,
+            latestLocation?.Longitude,
+            pickupLatitude,
+            pickupLongitude,
+            gpsFresh);
     }
 
     private static bool CityMatches(string? left, string? right)

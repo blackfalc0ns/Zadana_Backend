@@ -28,12 +28,40 @@ public class GetCheckoutPickupBranchesQueryHandler
         CancellationToken cancellationToken)
     {
         var city = await ResolveCityAsync(request, cancellationToken);
+        var addressCoords = await ResolveAddressCoordinatesAsync(request, cancellationToken);
         return await CheckoutSupport.GetPickupBranchesForCityAsync(
             _context,
             request.UserId,
             request.VendorId,
             city,
-            cancellationToken);
+            cancellationToken,
+            addressCoords?.Latitude,
+            addressCoords?.Longitude);
+    }
+
+    private async Task<(decimal Latitude, decimal Longitude)?> ResolveAddressCoordinatesAsync(
+        GetCheckoutPickupBranchesQuery request,
+        CancellationToken cancellationToken)
+    {
+        if (!request.AddressId.HasValue)
+        {
+            return null;
+        }
+
+        var address = await _context.CustomerAddresses
+            .AsNoTracking()
+            .Where(item => item.Id == request.AddressId.Value && item.UserId == request.UserId)
+            .Select(item => new { item.Latitude, item.Longitude })
+            .FirstOrDefaultAsync(cancellationToken)
+            ?? throw new NotFoundException("CustomerAddress", request.AddressId.Value);
+
+        if (!address.Latitude.HasValue || !address.Longitude.HasValue
+            || (address.Latitude.Value == 0m && address.Longitude.Value == 0m))
+        {
+            return null;
+        }
+
+        return (address.Latitude.Value, address.Longitude.Value);
     }
 
     private async Task<string> ResolveCityAsync(

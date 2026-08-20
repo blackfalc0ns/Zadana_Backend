@@ -48,6 +48,23 @@ public class NearestBranchSelectorTests
     }
 
     [Fact]
+    public void Order_ShouldReturnEmptyWhenCustomerCoordinatesMissing()
+    {
+        var primary = new FakeBranch(Guid.NewGuid(), 26.43m, 50.08m, IsPrimary: true);
+        var secondary = new FakeBranch(Guid.NewGuid(), 26.22m, 50.19m, IsPrimary: false);
+        var ordered = NearestBranchSelector.Order(
+            [primary, secondary],
+            customerLatitude: null,
+            customerLongitude: null,
+            latitude: b => b.Latitude,
+            longitude: b => b.Longitude,
+            isPrimary: b => b.IsPrimary,
+            createdAtUtc: b => b.CreatedAtUtc).ToList();
+
+        ordered.Should().BeEmpty();
+    }
+
+    [Fact]
     public void Order_ShouldPreferCloserBranchOverPrimaryBranchFartherAway()
     {
         var farPrimary = new FakeBranch(Guid.NewGuid(), 26.62m, 50.19m, IsPrimary: true);

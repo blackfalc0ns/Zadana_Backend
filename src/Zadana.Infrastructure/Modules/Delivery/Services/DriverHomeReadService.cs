@@ -103,20 +103,34 @@ public sealed class DriverHomeReadService : IDriverHomeReadService
 
         if (currentOfferEntity is not null)
         {
-            var customerAddress = await _context.CustomerAddresses
-                .AsNoTracking()
-                .FirstOrDefaultAsync(a => a.Id == currentOfferEntity.Order.CustomerAddressId, cancellationToken);
+            var pickupLatitude = currentOfferEntity.Order.VendorBranch?.Latitude;
+            var pickupLongitude = currentOfferEntity.Order.VendorBranch?.Longitude;
 
-            var pickupCity = FirstNonBlank(
-                currentOfferEntity.Order.VendorBranch?.City,
-                currentOfferEntity.Order.Vendor?.City);
-
-            if (!DeliveryPickupAreaMatcher.DriverMatchesDeliveryArea(
-                    driver,
-                    pickupCity,
-                    customerAddress?.City))
+            if (!pickupLatitude.HasValue || !pickupLongitude.HasValue
+                || pickupLatitude.Value == 0m || pickupLongitude.Value == 0m)
             {
                 currentOfferEntity = null;
+            }
+            else
+            {
+                var latestLocation = await _context.DriverLocations
+                    .AsNoTracking()
+                    .Where(item => item.DriverId == driver.Id)
+                    .OrderByDescending(item => item.RecordedAtUtc)
+                    .FirstOrDefaultAsync(cancellationToken);
+
+                var gpsFresh = latestLocation is not null
+                    && (DateTime.UtcNow - latestLocation.RecordedAtUtc) <= DeliveryDispatchScoring.GpsFreshnessThreshold;
+
+                if (!DeliveryPickupAreaMatcher.DriverMatchesPickup(
+                        latestLocation?.Latitude,
+                        latestLocation?.Longitude,
+                        pickupLatitude,
+                        pickupLongitude,
+                        gpsFresh))
+                {
+                    currentOfferEntity = null;
+                }
             }
         }
 

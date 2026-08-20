@@ -6,6 +6,7 @@ using Zadana.Application.Modules.Checkout.DTOs;
 using Zadana.Application.Modules.Delivery.Interfaces;
 using Zadana.Application.Modules.Delivery.Support;
 using Zadana.Application.Modules.Geography;
+using Zadana.Application.Modules.Geography.Support;
 using Zadana.Application.Modules.Orders.Support;
 using Zadana.Application.Modules.Vendors.Support;
 using Zadana.Domain.Modules.Catalog.Enums;
@@ -264,17 +265,7 @@ internal static class CheckoutSupport
             branch => branch.IsPrimary,
             branch => branch.CreatedAtUtc).ToList();
 
-        if (ordered.Count > 0)
-        {
-            return ordered[0].Id;
-        }
-
-        if (!string.IsNullOrWhiteSpace(address.City) || HasUsableCoordinates(address))
-        {
-            return null;
-        }
-
-        return branches[0].Id;
+        return ordered.Count > 0 ? ordered[0].Id : null;
     }
 
     public static async Task<CustomerAddress?> ResolveSelectedAddressAsync(
@@ -1182,11 +1173,6 @@ internal static class CheckoutSupport
 
     private static bool IsOutsideBranchRadius(VendorBranchSnapshot branch, CustomerAddress address, DeliveryPriceQuote quote)
     {
-        if (IsSameCityDelivery(branch.City, address.City))
-        {
-            return false;
-        }
-
         var branchHasCoordinates = HasUsableCoordinates(branch.Latitude, branch.Longitude);
         var addressHasCoordinates = HasUsableCoordinates(address);
 
@@ -1474,7 +1460,9 @@ internal static class CheckoutSupport
         Guid userId,
         Guid vendorId,
         string city,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        decimal? customerLatitude = null,
+        decimal? customerLongitude = null)
     {
         if (string.IsNullOrWhiteSpace(city))
         {
@@ -1507,9 +1495,18 @@ internal static class CheckoutSupport
             .ThenBy(item => item.CreatedAtUtc)
             .ToListAsync(cancellationToken);
 
-        var cityBranches = branches
-            .Where(item => DeliveryCityMatcher.Matches(ResolveBranchCity(item), city))
-            .ToList();
+        var cityBranches = GeoDistance.HasUsableCoordinates(customerLatitude, customerLongitude)
+            ? NearestBranchSelector.Order(
+                branches,
+                customerLatitude,
+                customerLongitude,
+                branch => branch.Latitude,
+                branch => branch.Longitude,
+                branch => branch.IsPrimary,
+                branch => branch.CreatedAtUtc).ToList()
+            : branches
+                .Where(item => DeliveryCityMatcher.Matches(ResolveBranchCity(item), city))
+                .ToList();
 
         var options = cityBranches
             .Select(branch =>

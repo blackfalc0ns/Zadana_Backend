@@ -186,7 +186,6 @@ public class DeliveryPricingService : IDeliveryPricingService
                 .Where(driver => !busyDriverIds.Contains(driver.Id))
                 .ToListAsync(cancellationToken))
             .Where(driver => driver.CanReceiveNewOffers)
-            .Where(driver => DeliveryCityMatcher.Matches(driver.City, pickupCity))
             .ToList();
 
         if (eligibleDrivers.Any())
@@ -215,7 +214,13 @@ public class DeliveryPricingService : IDeliveryPricingService
                 var liveLocation = latestLocations
                     .Where(location =>
                         (DateTime.UtcNow - location.RecordedAtUtc) <= DeliveryDispatchScoring.GpsFreshnessThreshold &&
-                        (!location.AccuracyMeters.HasValue || location.AccuracyMeters.Value <= DeliveryDispatchScoring.LowConfidenceAccuracyMeters))
+                        (!location.AccuracyMeters.HasValue || location.AccuracyMeters.Value <= DeliveryDispatchScoring.LowConfidenceAccuracyMeters) &&
+                        DeliveryPickupAreaMatcher.DriverMatchesPickup(
+                            location.Latitude,
+                            location.Longitude,
+                            pickupLatitude,
+                            pickupLongitude,
+                            gpsFresh: true))
                     .OrderBy(location => DeliveryDispatchScoring.ApproximateDistanceKm(
                         location.Latitude,
                         location.Longitude,

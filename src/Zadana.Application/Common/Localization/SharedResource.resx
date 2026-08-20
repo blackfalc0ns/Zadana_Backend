@@ -1154,7 +1154,7 @@
     <value>Note is required.</value>
   </data>
   <data name="DRIVER_CITY_MISMATCH" xml:space="preserve">
-    <value>Driver cannot be assigned because their city does not match the store and customer city.</value>
+    <value>Driver cannot be assigned because their current location is outside the allowed pickup proximity radius.</value>
   </data>
   <data name="INVALID_DISPATCH_STATE" xml:space="preserve">
     <value>Dispatch can only be recomputed for orders waiting for pickup or driver assignment.</value>
