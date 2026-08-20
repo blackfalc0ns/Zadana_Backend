@@ -4,6 +4,7 @@ This folder is prepared for the mobile developer and documents the driver app AP
 
 ## Available Contracts
 
+- `EASTERN_PROXIMITY_DISPATCH_HANDOFF_AR.md` — **جديد 2026-08-21:** مترو الشرقية، region-only، GPS ≤ 50 كم
 - `HOME_CONTRACT.md`
 - `ORDER_DETAILS_CONTRACT.md`
 - `COMPLETED_ORDERS_CONTRACT.md`
@@ -11,7 +12,7 @@ This folder is prepared for the mobile developer and documents the driver app AP
 - `PROFILE_CONTRACT.md`
 - `NOTIFICATIONS_CONTRACT.md`
 - `DOCUMENTS_COMPLIANCE_EXPANSION_HANDOFF_AR.md`
-- `OPERATIONAL_GEOGRAPHY_HANDOFF_AR.md`
+- `OPERATIONAL_GEOGRAPHY_HANDOFF_AR.md` — **جزئيًا مُستبدل** بملف الشرقية أعلاه (إخفاء المدن)
 
 ## Shared Notes
 

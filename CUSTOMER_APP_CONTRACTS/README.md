@@ -4,6 +4,7 @@ This folder documents the customer-facing backend changes that are already imple
 
 Files:
 
+- `EASTERN_PROXIMITY_CHECKOUT_HANDOFF_AR.md` — **جديد 2026-08-21:** أقرب فرع ≤ 50 كم، إحداثيات العنوان، Pickup بالقرب
 - `REGISTRATION_OTP_EMAIL_DEFER_HANDOFF_AR.md` — تسجيل بدون حفظ قبل OTP (مرجع مشترك)
 - `CUSTOMER_REGISTRATION_OTP_SIGNED_TOKEN_MOBILE_HANDOFF_AR.md` — Handoff Flutter لتسجيل العميل + OTP
 - `DRIVER_REGISTRATION_OTP_SIGNED_TOKEN_MOBILE_HANDOFF_AR.md` — Handoff Flutter لتسجيل المندوب + OTP
