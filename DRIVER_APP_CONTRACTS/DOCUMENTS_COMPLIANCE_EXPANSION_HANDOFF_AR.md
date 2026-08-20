@@ -102,9 +102,9 @@ Example body:
   "driverLicenseExpiryDate": "2027-10-01T00:00:00Z",
   "vehicleLicenseNumber": "VL-99881",
   "vehicleLicenseExpiryDate": "2027-12-31T00:00:00Z",
-  "address": "Nasr City",
-  "region": "RIYADH",
-  "city": "RIYADH",
+  "address": "Al Khobar",
+  "region": "EASTERN",
+  "city": null,
   "nationalIdFrontImageUrl": "https://cdn/id-front.jpg",
   "nationalIdBackImageUrl": "https://cdn/id-back.jpg",
   "licenseImageUrl": "https://cdn/license.jpg",
@@ -132,7 +132,7 @@ Example response:
   "fullName": "Ahmed Driver",
   "email": "driver@example.com",
   "phone": "01000000000",
-  "address": "Nasr City",
+  "address": "Al Khobar",
   "vehicleType": "Motorcycle",
   "licenseNumber": "DL-12345",
   "nationalIdExpiryDate": "2028-05-01T00:00:00Z",
@@ -168,12 +168,12 @@ Example response:
       "reviewedByName": "Compliance Reviewer"
     }
   ],
-  "region": "RIYADH",
-  "city": "RIYADH",
-  "regionNameAr": "الرياض",
-  "regionNameEn": "Riyadh",
-  "cityNameAr": "الرياض",
-  "cityNameEn": "Riyadh",
+  "region": "EASTERN",
+  "city": null,
+  "regionNameAr": "المنطقة الشرقية",
+  "regionNameEn": "Eastern Region",
+  "cityNameAr": null,
+  "cityNameEn": null,
   "verificationStatus": "NeedsDocuments",
   "accountStatus": "Pending",
   "reviewNote": "Expiry date image is unclear",
@@ -217,8 +217,7 @@ Example body:
   "driverLicenseExpiryDate": "2027-10-01T00:00:00Z",
   "vehicleLicenseNumber": "VL-99881",
   "vehicleLicenseExpiryDate": "2027-12-31T00:00:00Z",
-  "region": "RIYADH",
-  "city": "RIYADH"
+  "region": "EASTERN"
 }
 ```
 

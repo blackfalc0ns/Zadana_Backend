@@ -2,6 +2,7 @@ using MediatR;
 using Microsoft.EntityFrameworkCore;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Modules.Payments.Commands.ConfirmCardPayment;
+using Zadana.Domain.Modules.Payments.Entities;
 using Zadana.Domain.Modules.Payments.Enums;
 
 namespace Zadana.Api.BackgroundJobs;
@@ -109,7 +110,65 @@ public class PaymentProviderEventInboxWorker : BackgroundService
                     inbox.ProviderName,
                     inbox.ProviderEventId,
                     inbox.ProcessingAttempts);
+
+                if (inbox.ProcessingAttempts >= MaxAttempts)
+                {
+                    _logger.LogError(
+                        ex,
+                        "Payment provider event {Provider}:{EventId} exhausted {MaxAttempts} processing attempts and is poisoned.",
+                        inbox.ProviderName,
+                        inbox.ProviderEventId,
+                        MaxAttempts);
+
+                    await TrySendPoisonAdminAlertAsync(scope.ServiceProvider, inbox, ex.Message, cancellationToken);
+                }
             }
+        }
+    }
+
+    private async Task TrySendPoisonAdminAlertAsync(
+        IServiceProvider serviceProvider,
+        PaymentProviderEventInbox inbox,
+        string? failureReason,
+        CancellationToken cancellationToken)
+    {
+        var adminAlertService = serviceProvider.GetService<IAdminAlertService>();
+        if (adminAlertService is null)
+        {
+            return;
+        }
+
+        try
+        {
+            await adminAlertService.SendAsync(
+                new AdminAlertRequest(
+                    AdminAlertTypes.SystemIntegrationFailure,
+                    AdminAlertCategories.System,
+                    AdminAlertPriorities.Critical,
+                    "فشل معالجة حدث الدفع",
+                    "Payment provider inbox event poisoned",
+                    $"تعذرت معالجة حدث {inbox.ProviderName} ({inbox.ProviderEventId}) بعد {MaxAttempts} محاولات.",
+                    $"Payment provider event {inbox.ProviderName} ({inbox.ProviderEventId}) failed after {MaxAttempts} attempts.",
+                    inbox.Id,
+                    "/finances",
+                    new
+                    {
+                        integration = "PaymentProviderEventInbox",
+                        inbox.ProviderName,
+                        inbox.ProviderEventId,
+                        inbox.ProviderPaymentId,
+                        inbox.ProcessingAttempts,
+                        failureReason,
+                    }),
+                cancellationToken);
+        }
+        catch (Exception alertException)
+        {
+            _logger.LogError(
+                alertException,
+                "Failed to dispatch poisoned payment inbox admin alert for {Provider}:{EventId}.",
+                inbox.ProviderName,
+                inbox.ProviderEventId);
         }
     }
 }

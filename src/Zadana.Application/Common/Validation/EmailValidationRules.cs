@@ -4,18 +4,14 @@ namespace Zadana.Application.Common.Validation;
 
 public static class EmailValidationRules
 {
-    public static bool HasComTopLevelDomain(string? email) =>
-        !string.IsNullOrWhiteSpace(email) &&
-        email.Trim().EndsWith(".com", StringComparison.OrdinalIgnoreCase);
-
-    public static bool IsValidComEmail(string? email)
+    public static bool IsValidEmail(string? email)
     {
-        if (!HasComTopLevelDomain(email))
+        if (string.IsNullOrWhiteSpace(email))
         {
             return false;
         }
 
-        var normalizedEmail = email!.Trim();
+        var normalizedEmail = email.Trim();
         try
         {
             var address = new MailAddress(normalizedEmail);

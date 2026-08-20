@@ -67,8 +67,9 @@ Example response:
     "reviewedAtUtc": "2026-04-24T10:30:00Z",
     "reviewNote": null,
     "suspensionReason": null,
-    "primaryZoneId": "22222222-2222-2222-2222-222222222222",
-    "zoneName": "Cairo - Nasr City East",
+    "region": "EASTERN",
+    "regionNameAr": "المنطقة الشرقية",
+    "regionNameEn": "Eastern Region",
     "commitmentScore": 96.5,
     "dailyRejections": 0,
     "weeklyRejections": 1,
@@ -165,7 +166,7 @@ Important fields:
 - `isAvailable`: current online toggle state stored in the backend
 - `verificationStatus`: current verification lifecycle state
 - `accountStatus`: current account lifecycle state
-- `primaryZoneId`, `zoneName`: currently selected zone
+- `region`, `regionNameAr`, `regionNameEn`: driver operational region (Eastern metro)
 - `commitmentScore`, `dailyRejections`, `weeklyRejections`, `enforcementLevel`
 - `canReceiveOffers`, `restrictionMessage`, `message`
 
@@ -331,14 +332,14 @@ Current checklist codes returned by backend:
 - `license_document`
 - `vehicle_document`
 - `personal_photo`
-- `zone_selection`
+- `region_selection`
 
 Current missing requirement codes returned by backend:
 
 - `missing_personal_info`
 - `missing_vehicle_info`
 - `missing_documents`
-- `missing_zone_selection`
+- `missing_region`
 
 Mobile notes:
 
@@ -466,7 +467,7 @@ Important notes:
 
 Purpose:
 
-- change the primary operating zone used by the driver
+- legacy endpoint; Eastern metro drivers use `region` on profile instead of zone selection. Prefer updating `region` via `PUT /api/drivers/me/profile/vehicle`.
 
 Request:
 

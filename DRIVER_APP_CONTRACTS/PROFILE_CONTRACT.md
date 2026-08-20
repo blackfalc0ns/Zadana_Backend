@@ -97,7 +97,7 @@ Notes:
 
 - **`region` is required** — must be `EASTERN`.
 - **`city` is optional** — if sent, backend stores it but ignores it for offer dispatch.
-- Do **not** send `primaryZoneId`; use `region` instead.
+- Do **not** send legacy `primaryZoneId`; use `region` instead.
 - هذا endpoint يعتبر sensitive update
 - إذا كان السائق Approved ثم عدّل vehicle/region، يرجع إلى `UnderReview`
 

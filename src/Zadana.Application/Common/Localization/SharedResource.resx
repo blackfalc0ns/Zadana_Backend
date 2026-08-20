@@ -1726,8 +1726,8 @@
   <data name="INVALID_HOLD_AMOUNT" xml:space="preserve">
     <value>Wallet hold amount must be greater than zero.</value>
   </data>
-  <data name="DELIVERY_OFFER_CITY_MISMATCH" xml:space="preserve">
-    <value>The delivery offer is not available for this driver because the branch city is different.</value>
+  <data name="DELIVERY_OFFER_PROXIMITY_MISMATCH" xml:space="preserve">
+    <value>The delivery offer is not available for this driver because pickup is outside the allowed proximity radius.</value>
   </data>
   <data name="DELIVERY_PICKUP_CITY_REQUIRED" xml:space="preserve">
     <value>Vendor branch city is required for delivery pricing.</value>

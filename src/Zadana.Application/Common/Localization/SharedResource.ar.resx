@@ -1727,8 +1727,8 @@
   <data name="INVALID_HOLD_AMOUNT" xml:space="preserve">
     <value>مبلغ حجز المحفظة لازم يكون أكبر من صفر.</value>
   </data>
-  <data name="DELIVERY_OFFER_CITY_MISMATCH" xml:space="preserve">
-    <value>عرض التوصيل غير متاح لهذا المندوب لأن مدينة الفرع مختلفة.</value>
+  <data name="DELIVERY_OFFER_PROXIMITY_MISMATCH" xml:space="preserve">
+    <value>عرض التوصيل غير متاح لهذا المندوب لأن موقع الاستلام خارج نطاق القرب المسموح.</value>
   </data>
   <data name="DELIVERY_PICKUP_CITY_REQUIRED" xml:space="preserve">
     <value>مدينة فرع التاجر مطلوبة لحساب سعر التوصيل.</value>

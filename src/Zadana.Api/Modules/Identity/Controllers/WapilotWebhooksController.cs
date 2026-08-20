@@ -137,7 +137,7 @@ public sealed class WapilotWebhooksController(
         var expected = settings.Value.WebhookSecret;
         if (string.IsNullOrWhiteSpace(expected))
         {
-            return true;
+            return false;
         }
 
         var provided = FirstNonEmpty(

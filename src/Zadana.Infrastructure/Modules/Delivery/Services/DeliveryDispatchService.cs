@@ -384,13 +384,13 @@ public class DeliveryDispatchService : IDeliveryDispatchService
                 .OrderByDescending(item => item.AttemptNumber)
                 .FirstOrDefaultAsync(cancellationToken);
 
-            assignment.Reject("pickup-city-mismatch");
-            mismatchedAttempt?.MarkRejected("pickup-city-mismatch");
+            assignment.Reject("pickup-proximity-mismatch");
+            mismatchedAttempt?.MarkRejected("pickup-proximity-mismatch");
             await _unitOfWork.SaveChangesAsync(cancellationToken);
 
             throw new BusinessRuleException(
-                "DELIVERY_OFFER_CITY_MISMATCH",
-                "The delivery offer is not available for this driver because the branch city is different.");
+                "DELIVERY_OFFER_PROXIMITY_MISMATCH",
+                "The delivery offer is not available for this driver because pickup is outside the allowed proximity radius.");
         }
 
         if (assignment.Order.PaymentMethod == PaymentMethodType.CashOnDelivery

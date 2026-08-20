@@ -24,7 +24,7 @@ public class VerifyOtpCommandValidator : AbstractValidator<VerifyOtpCommand>
     }
 
     private static bool IsEmail(string? value) =>
-        EmailValidationRules.IsValidComEmail(value);
+        EmailValidationRules.IsValidEmail(value);
 
     private static bool IsPhone(string? value) =>
         !string.IsNullOrWhiteSpace(value) &&

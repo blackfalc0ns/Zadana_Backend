@@ -106,7 +106,8 @@ if (builder.Environment.IsProduction())
         "Email:Smtp:Username",
         "Email:Smtp:Password",
         "BankTransfer:WebhookSecret",
-        "Security:SearchableHashKey"
+        "Security:SearchableHashKey",
+        "BotChallenge:SecretKey"
     };
 
     if (useLocalFileStorage)
@@ -925,11 +926,19 @@ builder.Services.AddSwaggerGen(c =>
 });
 
 builder.Services.AddLocalization();
-builder.Services.AddHealthChecks()
+var healthChecksBuilder = builder.Services.AddHealthChecks()
     .AddCheck<RedisDistributedCacheHealthCheck>(
         "redis-cache",
         failureStatus: HealthStatus.Unhealthy,
         tags: ["ready", "cache"]);
+
+if (!builder.Environment.IsEnvironment("Testing"))
+{
+    healthChecksBuilder.AddDbContextCheck<ApplicationDbContext>(
+        "sqlserver",
+        failureStatus: HealthStatus.Unhealthy,
+        tags: ["ready", "db"]);
+}
 
 // OpenTelemetry: traces + metrics for ASP.NET Core, HttpClient, EF Core,
 // Redis and the .NET runtime. Metrics are exposed at /metrics in Prometheus
