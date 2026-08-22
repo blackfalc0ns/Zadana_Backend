@@ -679,7 +679,8 @@ public class DeliveryDispatchService : IDeliveryDispatchService
                 group => group.Key,
                 group => group.OrderByDescending(item => item.RecordedAtUtc).First());
 
-        var eligibleDrivers = SelectDriversForDeliveryArea(
+        var (eligibleDrivers, dispatchRingKm) = await SelectDriversWithExpandingRingsAsync(
+            order,
             baseEligibleDrivers,
             latestLocations,
             now,
@@ -687,20 +688,7 @@ public class DeliveryDispatchService : IDeliveryDispatchService
             pickupLng,
             rejectedDriverIds,
             timedOutDriverIds,
-            includeTimedOutDrivers: false);
-
-        if (eligibleDrivers.Count == 0 && timedOutDriverIds.Count > 0)
-        {
-            eligibleDrivers = SelectDriversForDeliveryArea(
-                baseEligibleDrivers,
-                latestLocations,
-                now,
-                pickupLat,
-                pickupLng,
-                rejectedDriverIds,
-                timedOutDriverIds,
-                includeTimedOutDrivers: true);
-        }
+            cancellationToken);
 
         if (eligibleDrivers.Count == 0)
         {
@@ -709,39 +697,7 @@ public class DeliveryDispatchService : IDeliveryDispatchService
         }
 
         var driverIds = eligibleDrivers.Select(driver => driver.Id).ToList();
-        await _driverCommitmentPolicyService.ApplyOperationalEnforcementAsync(driverIds, cancellationToken);
         var commitmentSummaries = await _driverCommitmentPolicyService.GetDriverSummariesAsync(driverIds, cancellationToken);
-
-        eligibleDrivers = eligibleDrivers
-            .Where(driver =>
-                commitmentSummaries.TryGetValue(driver.Id, out var summary) &&
-                summary.CanReceiveOffers)
-            .ToList();
-
-        if (eligibleDrivers.Count == 0)
-        {
-            await TrackDispatchQueueNoteAsync(order, "Dispatch pending: soft-blocked-by-rejections", cancellationToken);
-            return null;
-        }
-
-        if (order.PaymentMethod == PaymentMethodType.CashOnDelivery)
-        {
-            var blockedDriverIds = await _driverCodEnforcementService.GetBlockedDriverIdsAsync(
-                eligibleDrivers.Select(driver => driver.Id).ToList(),
-                cancellationToken);
-
-            eligibleDrivers = eligibleDrivers
-                .Where(driver => !blockedDriverIds.Contains(driver.Id))
-                .ToList();
-
-            if (eligibleDrivers.Count == 0)
-            {
-                await TrackDispatchQueueNoteAsync(order, "Dispatch pending: cod-balance-blocked", cancellationToken);
-                return null;
-            }
-        }
-
-        driverIds = eligibleDrivers.Select(driver => driver.Id).ToList();
 
         var activeTaskCounts = await _context.DeliveryAssignments
             .Where(item =>
@@ -913,10 +869,11 @@ public class DeliveryDispatchService : IDeliveryDispatchService
         }
 
         _logger.LogInformation(
-            "Dispatch offer engine: offered order {OrderId} to driver {DriverId} attempt {Attempt} ({Reason}).",
+            "Dispatch offer engine: offered order {OrderId} to driver {DriverId} attempt {Attempt} ring {DispatchRingKm}km ({Reason}).",
             order.Id,
             best.Driver.Id,
             attemptNumber,
+            dispatchRingKm,
             best.Evaluation.MatchReason);
 
         // Push the full driver home payload so the mobile app's home screen
@@ -972,6 +929,79 @@ public class DeliveryDispatchService : IDeliveryDispatchService
     private static decimal ResolveCodAmount(Domain.Modules.Orders.Entities.Order order) =>
         order.PaymentMethod == PaymentMethodType.CashOnDelivery ? order.TotalAmount : 0m;
 
+    private async Task<(List<Driver> Drivers, decimal DispatchRingKm)> SelectDriversWithExpandingRingsAsync(
+        Domain.Modules.Orders.Entities.Order order,
+        IReadOnlyCollection<Driver> drivers,
+        IReadOnlyDictionary<Guid, DriverLocation> latestLocations,
+        DateTime utcNow,
+        decimal? pickupLatitude,
+        decimal? pickupLongitude,
+        HashSet<Guid> rejectedDriverIds,
+        HashSet<Guid> timedOutDriverIds,
+        CancellationToken cancellationToken)
+    {
+        var baseDriverIds = drivers.Select(driver => driver.Id).ToList();
+        await _driverCommitmentPolicyService.ApplyOperationalEnforcementAsync(baseDriverIds, cancellationToken);
+        var commitmentSummaries = await _driverCommitmentPolicyService.GetDriverSummariesAsync(baseDriverIds, cancellationToken);
+
+        foreach (var ringKm in DeliveryProximityLimits.DispatchSearchRingsKm)
+        {
+            var ringDrivers = SelectDriversForDeliveryArea(
+                drivers,
+                latestLocations,
+                utcNow,
+                pickupLatitude,
+                pickupLongitude,
+                rejectedDriverIds,
+                timedOutDriverIds,
+                includeTimedOutDrivers: false,
+                maxRadiusKm: ringKm);
+
+            if (ringDrivers.Count == 0 && timedOutDriverIds.Count > 0)
+            {
+                ringDrivers = SelectDriversForDeliveryArea(
+                    drivers,
+                    latestLocations,
+                    utcNow,
+                    pickupLatitude,
+                    pickupLongitude,
+                    rejectedDriverIds,
+                    timedOutDriverIds,
+                    includeTimedOutDrivers: true,
+                    maxRadiusKm: ringKm);
+            }
+
+            ringDrivers = ringDrivers
+                .Where(driver =>
+                    commitmentSummaries.TryGetValue(driver.Id, out var summary) &&
+                    summary.CanReceiveOffers)
+                .ToList();
+
+            if (ringDrivers.Count == 0)
+            {
+                continue;
+            }
+
+            if (order.PaymentMethod == PaymentMethodType.CashOnDelivery)
+            {
+                var blockedDriverIds = await _driverCodEnforcementService.GetBlockedDriverIdsAsync(
+                    ringDrivers.Select(driver => driver.Id).ToList(),
+                    cancellationToken);
+
+                ringDrivers = ringDrivers
+                    .Where(driver => !blockedDriverIds.Contains(driver.Id))
+                    .ToList();
+            }
+
+            if (ringDrivers.Count > 0)
+            {
+                return (ringDrivers, ringKm);
+            }
+        }
+
+        return ([], 0m);
+    }
+
     private static List<Driver> SelectDriversForDeliveryArea(
         IEnumerable<Driver> drivers,
         IReadOnlyDictionary<Guid, DriverLocation> latestLocations,
@@ -980,7 +1010,8 @@ public class DeliveryDispatchService : IDeliveryDispatchService
         decimal? pickupLongitude,
         HashSet<Guid> rejectedDriverIds,
         HashSet<Guid> timedOutDriverIds,
-        bool includeTimedOutDrivers) =>
+        bool includeTimedOutDrivers,
+        decimal maxRadiusKm = DeliveryProximityLimits.MaxMatchKm) =>
         drivers
             .Where(driver =>
                 !rejectedDriverIds.Contains(driver.Id) &&
@@ -995,7 +1026,8 @@ public class DeliveryDispatchService : IDeliveryDispatchService
                     location?.Longitude,
                     pickupLatitude,
                     pickupLongitude,
-                    gpsFresh);
+                    gpsFresh,
+                    maxRadiusKm);
             })
             .ToList();
 

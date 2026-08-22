@@ -2,7 +2,6 @@ using MediatR;
 using Microsoft.EntityFrameworkCore;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Modules.Finances.DTOs;
-using Zadana.Application.Modules.Geography.Support;
 
 namespace Zadana.Application.Modules.Finances.Queries.GetZoneFinanceSettings;
 
@@ -18,7 +17,7 @@ internal sealed class GetZoneFinanceSettingsQueryHandler(IApplicationDbContext d
         var cities = await dbContext.SaudiCities
             .AsNoTracking()
             .Include(item => item.Region)
-            .Where(item => item.Region.Code == OperationalGeographyScope.EasternRegionCode)
+            .Where(item => item.IsOperational && item.Region.IsOperational)
             .ToListAsync(cancellationToken);
 
         var pricingRules = await dbContext.DeliveryPricingRules

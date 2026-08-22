@@ -215,7 +215,7 @@ public class GetCheckoutSummaryQueryHandlerTests
     }
 
     [Fact]
-    public async Task Handle_WhenAddressIsInSameCity_DoesNotRejectDeliveryBecauseOfRadius()
+    public async Task Handle_WhenAddressOutsideBranchRadius_ShouldBeUndeliverableEvenInSameCity()
     {
         await using var context = TestDbContextFactory.Create();
 
@@ -277,6 +277,73 @@ public class GetCheckoutSummaryQueryHandlerTests
             new GetCheckoutSummaryQuery(customer.Id, vendor.Id, address.Id, null, "cash"),
             CancellationToken.None);
 
+        result.DeliveryCheck.Status.Should().Be("undeliverable");
+        result.DeliveryCheck.CanProceedToCheckout.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task Handle_WhenAddressWithinBranchRadius_ShouldBeDeliverable()
+    {
+        await using var context = TestDbContextFactory.Create();
+
+        var customer = new User("City Customer", "checkout.city.within@test.com", "01000000098", UserRole.Customer);
+        var vendorUser = new User("City Vendor", "checkout.city.within.vendor@test.com", "01000000099", UserRole.Vendor);
+        var category = new Category("تصنيف", "Category");
+        var product = new MasterProduct("منتج", "Product", "checkout-city-within-product", category.Id);
+        product.Publish();
+
+        var vendor = new Vendor(
+            vendorUser.Id,
+            "متجر المدينة",
+            "City Store",
+            "Groceries",
+            "CR-CHECKOUT-CITY-WITHIN",
+            "checkout.city.within.vendor@test.com",
+            "01000000099",
+            city: "الدمام");
+        vendor.Approve(10m, Guid.NewGuid());
+
+        var branch = new VendorBranch(vendor.Id, "Main Branch", "Branch Address", 26.4207m, 50.0888m, "01000000100", 25m);
+        var vendorProduct = new VendorProduct(vendor.Id, product.Id, 50m, 10);
+        var address = new CustomerAddress(
+            customer.Id,
+            "City Customer",
+            "01000000098",
+            "الدمام - المنطقة الشرقية",
+            AddressLabel.Home,
+            city: "الدمام",
+            area: "حي",
+            latitude: 26.30m,
+            longitude: 50.20m);
+        address.SetAsDefault();
+
+        var cart = new Cart(customer.Id);
+        cart.Items.Add(new CartItem(cart.Id, product.Id, product.NameEn, 1));
+        cart.UpdateTotals(50m, 0m);
+
+        context.Users.AddRange(customer, vendorUser);
+        context.Categories.Add(category);
+        context.MasterProducts.Add(product);
+        context.Vendors.Add(vendor);
+        context.VendorBranches.Add(branch);
+        context.VendorProducts.Add(vendorProduct);
+        context.CustomerAddresses.Add(address);
+        context.Carts.Add(cart);
+        await context.SaveChangesAsync();
+
+        var gatewayResolver = TestPaymentGatewayResolver.Enabled();
+
+        var deliveryPricing = new Mock<IDeliveryPricingService>();
+        deliveryPricing
+            .Setup(service => service.QuoteAsync(branch.Id, address.Id, It.IsAny<CancellationToken>(), It.IsAny<decimal?>()))
+            .ReturnsAsync(new DeliveryPriceQuote(15m, 16.7m, 0m, 31.7m, 8m, "zone", "Zone rule", 1m, 8m, 3m, 28.7m, "driver", "vendor", false, "manual", null, "locked", DateTime.UtcNow, 1, false));
+
+        var handler = new GetCheckoutSummaryQueryHandler(context, gatewayResolver, deliveryPricing.Object);
+
+        var result = await handler.Handle(
+            new GetCheckoutSummaryQuery(customer.Id, vendor.Id, address.Id, null, "cash"),
+            CancellationToken.None);
+
         result.DeliveryCheck.Status.Should().Be("deliverable");
         result.DeliveryCheck.CanProceedToCheckout.Should().BeTrue();
     }
@@ -318,7 +385,7 @@ public class GetCheckoutSummaryQueryHandlerTests
             "01000000283",
             "Manager",
             "01000000283",
-            1m);
+            30m);
         var fulfillableBranch = new VendorBranch(
             vendor.Id,
             "Fulfillable Dammam Branch",
@@ -332,7 +399,7 @@ public class GetCheckoutSummaryQueryHandlerTests
             "01000000284",
             "Manager",
             "01000000284",
-            1m);
+            30m);
 
         var firstVendorProduct = new VendorProduct(vendor.Id, firstProduct.Id, 50m, 10, vendorBranchId: fulfillableBranch.Id);
         var secondVendorProduct = new VendorProduct(vendor.Id, secondProduct.Id, 20m, 10, vendorBranchId: fulfillableBranch.Id);
@@ -537,7 +604,7 @@ public class GetCheckoutSummaryQueryHandlerTests
             city: "DAMMAM");
         vendor.Approve(10m, Guid.NewGuid());
 
-        var branch = new VendorBranch(vendor.Id, "Main Branch", "Branch Address", 26.4207m, 50.0888m, "01000000093", 10m);
+        var branch = new VendorBranch(vendor.Id, "Main Branch", "Branch Address", 26.4207m, 50.0888m, "01000000093", 25m);
         var vendorProduct = new VendorProduct(vendor.Id, product.Id, 50m, 10);
         var address = new CustomerAddress(
             customer.Id,
@@ -570,7 +637,7 @@ public class GetCheckoutSummaryQueryHandlerTests
         var deliveryPricing = new Mock<IDeliveryPricingService>();
         deliveryPricing
             .Setup(service => service.QuoteAsync(branch.Id, address.Id, It.IsAny<CancellationToken>(), It.IsAny<decimal?>()))
-            .ReturnsAsync(new DeliveryPriceQuote(15m, 16.7m, 0m, 31.7m, 20.33m, "zone", "Zone rule", 1m, 20.33m, 3m, 28.7m, "driver", "vendor", false, "manual", null, "locked", DateTime.UtcNow, 1, false));
+            .ReturnsAsync(new DeliveryPriceQuote(15m, 16.7m, 0m, 31.7m, 8m, "zone", "Zone rule", 1m, 8m, 3m, 28.7m, "driver", "vendor", false, "manual", null, "locked", DateTime.UtcNow, 1, false));
 
         var handler = new GetCheckoutSummaryQueryHandler(context, gatewayResolver, deliveryPricing.Object);
 

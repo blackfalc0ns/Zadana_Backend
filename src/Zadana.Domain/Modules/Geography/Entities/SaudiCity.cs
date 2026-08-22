@@ -12,6 +12,7 @@ public class SaudiCity : BaseEntity
     public double Longitude { get; private set; }
     public int MapZoom { get; private set; }
     public int SortOrder { get; private set; }
+    public bool IsOperational { get; private set; }
 
     // Navigation
     public SaudiRegion Region { get; private set; } = null!;
@@ -38,5 +39,11 @@ public class SaudiCity : BaseEntity
         Longitude = longitude;
         MapZoom = mapZoom;
         SortOrder = sortOrder;
+        IsOperational = IsDefaultOperationalCity(Code);
     }
+
+    public void SetOperational(bool isOperational) => IsOperational = isOperational;
+
+    private static bool IsDefaultOperationalCity(string code) =>
+        code is "DAMMAM" or "KHOBAR" or "DHAHRAN";
 }

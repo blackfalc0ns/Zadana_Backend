@@ -12,6 +12,25 @@ public static class NearestBranchSelector
         Func<T, decimal?> latitude,
         Func<T, decimal?> longitude,
         Func<T, bool> isPrimary,
+        Func<T, DateTime> createdAtUtc) =>
+        Order(
+            branches,
+            customerLatitude,
+            customerLongitude,
+            latitude,
+            longitude,
+            _ => DeliveryProximityLimits.MaxMatchKm,
+            isPrimary,
+            createdAtUtc);
+
+    public static IEnumerable<T> Order<T>(
+        IReadOnlyCollection<T> branches,
+        decimal? customerLatitude,
+        decimal? customerLongitude,
+        Func<T, decimal?> latitude,
+        Func<T, decimal?> longitude,
+        Func<T, decimal> deliveryRadiusKm,
+        Func<T, bool> isPrimary,
         Func<T, DateTime> createdAtUtc)
     {
         if (branches.Count == 0)
@@ -33,9 +52,10 @@ public static class NearestBranchSelector
                     longitude(branch)!.Value,
                     customerLatitude!.Value,
                     customerLongitude!.Value);
-                return (Branch: branch, DistanceKm: distanceKm);
+                var maxRadiusKm = DeliveryProximityLimits.ResolveEffectiveDeliveryRadiusKm(deliveryRadiusKm(branch));
+                return (Branch: branch, DistanceKm: distanceKm, MaxRadiusKm: maxRadiusKm);
             })
-            .Where(item => item.DistanceKm <= DeliveryProximityLimits.MaxMatchKm)
+            .Where(item => item.DistanceKm <= item.MaxRadiusKm)
             .OrderBy(item => item.DistanceKm)
             .ThenByDescending(item => isPrimary(item.Branch))
             .ThenBy(item => createdAtUtc(item.Branch))

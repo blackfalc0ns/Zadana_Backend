@@ -11,6 +11,7 @@ public class SaudiRegion : BaseEntity
     public double Longitude { get; private set; }
     public int MapZoom { get; private set; }
     public int SortOrder { get; private set; }
+    public bool IsOperational { get; private set; }
 
     // Navigation
     public ICollection<SaudiCity> Cities { get; private set; } = [];
@@ -35,5 +36,8 @@ public class SaudiRegion : BaseEntity
         Longitude = longitude;
         MapZoom = mapZoom;
         SortOrder = sortOrder;
+        IsOperational = string.Equals(Code, "EASTERN", StringComparison.Ordinal);
     }
+
+    public void SetOperational(bool isOperational) => IsOperational = isOperational;
 }

@@ -2,7 +2,6 @@ using MediatR;
 using Microsoft.EntityFrameworkCore;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Modules.Finances.DTOs;
-using Zadana.Application.Modules.Geography.Support;
 
 namespace Zadana.Application.Modules.Finances.Queries.GetCityDeliveryPricingSettings;
 
@@ -14,7 +13,7 @@ internal sealed class GetCityDeliveryPricingSettingsQueryHandler(IApplicationDbC
         var cities = await dbContext.SaudiCities
             .AsNoTracking()
             .Include(city => city.Region)
-            .Where(city => city.Region.Code == OperationalGeographyScope.EasternRegionCode)
+            .Where(city => city.IsOperational && city.Region.IsOperational)
             .OrderBy(city => city.Region.SortOrder)
             .ThenBy(city => city.SortOrder)
             .ToListAsync(cancellationToken);

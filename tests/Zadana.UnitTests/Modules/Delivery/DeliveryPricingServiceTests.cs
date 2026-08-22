@@ -78,12 +78,13 @@ public class DeliveryPricingServiceTests
 
         var quote = await service.QuoteAsync(branch.Id, address.Id, orderSubtotal: 1_000m);
 
-        quote.BaseFee.Should().Be(20m);
+        quote.BaseFee.Should().Be(10m);
         quote.DistanceFee.Should().BeGreaterThan(0m);
         quote.SurgeFee.Should().Be(0m);
         quote.TotalFee.Should().Be(quote.BaseFee + quote.DistanceFee + quote.SurgeFee);
-        quote.DriverToVendorFee.Should().Be(10m);
+        quote.DriverToVendorFee.Should().Be(0m);
         quote.VendorToCustomerFee.Should().BeGreaterThan(10m);
+        quote.UsedEstimatedDriverPricing.Should().BeTrue();
         quote.HasAnomalyWarning.Should().BeFalse();
     }
 
@@ -134,8 +135,8 @@ public class DeliveryPricingServiceTests
         context.VendorBranches.Add(branch);
         context.CustomerAddresses.Add(address);
         context.Drivers.AddRange(wrongCityDriver, sameCityDriver);
-        context.DriverLocations.Add(new DriverLocation(wrongCityDriver.Id, 26.2361m, 50.0393m, 5m));
-        context.DriverLocations.Add(new DriverLocation(sameCityDriver.Id, 26.3000m, 50.0900m, 5m));
+        context.DriverLocations.Add(new DriverLocation(wrongCityDriver.Id, 24.7137m, 46.6753m, 5m));
+        context.DriverLocations.Add(new DriverLocation(sameCityDriver.Id, 26.2361m, 50.0393m, 5m));
         context.DeliveryPricingDefaults.Add(new DeliveryPricingDefaults(
             Guid.NewGuid(),
             baseDeliveryFee: 10m,

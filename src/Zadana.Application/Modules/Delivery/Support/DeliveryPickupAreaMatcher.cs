@@ -10,7 +10,8 @@ public static class DeliveryPickupAreaMatcher
         decimal? driverLongitude,
         decimal? pickupLatitude,
         decimal? pickupLongitude,
-        bool gpsFresh)
+        bool gpsFresh,
+        decimal? maxRadiusKm = null)
     {
         if (!gpsFresh)
         {
@@ -27,7 +28,8 @@ public static class DeliveryPickupAreaMatcher
             return false;
         }
 
-        return km <= DeliveryProximityLimits.MaxMatchKm;
+        var radiusLimit = maxRadiusKm ?? DeliveryProximityLimits.MaxMatchKm;
+        return km <= radiusLimit;
     }
 
     public static bool DriverMatchesDeliveryArea(Driver driver, string? storeCity, string? customerCity)

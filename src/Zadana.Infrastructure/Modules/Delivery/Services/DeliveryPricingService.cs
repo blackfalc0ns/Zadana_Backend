@@ -119,7 +119,9 @@ public class DeliveryPricingService : IDeliveryPricingService
             customerPoint.Latitude,
             customerPoint.Longitude);
 
-        var driverToVendorLeg = QuoteLeg(vendorLegSettings, driverToVendorDistanceKm);
+        var driverToVendorLeg = driverOrigin.Mode == "live"
+            ? QuoteLeg(vendorLegSettings, driverToVendorDistanceKm)
+            : QuotedLeg.Empty;
         var vendorToCustomerLeg = QuoteLeg(customerLegSettings, vendorToCustomerDistanceKm);
 
         var baseFee = decimal.Round(driverToVendorLeg.BaseFee + vendorToCustomerLeg.BaseFee, 2, MidpointRounding.AwayFromZero);
@@ -414,21 +416,9 @@ public class DeliveryPricingService : IDeliveryPricingService
                 "Global default");
         }
 
-        return new LegPricingSettings(
-            15m,
-            5m,
-            2m,
-            15m,
-            120m,
-            [],
-            15m,
-            "flat",
-            10m,
-            0m,
-            true,
-            true,
-            "fallback",
-            "System fallback");
+        throw new BusinessRuleException(
+            "DELIVERY_PRICING_UNAVAILABLE",
+            "No active delivery pricing settings are configured.");
     }
 
     private static QuotedLeg QuoteLeg(LegPricingSettings settings, decimal distanceKm)
@@ -758,7 +748,10 @@ public class DeliveryPricingService : IDeliveryPricingService
         string Source,
         string Label);
 
-    private sealed record QuotedLeg(decimal TotalFee, decimal BaseFee, decimal DistanceFee, decimal SurgeFee);
+    private sealed record QuotedLeg(decimal TotalFee, decimal BaseFee, decimal DistanceFee, decimal SurgeFee)
+    {
+        public static QuotedLeg Empty { get; } = new(0m, 0m, 0m, 0m);
+    }
 
     private sealed record TotalClampSettings(
         decimal MinTotalDeliveryFee,

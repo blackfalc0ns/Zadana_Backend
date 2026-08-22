@@ -452,6 +452,79 @@ public class DeliveryDispatchServiceTests
         blockedDriver!.IsAvailable.Should().BeFalse();
     }
 
+    [Fact]
+    public async Task TryAutoDispatchAsync_ShouldExpandRingWhenNoDriverWithinFiveKm()
+    {
+        const decimal branchLat = 26.2200m;
+        const decimal branchLng = 50.1900m;
+
+        await using var dbContext = CreateDbContext();
+        var scenario = await SeedDispatchScenarioAsync(
+            dbContext,
+            branchRegion: "Eastern Province",
+            branchCity: "KHOBAR",
+            branchLatitude: branchLat,
+            branchLongitude: branchLng,
+            customerCity: "KHOBAR",
+            sameZoneDriverRegion: "EASTERN",
+            sameZoneDriverCity: "KHOBAR",
+            sameZoneFreshDriverLatitude: branchLat + 0.036m,
+            sameZoneFreshDriverLongitude: branchLng,
+            secondSameZoneDriverRegion: "EASTERN",
+            secondSameZoneDriverCity: "KHOBAR",
+            secondSameZoneDriverLatitude: branchLat + 0.072m,
+            secondSameZoneDriverLongitude: branchLng,
+            sameCityFallbackDriverLatitude: 24.7137m,
+            sameCityFallbackDriverLongitude: 46.6754m);
+
+        scenario.SameZoneFreshDriver.ToggleAvailability(false);
+        scenario.SameCityFallbackDriver.ToggleAvailability(false);
+        await dbContext.SaveChangesAsync();
+
+        var service = CreateDispatchService(dbContext);
+
+        var decision = await service.TryAutoDispatchAsync(scenario.Order.Id, cancellationToken: CancellationToken.None);
+
+        decision.Should().NotBeNull();
+        decision!.DriverId.Should().Be(scenario.SecondSameZoneDriver.Id);
+    }
+
+    [Fact]
+    public async Task TryAutoDispatchAsync_ShouldPreferDriverWithinFiveKmRingBeforeExpanding()
+    {
+        const decimal branchLat = 26.2200m;
+        const decimal branchLng = 50.1900m;
+
+        await using var dbContext = CreateDbContext();
+        var scenario = await SeedDispatchScenarioAsync(
+            dbContext,
+            branchRegion: "Eastern Province",
+            branchCity: "KHOBAR",
+            branchLatitude: branchLat,
+            branchLongitude: branchLng,
+            customerCity: "KHOBAR",
+            sameZoneDriverRegion: "EASTERN",
+            sameZoneDriverCity: "KHOBAR",
+            sameZoneFreshDriverLatitude: branchLat + 0.036m,
+            sameZoneFreshDriverLongitude: branchLng,
+            secondSameZoneDriverRegion: "EASTERN",
+            secondSameZoneDriverCity: "KHOBAR",
+            secondSameZoneDriverLatitude: branchLat + 0.072m,
+            secondSameZoneDriverLongitude: branchLng,
+            sameCityFallbackDriverLatitude: 24.7137m,
+            sameCityFallbackDriverLongitude: 46.6754m);
+
+        scenario.SameCityFallbackDriver.ToggleAvailability(false);
+        await dbContext.SaveChangesAsync();
+
+        var service = CreateDispatchService(dbContext);
+
+        var decision = await service.TryAutoDispatchAsync(scenario.Order.Id, cancellationToken: CancellationToken.None);
+
+        decision.Should().NotBeNull();
+        decision!.DriverId.Should().Be(scenario.SameZoneFreshDriver.Id);
+    }
+
     private static async Task<DispatchScenario> SeedDispatchScenarioAsync(
         ApplicationDbContext dbContext,
         bool lowConfidenceFreshDriver = false,

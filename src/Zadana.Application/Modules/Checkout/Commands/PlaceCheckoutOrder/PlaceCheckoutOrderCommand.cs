@@ -153,6 +153,17 @@ public class PlaceCheckoutOrderCommandHandler : IRequestHandler<PlaceCheckoutOrd
         else if (request.Fulfillment == FulfillmentType.Pickup)
         {
             address = await CheckoutSupport.ResolveSelectedAddressAsync(_context, request.UserId, request.AddressId, cancellationToken);
+            if (address is null)
+            {
+                if (request.AddressId.HasValue)
+                {
+                    throw new NotFoundException("CustomerAddress", request.AddressId.Value);
+                }
+
+                throw new BusinessRuleException(
+                    "CUSTOMER_ADDRESS_REQUIRED",
+                    "Customer must choose an address before placing a pickup order.");
+            }
         }
 
         var pickupBranchId = request.Fulfillment == FulfillmentType.Pickup
@@ -218,11 +229,35 @@ public class PlaceCheckoutOrderCommandHandler : IRequestHandler<PlaceCheckoutOrd
 
         if (request.Fulfillment == FulfillmentType.Pickup)
         {
+            var pickupAssessment = await CheckoutSupport.EvaluatePickupAsync(
+                _context,
+                cart,
+                pricing.VendorId,
+                pickupBranchId,
+                address,
+                cancellationToken);
+
+            if (!pickupAssessment.DeliveryCheck.CanProceedToCheckout)
+            {
+                throw pickupAssessment.DeliveryCheck.Status switch
+                {
+                    "address_required" or "address_coordinates_required" =>
+                        new BusinessRuleException("CUSTOMER_ADDRESS_REQUIRED", pickupAssessment.DeliveryCheck.MessageEn),
+                    "pickup_unavailable" =>
+                        new BusinessRuleException("PICKUP_NOT_AVAILABLE", pickupAssessment.DeliveryCheck.MessageEn),
+                    "service_area_unavailable" =>
+                        new BusinessRuleException("SERVICE_AREA_UNAVAILABLE", pickupAssessment.DeliveryCheck.MessageEn),
+                    _ => new BusinessRuleException("PICKUP_BRANCH_REQUIRED", pickupAssessment.DeliveryCheck.MessageEn)
+                };
+            }
+
+            pickupBranchId = pickupAssessment.BranchId;
+
             if (!pickupBranchId.HasValue)
             {
                 throw new BusinessRuleException(
-                    "PICKUP_BRANCH_REQUIRED",
-                    "Pickup orders require an active vendor branch.");
+                    "PICKUP_NOT_AVAILABLE",
+                    "No pickup branch is available near this address.");
             }
 
             var pickupBranch = await CheckoutSupport.ValidatePickupBranchAsync(
@@ -294,6 +329,8 @@ public class PlaceCheckoutOrderCommandHandler : IRequestHandler<PlaceCheckoutOrd
             {
                 "address_required" => new BusinessRuleException("CUSTOMER_ADDRESS_REQUIRED", deliveryAssessment.DeliveryCheck.MessageEn),
                 "undeliverable" => new BusinessRuleException("DELIVERY_NOT_AVAILABLE", deliveryAssessment.DeliveryCheck.MessageEn),
+                "service_area_unavailable" => new BusinessRuleException("SERVICE_AREA_UNAVAILABLE", deliveryAssessment.DeliveryCheck.MessageEn),
+                "pricing_anomaly" => new BusinessRuleException("DELIVERY_PRICING_ANOMALY", deliveryAssessment.DeliveryCheck.MessageEn),
                 _ => new BusinessRuleException("DELIVERY_PRICING_UNAVAILABLE", deliveryAssessment.DeliveryCheck.MessageEn)
             };
         }

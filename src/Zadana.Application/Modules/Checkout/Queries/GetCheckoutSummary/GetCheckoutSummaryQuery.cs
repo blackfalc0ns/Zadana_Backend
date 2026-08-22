@@ -6,6 +6,8 @@ using Zadana.Application.Modules.Checkout.Support;
 using Zadana.Application.Modules.Delivery.Interfaces;
 using Zadana.Application.Modules.Orders.Support;
 using Zadana.Application.Modules.Payments.Interfaces;
+using Zadana.Domain.Modules.Identity.Entities;
+using Zadana.Domain.Modules.Orders.Entities;
 using Zadana.Domain.Modules.Orders.Enums;
 using Zadana.SharedKernel.Exceptions;
 
@@ -110,8 +112,10 @@ public class GetCheckoutSummaryQueryHandler : IRequestHandler<GetCheckoutSummary
         {
             return await BuildPickupSummaryAsync(
                 request,
+                cart,
                 pricing,
                 pickupBranchId,
+                address,
                 coupon,
                 discount,
                 cardAvailable,
@@ -194,26 +198,35 @@ public class GetCheckoutSummaryQueryHandler : IRequestHandler<GetCheckoutSummary
                 estimatedDeliveryWindow.Explanation),
             CheckoutSupport.BuildDeliveryQuoteDto(deliveryQuote),
             CheckoutSupport.BuildDeliveryBreakdownDto(deliveryQuote),
-            CheckoutSupport.BuildShippingBreakdownV2(deliveryQuote, financeBreakdown),
+            CheckoutSupport.BuildCheckoutLineItems(deliveryQuote, financeBreakdown),
             deliveryQuote.PricingMode,
             financeBreakdown.Totals);
     }
 
     private async Task<CheckoutSummaryDto> BuildPickupSummaryAsync(
         GetCheckoutSummaryQuery request,
+        Cart cart,
         CheckoutSupport.CheckoutPricingSnapshot pricing,
         Guid? pickupBranchId,
+        CustomerAddress? address,
         Zadana.Domain.Modules.Marketing.Entities.Coupon? coupon,
         decimal discount,
         bool cardAvailable,
         bool cashOnPickupEnabled,
         CancellationToken cancellationToken)
     {
-        var pickupBranch = pickupBranchId.HasValue
+        var pickupAssessment = await CheckoutSupport.EvaluatePickupAsync(
+            _context,
+            cart,
+            pricing.VendorId,
+            pickupBranchId,
+            address,
+            cancellationToken);
+        var pickupBranch = pickupAssessment.BranchId.HasValue
             ? await CheckoutSupport.ValidatePickupBranchAsync(
                 _context,
                 pricing.VendorId,
-                pickupBranchId.Value,
+                pickupAssessment.BranchId.Value,
                 cancellationToken)
             : null;
         var deliveryQuote = CheckoutSupport.BuildNoPricingQuote();
@@ -236,6 +249,13 @@ public class GetCheckoutSummaryQueryHandler : IRequestHandler<GetCheckoutSummary
             0m,
             0m,
             DeliveryEtaOperationalProfile.Default);
+        var allAddresses = await _context.CustomerAddresses
+            .AsNoTracking()
+            .Where(a => a.UserId == request.UserId)
+            .OrderByDescending(a => a.IsDefault)
+            .ThenByDescending(a => a.UpdatedAtUtc)
+            .ThenByDescending(a => a.CreatedAtUtc)
+            .ToListAsync(cancellationToken);
 
         return new CheckoutSummaryDto(
             new CheckoutCartDto(
@@ -246,12 +266,12 @@ public class GetCheckoutSummaryQueryHandler : IRequestHandler<GetCheckoutSummary
                 pricing.UnavailableItems.Count,
                 pricing.UnavailableItems.Count > 0,
                 pricing.UnavailableItems),
-            SelectedAddress: null,
-            AvailableAddresses: [],
+            CheckoutSupport.BuildAddressDto(address),
+            CheckoutSupport.BuildAvailableAddressesList(allAddresses),
             DeliverySlots: [],
             PaymentMethods: CheckoutSupport.BuildPickupPaymentMethods(cardAvailable, cashOnPickupEnabled),
             CheckoutSupport.BuildPromoCodeDto(coupon, discount),
-            CheckoutSupport.BuildPickupDeliveryCheck(pickupBranch is not null),
+            pickupAssessment.DeliveryCheck,
             new CheckoutEstimatedDeliveryWindowDto(
                 estimatedPickupWindow.MinMinutes,
                 estimatedPickupWindow.MaxMinutes,
@@ -262,7 +282,7 @@ public class GetCheckoutSummaryQueryHandler : IRequestHandler<GetCheckoutSummary
                 estimatedPickupWindow.Explanation),
             CheckoutSupport.BuildDeliveryQuoteDto(deliveryQuote),
             CheckoutSupport.BuildDeliveryBreakdownDto(deliveryQuote),
-            CheckoutSupport.BuildShippingBreakdownV2(deliveryQuote, financeBreakdown),
+            CheckoutSupport.BuildCheckoutLineItems(deliveryQuote, financeBreakdown),
             deliveryQuote.PricingMode,
             financeBreakdown.Totals,
             FulfillmentType: "pickup",

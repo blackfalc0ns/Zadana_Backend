@@ -10,4 +10,10 @@ public class GeographyDriverRegionsTests
     {
         OperationalGeographyScope.DriverShowsCityPicker.Should().BeFalse();
     }
+
+    [Fact]
+    public void EasternRegionCode_ShouldBeOnlyOperationalRegion()
+    {
+        OperationalGeographyScope.EasternRegionCode.Should().Be("EASTERN");
+    }
 }

@@ -26,7 +26,15 @@ public sealed class AccessAuthorizationConvention : IApplicationModelConvention
                 create: [PermissionKeys.Admin.UsersAccessCreate],
                 edit: [PermissionKeys.Admin.UsersAccessEdit]),
             ["AdminDashboard"] = new([PermissionKeys.Admin.DashboardView]),
-            ["AdminGeography"] = new([PermissionKeys.Admin.DashboardView]),
+            ["AdminGeography"] = new(
+                [PermissionKeys.Admin.DashboardView],
+                edit: [PermissionKeys.Admin.DeliverySettingsEdit],
+                overrides: new Dictionary<string, string[]>(StringComparer.Ordinal)
+                {
+                    ["GetOperationalRegions"] = [PermissionKeys.Admin.DeliverySettingsView],
+                    ["UpdateOperationalRegion"] = [PermissionKeys.Admin.DeliverySettingsEdit],
+                    ["UpdateOperationalCity"] = [PermissionKeys.Admin.DeliverySettingsEdit]
+                }),
             ["AdminBrands"] = CreateCatalogAdminRule(),
             ["AdminBrandRequests"] = CreateCatalogAdminRule(),
             ["AdminCatalogRequestCenter"] = CreateCatalogAdminRule(),

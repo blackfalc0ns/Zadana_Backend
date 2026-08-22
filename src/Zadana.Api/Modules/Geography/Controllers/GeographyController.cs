@@ -6,7 +6,6 @@ using Zadana.Api.Controllers;
 using Zadana.Api.Configuration;
 using Zadana.Application.Common.Caching;
 using Zadana.Application.Common.Interfaces;
-using Zadana.Application.Modules.Geography.Support;
 using Zadana.Infrastructure.Persistence;
 
 namespace Zadana.Api.Modules.Geography.Controllers;
@@ -43,7 +42,8 @@ public class GeographyController : ApiControllerBase
                     region.Latitude,
                     region.Longitude,
                     region.MapZoom,
-                    region.SortOrder))
+                    region.SortOrder,
+                    region.IsOperational))
                 .ToListAsync(token),
             new AppCacheEntryOptions(CacheDuration),
             cancellationToken: cancellationToken);
@@ -70,34 +70,55 @@ public class GeographyController : ApiControllerBase
                     city.Latitude,
                     city.Longitude,
                     city.MapZoom,
-                    city.SortOrder))
+                    city.SortOrder,
+                    city.IsOperational && city.Region.IsOperational))
                 .ToListAsync(token),
             new AppCacheEntryOptions(CacheDuration),
             cancellationToken: cancellationToken);
     }
 
     [HttpGet("driver/regions")]
-    public async Task<IReadOnlyList<SaudiRegionLookupDto>> GetDriverRegions(CancellationToken cancellationToken)
+    public async Task<IReadOnlyList<SaudiDriverRegionLookupDto>> GetDriverRegions(CancellationToken cancellationToken)
     {
         return await _dbContext.SaudiRegions
             .AsNoTracking()
-            .Where(region => region.Code == OperationalGeographyScope.EasternRegionCode)
             .OrderBy(region => region.SortOrder)
-            .Select(region => new SaudiRegionLookupDto(
+            .ThenBy(region => region.NameEn)
+            .Select(region => new SaudiDriverRegionLookupDto(
                 region.Code,
                 region.NameAr,
                 region.NameEn,
                 region.Latitude,
                 region.Longitude,
                 region.MapZoom,
-                region.SortOrder))
+                region.SortOrder,
+                region.IsOperational))
             .ToListAsync(cancellationToken);
     }
 
     [HttpGet("driver/regions/{regionCode}/cities")]
-    public Task<IReadOnlyList<SaudiCityLookupDto>> GetDriverCities(string regionCode, CancellationToken cancellationToken)
+    public async Task<IReadOnlyList<SaudiCityLookupDto>> GetDriverCities(
+        string regionCode,
+        CancellationToken cancellationToken)
     {
-        return Task.FromResult<IReadOnlyList<SaudiCityLookupDto>>([]);
+        var normalizedRegionCode = regionCode.Trim().ToUpperInvariant();
+
+        return await _dbContext.SaudiCities
+            .AsNoTracking()
+            .Where(city => city.Region.Code == normalizedRegionCode)
+            .OrderBy(city => city.SortOrder)
+            .ThenBy(city => city.NameEn)
+            .Select(city => new SaudiCityLookupDto(
+                city.Region.Code,
+                city.Code,
+                city.NameAr,
+                city.NameEn,
+                city.Latitude,
+                city.Longitude,
+                city.MapZoom,
+                city.SortOrder,
+                city.IsOperational && city.Region.IsOperational))
+            .ToListAsync(cancellationToken);
     }
 }
 
@@ -108,7 +129,18 @@ public sealed record SaudiRegionLookupDto(
     double Latitude,
     double Longitude,
     int MapZoom,
-    int SortOrder);
+    int SortOrder,
+    bool IsOperational);
+
+public sealed record SaudiDriverRegionLookupDto(
+    string Code,
+    string NameAr,
+    string NameEn,
+    double Latitude,
+    double Longitude,
+    int MapZoom,
+    int SortOrder,
+    bool IsOperational);
 
 public sealed record SaudiCityLookupDto(
     string RegionCode,
@@ -118,4 +150,5 @@ public sealed record SaudiCityLookupDto(
     double Latitude,
     double Longitude,
     int MapZoom,
-    int SortOrder);
+    int SortOrder,
+    bool IsOperational);

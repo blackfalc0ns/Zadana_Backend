@@ -19,6 +19,7 @@ public class SaudiCityConfiguration : IEntityTypeConfiguration<SaudiCity>
         builder.Property(c => c.Longitude).IsRequired();
         builder.Property(c => c.MapZoom).IsRequired();
         builder.Property(c => c.SortOrder).IsRequired();
+        builder.Property(c => c.IsOperational).IsRequired().HasDefaultValue(false);
 
         builder.HasIndex(c => c.Code).IsUnique();
         builder.HasIndex(c => c.RegionId);

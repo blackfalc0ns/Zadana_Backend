@@ -420,6 +420,7 @@ internal static class CheckoutSupport
                 item.Longitude,
                 item.DeliveryRadiusKm,
                 item.IsActive,
+                string.IsNullOrWhiteSpace(item.Region) ? item.Vendor.Region : item.Region,
                 string.IsNullOrWhiteSpace(item.City) ? item.Vendor.City : item.City))
             .FirstOrDefaultAsync(cancellationToken);
 
@@ -437,10 +438,23 @@ internal static class CheckoutSupport
                 BuildNoPricingQuote());
         }
 
+        if (await ShouldEnforceOperationalGeographyAsync(context, cancellationToken))
+        {
+            if (!await OperationalGeographyScope.IsOperationalBranchAsync(context, branch.Region, branch.City, cancellationToken))
+            {
+                return BuildServiceAreaUnavailableAssessment();
+            }
+
+            if (!await OperationalGeographyScope.IsOperationalAddressCityAsync(context, address.City, cancellationToken))
+            {
+                return BuildServiceAreaUnavailableAssessment();
+            }
+        }
+
         try
         {
             var quote = await deliveryPricingService.QuoteAsync(branch.Id, address.Id, cancellationToken, orderSubtotal);
-            if (IsOutsideBranchRadius(branch, address, quote))
+            if (IsOutsideEffectiveDeliveryRadius(branch, quote))
             {
                 return new CheckoutDeliveryAssessment(
                     new CheckoutDeliveryCheckDto(
@@ -449,8 +463,22 @@ internal static class CheckoutSupport
                         false,
                         "هذا المتجر غير متاح للتوصيل إلى العنوان الحالي.",
                         "This store does not deliver to the current address.",
-                        quote.TotalFee,
-                        quote.DistanceKm),
+                        null,
+                        null),
+                    quote);
+            }
+
+            if (quote.HasAnomalyWarning)
+            {
+                return new CheckoutDeliveryAssessment(
+                    new CheckoutDeliveryCheckDto(
+                        "pricing_anomaly",
+                        false,
+                        false,
+                        "تكلفة التوصيل غير طبيعية لهذا الطلب. جرّب عنوانًا آخر أو تواصل مع الدعم.",
+                        "Delivery pricing looks unusual for this order. Try another address or contact support.",
+                        null,
+                        null),
                     quote);
             }
 
@@ -484,6 +512,125 @@ internal static class CheckoutSupport
         }
     }
 
+    public static async Task<CheckoutPickupAssessment> EvaluatePickupAsync(
+        IApplicationDbContext context,
+        Cart cart,
+        Guid vendorId,
+        Guid? pickupBranchId,
+        CustomerAddress? address,
+        CancellationToken cancellationToken)
+    {
+        if (address is null)
+        {
+            return new CheckoutPickupAssessment(
+                null,
+                new CheckoutDeliveryCheckDto(
+                    "address_required",
+                    false,
+                    false,
+                    "اختر عنوانًا لتحديد أقرب فرع للاستلام.",
+                    "Choose an address to find the nearest pickup branch.",
+                    null,
+                    null));
+        }
+
+        if (!HasUsableCoordinates(address))
+        {
+            return new CheckoutPickupAssessment(
+                null,
+                new CheckoutDeliveryCheckDto(
+                    "address_coordinates_required",
+                    false,
+                    false,
+                    "العنوان يحتاج موقع GPS لتحديد أقرب فرع للاستلام.",
+                    "Address needs GPS coordinates to find the nearest pickup branch.",
+                    null,
+                    null));
+        }
+
+        if (await ShouldEnforceOperationalGeographyAsync(context, cancellationToken)
+            && !await OperationalGeographyScope.IsOperationalAddressCityAsync(context, address.City, cancellationToken))
+        {
+            return new CheckoutPickupAssessment(
+                null,
+                new CheckoutDeliveryCheckDto(
+                    "service_area_unavailable",
+                    false,
+                    false,
+                    "الاستلام غير متاح في هذه المنطقة حاليًا.",
+                    "Pickup is not available in this service area yet.",
+                    null,
+                    null));
+        }
+
+        var resolvedBranchId = pickupBranchId
+            ?? await ResolvePickupBranchForCartAsync(context, cart, vendorId, address, cancellationToken);
+
+        if (!resolvedBranchId.HasValue)
+        {
+            return new CheckoutPickupAssessment(
+                null,
+                new CheckoutDeliveryCheckDto(
+                    "pickup_unavailable",
+                    false,
+                    false,
+                    "ما في فرع قريب للاستلام من هذا العنوان.",
+                    "No pickup branch is available near this address.",
+                    null,
+                    null));
+        }
+
+        VendorBranch branch;
+        try
+        {
+            branch = await ValidatePickupBranchAsync(context, vendorId, resolvedBranchId.Value, cancellationToken);
+        }
+        catch (NotFoundException)
+        {
+            return new CheckoutPickupAssessment(
+                null,
+                new CheckoutDeliveryCheckDto(
+                    "pickup_unavailable",
+                    false,
+                    false,
+                    "ما في فرع قريب للاستلام من هذا العنوان.",
+                    "No pickup branch is available near this address.",
+                    null,
+                    null));
+        }
+
+        if (await ShouldEnforceOperationalGeographyAsync(context, cancellationToken)
+            && !await OperationalGeographyScope.IsOperationalBranchAsync(
+                context,
+                branch.Region,
+                branch.City,
+                cancellationToken))
+        {
+            return new CheckoutPickupAssessment(
+                null,
+                new CheckoutDeliveryCheckDto(
+                    "service_area_unavailable",
+                    false,
+                    false,
+                    "الاستلام غير متاح من هذا الفرع حاليًا.",
+                    "Pickup is not available from this branch yet.",
+                    null,
+                    null));
+        }
+
+        var distanceKm = CalculateBranchDistanceKm(branch, address);
+        return new CheckoutPickupAssessment(
+            resolvedBranchId,
+            new CheckoutDeliveryCheckDto(
+                "pickup_ready",
+                true,
+                true,
+                "الاستلام متاح من أقرب فرع.",
+                "Pickup is available from the nearest branch.",
+                0m,
+                distanceKm));
+    }
+
     public static DeliveryPriceQuote BuildNoPricingQuote() =>
         new(0m, 0m, 0m, 0m, 0m, "zone-fallback", "No pricing", 0m, 0m, 0m, 0m, "fallback", "fallback", true, "fallback", null, "pricing_unavailable", DateTime.UtcNow, 2, false);
 
@@ -513,29 +660,16 @@ internal static class CheckoutSupport
         decimal discount,
         string? paymentMethodCode,
         CancellationToken cancellationToken,
-        FulfillmentType fulfillment = FulfillmentType.Delivery)
-    {
-        var settings = await ResolveZoneFinanceSettingsAsync(context, address, cancellationToken);
-        var normalizedPaymentMethod = NormalizePaymentMethodCode(paymentMethodCode);
-        var taxableBase = Math.Max(0m, subtotal + shippingCost - discount);
-
-        var vatAmount = settings.IsVatActive && settings.VatPercent > 0m
-            ? decimal.Round(taxableBase * settings.VatPercent / 100m, 2, MidpointRounding.AwayFromZero)
-            : 0m;
-
-        // COD fee is delivery-only. Store pickup cash must never include "cash on delivery" fees.
-        var codFee = fulfillment != FulfillmentType.Pickup
-            && normalizedPaymentMethod == "cash"
-            && settings.IsCodFeeActive
-            ? CalculateCodFee(settings, taxableBase)
-            : 0m;
-
-        return new CheckoutFinanceBreakdown(
-            taxableBase,
-            vatAmount,
-            codFee,
-            BuildTotals(subtotal, shippingCost, discount, vatAmount, codFee));
-    }
+        FulfillmentType fulfillment = FulfillmentType.Delivery) =>
+        await ResolveFinanceBreakdownV2Async(
+            context,
+            address,
+            subtotal,
+            shippingCost,
+            discount,
+            paymentMethodCode,
+            cancellationToken,
+            fulfillment);
 
     public static async Task<CheckoutFinanceBreakdown> ResolveFinanceBreakdownV2Async(
         IApplicationDbContext context,
@@ -580,17 +714,7 @@ internal static class CheckoutSupport
             new("peak_surcharge", "رسوم الذروة", "Peak surcharge", quote.SurgeFee)
         };
 
-        if (financeBreakdown.VatAmount > 0m)
-        {
-            lines.Add(new CheckoutShippingBreakdownLineDto("vat", "ضريبة القيمة المضافة", "VAT", financeBreakdown.VatAmount));
-        }
-
-        if (financeBreakdown.CodFee > 0m)
-        {
-            lines.Add(new CheckoutShippingBreakdownLineDto("cod_fee", "رسوم الدفع عند الاستلام", "Cash on delivery fee", financeBreakdown.CodFee));
-        }
-
-        return lines;
+        return lines.Where(line => line.Amount > 0m).ToList();
     }
 
     public static CheckoutPromoCodeDto? BuildPromoCodeDto(Coupon? coupon, decimal discountAmount)
@@ -622,6 +746,14 @@ internal static class CheckoutSupport
             lines.Add(new CheckoutShippingBreakdownLineDto("peak_surcharge", "رسوم الذروة", "Peak surcharge", quote.SurgeFee));
         }
 
+        return lines;
+    }
+
+    public static List<CheckoutShippingBreakdownLineDto> BuildFinanceBreakdownLines(
+        CheckoutFinanceBreakdown financeBreakdown)
+    {
+        var lines = new List<CheckoutShippingBreakdownLineDto>();
+
         if (financeBreakdown.VatAmount > 0m)
         {
             lines.Add(new CheckoutShippingBreakdownLineDto("vat", "ضريبة القيمة المضافة", "VAT", financeBreakdown.VatAmount));
@@ -632,6 +764,15 @@ internal static class CheckoutSupport
             lines.Add(new CheckoutShippingBreakdownLineDto("cod_fee", "رسوم الدفع عند الاستلام", "Cash on delivery fee", financeBreakdown.CodFee));
         }
 
+        return lines;
+    }
+
+    public static List<CheckoutShippingBreakdownLineDto> BuildCheckoutLineItems(
+        DeliveryPriceQuote quote,
+        CheckoutFinanceBreakdown financeBreakdown)
+    {
+        var lines = BuildShippingBreakdownV2(quote, financeBreakdown);
+        lines.AddRange(BuildFinanceBreakdownLines(financeBreakdown));
         return lines;
     }
 
@@ -921,6 +1062,7 @@ internal static class CheckoutSupport
             address.Longitude,
             branch => branch.Latitude,
             branch => branch.Longitude,
+            branch => branch.DeliveryRadiusKm,
             branch => branch.IsPrimary,
             branch => branch.CreatedAtUtc);
 
@@ -1171,17 +1313,44 @@ internal static class CheckoutSupport
         return (decimal)distanceKm;
     }
 
-    private static bool IsOutsideBranchRadius(VendorBranchSnapshot branch, CustomerAddress address, DeliveryPriceQuote quote)
+    private static bool IsOutsideEffectiveDeliveryRadius(VendorBranchSnapshot branch, DeliveryPriceQuote quote)
     {
-        var branchHasCoordinates = HasUsableCoordinates(branch.Latitude, branch.Longitude);
-        var addressHasCoordinates = HasUsableCoordinates(address);
+        var effectiveRadiusKm = DeliveryProximityLimits.ResolveEffectiveDeliveryRadiusKm(branch.DeliveryRadiusKm);
+        return quote.VendorToCustomerDistanceKm > effectiveRadiusKm;
+    }
 
-        if (!branchHasCoordinates || !addressHasCoordinates)
+    private static async Task<bool> ShouldEnforceOperationalGeographyAsync(
+        IApplicationDbContext context,
+        CancellationToken cancellationToken) =>
+        await context.SaudiRegions
+            .AsNoTracking()
+            .AnyAsync(cancellationToken);
+
+    private static CheckoutDeliveryAssessment BuildServiceAreaUnavailableAssessment() =>
+        new(
+            new CheckoutDeliveryCheckDto(
+                "service_area_unavailable",
+                false,
+                false,
+                "التوصيل غير متاح في هذه المنطقة حاليًا.",
+                "Delivery is not available in this service area yet.",
+                null,
+                null),
+            BuildNoPricingQuote());
+
+    private static decimal? CalculateBranchDistanceKm(VendorBranch branch, CustomerAddress address)
+    {
+        if (!HasUsableCoordinates(address) ||
+            !HasUsableCoordinates(branch.Latitude, branch.Longitude))
         {
-            return false;
+            return null;
         }
 
-        return quote.VendorToCustomerDistanceKm > DeliveryProximityLimits.MaxMatchKm;
+        return GeoDistance.Kilometers(
+            branch.Latitude,
+            branch.Longitude,
+            address.Latitude!.Value,
+            address.Longitude!.Value);
     }
 
     private static bool IsSameCityDelivery(string? branchCity, string? customerCity)
@@ -1254,6 +1423,10 @@ internal static class CheckoutSupport
     internal sealed record CheckoutDeliveryAssessment(
         CheckoutDeliveryCheckDto DeliveryCheck,
         DeliveryPriceQuote DeliveryQuote);
+
+    internal sealed record CheckoutPickupAssessment(
+        Guid? BranchId,
+        CheckoutDeliveryCheckDto DeliveryCheck);
 
     private sealed record ZoneFinanceSettingsSnapshot(
         decimal VatPercent,
@@ -1339,6 +1512,7 @@ internal static class CheckoutSupport
         decimal Longitude,
         decimal DeliveryRadiusKm,
         bool IsActive,
+        string? Region,
         string? City);
 
     private static async Task EnsureCouponEligibilityAsync(
@@ -1504,9 +1678,7 @@ internal static class CheckoutSupport
                 branch => branch.Longitude,
                 branch => branch.IsPrimary,
                 branch => branch.CreatedAtUtc).ToList()
-            : branches
-                .Where(item => DeliveryCityMatcher.Matches(ResolveBranchCity(item), city))
-                .ToList();
+            : [];
 
         var options = cityBranches
             .Select(branch =>
@@ -1569,17 +1741,13 @@ internal static class CheckoutSupport
             address?.Longitude,
             branch => branch.Latitude,
             branch => branch.Longitude,
+            branch => branch.DeliveryRadiusKm,
             branch => branch.IsPrimary,
             branch => branch.CreatedAtUtc).ToList();
 
         if (orderedCandidates.Count == 0)
         {
-            if (address is not null && (!string.IsNullOrWhiteSpace(address.City) || HasUsableCoordinates(address)))
-            {
-                return null;
-            }
-
-            orderedCandidates = branches;
+            return null;
         }
 
         var fulfillableBranch = orderedCandidates
