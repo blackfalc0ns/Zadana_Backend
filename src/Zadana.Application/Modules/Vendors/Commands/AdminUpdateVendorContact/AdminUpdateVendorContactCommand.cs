@@ -64,20 +64,9 @@ public class AdminUpdateVendorContactCommandHandler : IRequestHandler<AdminUpdat
 
         vendor.UpdateContact(request.Region, request.City, request.NationalAddress);
 
-        var primaryBranch = vendor.Branches
-            .OrderByDescending(branch => branch.IsActive)
-            .ThenBy(branch => branch.CreatedAtUtc)
-            .FirstOrDefault();
-
-        if (primaryBranch != null && request.BranchLatitude.HasValue && request.BranchLongitude.HasValue)
+        if (request.BranchLatitude.HasValue && request.BranchLongitude.HasValue)
         {
-            primaryBranch.Update(
-                primaryBranch.Name,
-                request.NationalAddress,
-                request.BranchLatitude.Value,
-                request.BranchLongitude.Value,
-                primaryBranch.ContactPhone,
-                primaryBranch.DeliveryRadiusKm);
+            vendor.SetStoreLocation(request.BranchLatitude.Value, request.BranchLongitude.Value);
         }
 
         await _unitOfWork.SaveChangesAsync(cancellationToken);

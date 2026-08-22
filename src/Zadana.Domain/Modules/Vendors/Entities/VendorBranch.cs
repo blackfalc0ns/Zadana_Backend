@@ -147,6 +147,17 @@ public class VendorBranch : BaseEntity
         Name = name.Trim();
     }
 
+    public void SetLocation(decimal latitude, decimal longitude)
+    {
+        if (latitude < -90 || latitude > 90)
+            throw new InvalidOperationException("Latitude must be between -90 and 90.");
+        if (longitude < -180 || longitude > 180)
+            throw new InvalidOperationException("Longitude must be between -180 and 180.");
+
+        Latitude = latitude;
+        Longitude = longitude;
+    }
+
     public void SetPrimary(bool isPrimary) => IsPrimary = isPrimary;
     public void Deactivate() => IsActive = false;
     public void Activate() => IsActive = true;

@@ -151,7 +151,9 @@ public class VendorsController : ApiControllerBase
             request.Region,
             request.City,
             request.NationalAddress,
-            request.CommercialRegistrationNumber));
+            request.CommercialRegistrationNumber,
+            request.BranchLatitude,
+            request.BranchLongitude));
 
         return Ok(new { Data = result, Message = _localizer["VendorProfileUpdated"].Value });
     }

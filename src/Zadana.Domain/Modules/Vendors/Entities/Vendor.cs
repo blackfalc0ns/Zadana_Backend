@@ -206,6 +206,13 @@ public class Vendor : BaseEntity
         SyncPrimaryBranchNameFromStore();
     }
 
+    public void SetStoreLocation(decimal latitude, decimal longitude)
+    {
+        var primary = FindPrimaryBranch();
+        primary?.SetLocation(latitude, longitude);
+        UpdatedAtUtc = DateTime.UtcNow;
+    }
+
     public void UpdateOwner(
         string ownerName,
         string ownerEmail,
@@ -531,7 +538,7 @@ public class Vendor : BaseEntity
 
     private void SyncPrimaryBranchNameFromStore()
     {
-        var primary = Branches.FirstOrDefault(branch => branch.IsPrimary);
+        var primary = FindPrimaryBranch();
         if (primary is null)
         {
             return;
@@ -545,6 +552,9 @@ public class Vendor : BaseEntity
 
         primary.Rename(storeName);
     }
+
+    private VendorBranch? FindPrimaryBranch() =>
+        Branches.FirstOrDefault(branch => branch.IsPrimary);
 
     private static string? NormalizeOptional(string? value) =>
         string.IsNullOrWhiteSpace(value) ? null : value.Trim();

@@ -63,7 +63,9 @@ public record UpdateVendorStoreRequest(
     string? Region,
     string? City,
     string? NationalAddress,
-    string? CommercialRegistrationNumber);
+    string? CommercialRegistrationNumber,
+    decimal? BranchLatitude = null,
+    decimal? BranchLongitude = null);
 
 public record UpdateVendorOwnerRequest(
     string OwnerName,
@@ -142,7 +144,9 @@ public record AdminUpdateVendorStoreRequest(
     string? Region,
     string? City,
     string? NationalAddress,
-    string? CommercialRegistrationNumber);
+    string? CommercialRegistrationNumber,
+    decimal? BranchLatitude = null,
+    decimal? BranchLongitude = null);
 
 public record AdminUpdateVendorOwnerRequest(
     string OwnerName,

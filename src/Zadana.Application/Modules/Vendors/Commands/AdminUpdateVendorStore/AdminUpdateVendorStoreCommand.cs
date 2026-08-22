@@ -24,7 +24,9 @@ public record AdminUpdateVendorStoreCommand(
     string? Region,
     string? City,
     string? NationalAddress,
-    string? CommercialRegistrationNumber) : IRequest<VendorDetailDto>;
+    string? CommercialRegistrationNumber,
+    decimal? BranchLatitude = null,
+    decimal? BranchLongitude = null) : IRequest<VendorDetailDto>;
 
 public class AdminUpdateVendorStoreCommandValidator : AbstractValidator<AdminUpdateVendorStoreCommand>
 {
@@ -40,6 +42,8 @@ public class AdminUpdateVendorStoreCommandValidator : AbstractValidator<AdminUpd
         RuleFor(x => x.City).MaximumLength(100);
         RuleFor(x => x.NationalAddress).MaximumLength(500);
         RuleFor(x => x.CommercialRegistrationNumber).MaximumLength(50);
+        RuleFor(x => x.BranchLatitude).InclusiveBetween(-90, 90).When(x => x.BranchLatitude.HasValue);
+        RuleFor(x => x.BranchLongitude).InclusiveBetween(-180, 180).When(x => x.BranchLongitude.HasValue);
     }
 }
 
@@ -90,6 +94,11 @@ public class AdminUpdateVendorStoreCommandHandler : IRequestHandler<AdminUpdateV
             request.City,
             request.NationalAddress,
             request.CommercialRegistrationNumber);
+
+        if (request.BranchLatitude.HasValue && request.BranchLongitude.HasValue)
+        {
+            vendor.SetStoreLocation(request.BranchLatitude.Value, request.BranchLongitude.Value);
+        }
 
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 

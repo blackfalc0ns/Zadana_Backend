@@ -42,6 +42,38 @@ public class VendorPrimaryBranchNameSyncTests
     }
 
     [Fact]
+    public void SetStoreLocation_UpdatesPrimaryBranchCoordinatesOnly()
+    {
+        var vendor = CreateVendor();
+        var primary = CreateBranch(vendor.Id, "اسواق النخبة", isPrimary: true, 24.7136m, 46.6753m);
+        var secondary = CreateBranch(vendor.Id, "فرع الخبر", isPrimary: false, 26.2173m, 50.1971m);
+        vendor.Branches.Add(primary);
+        vendor.Branches.Add(secondary);
+
+        vendor.SetStoreLocation(26.3927m, 49.9777m);
+
+        primary.Latitude.Should().Be(26.3927m);
+        primary.Longitude.Should().Be(49.9777m);
+        secondary.Latitude.Should().Be(26.2173m);
+        secondary.Longitude.Should().Be(50.1971m);
+        secondary.Name.Should().Be("فرع الخبر");
+    }
+
+    [Fact]
+    public void SetStoreLocation_DoesNothingWhenVendorHasNoPrimaryBranch()
+    {
+        var vendor = CreateVendor();
+        var secondary = CreateBranch(vendor.Id, "فرع الخبر", isPrimary: false, 26.2173m, 50.1971m);
+        vendor.Branches.Add(secondary);
+
+        var act = () => vendor.SetStoreLocation(26.3927m, 49.9777m);
+
+        act.Should().NotThrow();
+        secondary.Latitude.Should().Be(26.2173m);
+        secondary.Longitude.Should().Be(50.1971m);
+    }
+
+    [Fact]
     public void UpdateStore_DoesNothingWhenVendorHasNoPrimaryBranch()
     {
         var vendor = CreateVendor();
@@ -66,7 +98,12 @@ public class VendorPrimaryBranchNameSyncTests
     private static Vendor CreateVendor() =>
         new(Guid.NewGuid(), "متجر B", "Store B", "Retail", "CR-1", "vendor@test.com", "123");
 
-    private static VendorBranch CreateBranch(Guid vendorId, string name, bool isPrimary) =>
+    private static VendorBranch CreateBranch(
+        Guid vendorId,
+        string name,
+        bool isPrimary,
+        decimal latitude = 26.3927m,
+        decimal longitude = 49.9777m) =>
         new(
             vendorId,
             name,
@@ -75,8 +112,8 @@ public class VendorPrimaryBranchNameSyncTests
             "Dammam",
             "EASTERN",
             "DAMMAM",
-            26.3927m,
-            49.9777m,
+            latitude,
+            longitude,
             "0500000000",
             "Manager",
             "0500000000",
