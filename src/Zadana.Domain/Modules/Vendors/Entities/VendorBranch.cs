@@ -139,6 +139,14 @@ public class VendorBranch : BaseEntity
             deliveryRadiusKm);
     }
 
+    public void Rename(string name)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+            throw new InvalidOperationException("Branch name is required.");
+
+        Name = name.Trim();
+    }
+
     public void SetPrimary(bool isPrimary) => IsPrimary = isPrimary;
     public void Deactivate() => IsActive = false;
     public void Activate() => IsActive = true;

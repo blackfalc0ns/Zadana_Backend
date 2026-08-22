@@ -159,6 +159,7 @@ public class Vendor : BaseEntity
         ContactPhone = contactPhone.Trim();
         TaxId = taxId?.Trim();
         UpdatedAtUtc = DateTime.UtcNow;
+        SyncPrimaryBranchNameFromStore();
     }
 
     public void UpdateStore(
@@ -202,6 +203,7 @@ public class Vendor : BaseEntity
         }
 
         UpdatedAtUtc = DateTime.UtcNow;
+        SyncPrimaryBranchNameFromStore();
     }
 
     public void UpdateOwner(
@@ -525,6 +527,23 @@ public class Vendor : BaseEntity
         ArchiveReason = null;
         LastStatusChangedAtUtc = DateTime.UtcNow;
         UpdatedAtUtc = DateTime.UtcNow;
+    }
+
+    private void SyncPrimaryBranchNameFromStore()
+    {
+        var primary = Branches.FirstOrDefault(branch => branch.IsPrimary);
+        if (primary is null)
+        {
+            return;
+        }
+
+        var storeName = string.IsNullOrWhiteSpace(BusinessNameAr) ? BusinessNameEn : BusinessNameAr;
+        if (string.IsNullOrWhiteSpace(storeName))
+        {
+            return;
+        }
+
+        primary.Rename(storeName);
     }
 
     private static string? NormalizeOptional(string? value) =>
