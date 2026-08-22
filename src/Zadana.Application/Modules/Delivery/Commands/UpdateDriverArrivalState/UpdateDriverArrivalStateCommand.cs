@@ -113,7 +113,12 @@ public class UpdateDriverArrivalStateCommandHandler : IRequestHandler<UpdateDriv
         {
             if (assignment.Status == AssignmentStatus.ArrivedAtVendor)
             {
-                return await BuildArrivedAtVendorResultAsync(driver.Id, assignment, cancellationToken);
+                return new DriverArrivalStateResultDto(
+                    assignment.OrderId,
+                    assignment.Id,
+                    "arrived_at_vendor",
+                    LocalizedMessages.GetAr(LocalizedMessages.DriverArrivedAtVendor),
+                    LocalizedMessages.GetEn(LocalizedMessages.DriverArrivedAtVendor));
             }
 
             if (assignment.Status is not Domain.Modules.Delivery.Enums.AssignmentStatus.Accepted)
@@ -174,7 +179,7 @@ public class UpdateDriverArrivalStateCommandHandler : IRequestHandler<UpdateDriv
             recipientUserId = assignment.Order.UserId;
         }
 
-        await _unitOfWork.SaveChangesAsync(cancellationToken);
+        await _unitOfWork.SaveChangesAsync(CancellationToken.None);
 
         QueueArrivalNotifications(
             assignment.OrderId,
@@ -189,34 +194,12 @@ public class UpdateDriverArrivalStateCommandHandler : IRequestHandler<UpdateDriv
             bodyAr,
             bodyEn);
 
-        var updatedDetail = await TryGetAssignmentDetailAsync(driver.Id, assignment.Id, cancellationToken);
-
         return new DriverArrivalStateResultDto(
             assignment.OrderId,
             assignment.Id,
             normalizedState,
             messageAr,
-            messageEn,
-            updatedDetail);
-    }
-
-    private async Task<DriverArrivalStateResultDto> BuildArrivedAtVendorResultAsync(
-        Guid driverId,
-        Domain.Modules.Delivery.Entities.DeliveryAssignment assignment,
-        CancellationToken cancellationToken)
-    {
-        var updatedDetail = await _driverReadService.GetAssignmentDetailAsync(
-            driverId,
-            assignment.Id,
-            cancellationToken);
-
-        return new DriverArrivalStateResultDto(
-            assignment.OrderId,
-            assignment.Id,
-            "arrived_at_vendor",
-            LocalizedMessages.GetAr(LocalizedMessages.DriverArrivedAtVendor),
-            LocalizedMessages.GetEn(LocalizedMessages.DriverArrivedAtVendor),
-            updatedDetail);
+            messageEn);
     }
 
     private void QueueArrivalNotifications(
@@ -254,35 +237,6 @@ public class UpdateDriverArrivalStateCommandHandler : IRequestHandler<UpdateDriv
                 _logger.LogWarning(ex, "Arrival notification fan-out failed for order {OrderId}.", orderId);
             }
         });
-    }
-
-    private async Task<DTOs.DriverAssignmentDetailDto?> TryGetAssignmentDetailAsync(
-        Guid driverId,
-        Guid assignmentId,
-        CancellationToken cancellationToken)
-    {
-        using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        timeoutCts.CancelAfter(TimeSpan.FromSeconds(2));
-
-        try
-        {
-            return await _driverReadService.GetAssignmentDetailAsync(driverId, assignmentId, timeoutCts.Token);
-        }
-        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
-        {
-            _logger.LogWarning(
-                "Assignment detail read timed out after arrival persist for assignment {AssignmentId}.",
-                assignmentId);
-            return null;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(
-                ex,
-                "Assignment detail read failed after arrival persist for assignment {AssignmentId}.",
-                assignmentId);
-            return null;
-        }
     }
 
     private async Task NotifyArrivalAsync(
