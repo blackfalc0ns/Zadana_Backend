@@ -95,8 +95,6 @@ public class UpdateDriverArrivalStateCommandHandler : IRequestHandler<UpdateDriv
         var assignment = await _context.DeliveryAssignments
             .Include(item => item.Order)
                 .ThenInclude(order => order.Vendor)
-            .Include(item => item.Order)
-                .ThenInclude(order => order.StatusHistory)
             .FirstOrDefaultAsync(item => item.OrderId == request.OrderId && item.DriverId == driver.Id, cancellationToken)
             ?? throw new BusinessRuleException("DRIVER_NOT_ASSIGNED", "أنت غير مخصص لهذا الطلب | You are not assigned to this order.");
 
