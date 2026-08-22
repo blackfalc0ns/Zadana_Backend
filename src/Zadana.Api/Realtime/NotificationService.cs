@@ -99,9 +99,12 @@ public sealed class NotificationService : INotificationService
                 false,
                 createdAtUtc);
 
-            await _hubContext.Clients
-                .Group(NotificationHub.GetUserGroup(userId))
-                .SendAsync(NotificationHub.ReceiveNotificationMethod, payload, cancellationToken);
+            await SendHubAsync(
+                NotificationHub.GetUserGroup(userId),
+                NotificationHub.ReceiveNotificationMethod,
+                payload,
+                "inbox",
+                cancellationToken);
         }
         catch (Exception ex)
         {
@@ -167,9 +170,12 @@ public sealed class NotificationService : INotificationService
                 newStatus,
                 normalizedFulfillment);
 
-            await _hubContext.Clients
-                .Group(NotificationHub.GetUserGroup(userId))
-                .SendAsync(NotificationHub.ReceiveOrderStatusChangedMethod, payload, cancellationToken);
+            await SendHubAsync(
+                NotificationHub.GetUserGroup(userId),
+                NotificationHub.ReceiveOrderStatusChangedMethod,
+                payload,
+                "order-status",
+                cancellationToken);
         }
         catch (Exception ex)
         {
@@ -229,9 +235,12 @@ public sealed class NotificationService : INotificationService
                 "driver_arrival_state_changed",
                 true);
 
-            await _hubContext.Clients
-                .Group(NotificationHub.GetUserGroup(userId))
-                .SendAsync(NotificationHub.ReceiveDriverArrivalStateChangedMethod, payload, cancellationToken);
+            await SendHubAsync(
+                NotificationHub.GetUserGroup(userId),
+                NotificationHub.ReceiveDriverArrivalStateChangedMethod,
+                payload,
+                "driver-arrival",
+                cancellationToken);
         }
         catch (Exception ex)
         {
@@ -269,9 +278,12 @@ public sealed class NotificationService : INotificationService
                 ResolveOrderSupportPopupType(type),
                 true);
 
-            await _hubContext.Clients
-                .Group(NotificationHub.GetUserGroup(userId))
-                .SendAsync(NotificationHub.ReceiveOrderSupportCaseChangedMethod, payload, cancellationToken);
+            await SendHubAsync(
+                NotificationHub.GetUserGroup(userId),
+                NotificationHub.ReceiveOrderSupportCaseChangedMethod,
+                payload,
+                "order-support",
+                cancellationToken);
         }
         catch (Exception ex)
         {
@@ -318,9 +330,12 @@ public sealed class NotificationService : INotificationService
                 "support_case_status_update",
                 true);
 
-            await _hubContext.Clients
-                .Group(NotificationHub.GetUserGroup(driverUserId))
-                .SendAsync(NotificationHub.ReceiveDriverSupportCaseChangedMethod, payload, cancellationToken);
+            await SendHubAsync(
+                NotificationHub.GetUserGroup(driverUserId),
+                NotificationHub.ReceiveDriverSupportCaseChangedMethod,
+                payload,
+                "driver-support",
+                cancellationToken);
         }
         catch (Exception ex)
         {
@@ -350,9 +365,12 @@ public sealed class NotificationService : INotificationService
                 currentOffer.AssignmentId,
                 currentOffer.OrderId);
 
-            await _hubContext.Clients
-                .Group(NotificationHub.GetUserGroup(driverUserId))
-                .SendAsync(NotificationHub.ReceiveDeliveryOfferMethod, payload, cancellationToken);
+            await SendHubAsync(
+                NotificationHub.GetUserGroup(driverUserId),
+                NotificationHub.ReceiveDeliveryOfferMethod,
+                payload,
+                "delivery-offer",
+                cancellationToken);
         }
         catch (Exception ex)
         {
@@ -392,9 +410,12 @@ public sealed class NotificationService : INotificationService
                 false,
                 DateTime.UtcNow);
 
-            await _hubContext.Clients
-                .Group("all-customers")
-                .SendAsync(NotificationHub.ReceiveBroadcastMethod, payload, cancellationToken);
+            await SendHubAsync(
+                "all-customers",
+                NotificationHub.ReceiveBroadcastMethod,
+                payload,
+                "broadcast",
+                cancellationToken);
         }
         catch (Exception ex)
         {
@@ -430,9 +451,12 @@ public sealed class NotificationService : INotificationService
                 return;
             }
 
-            await _hubContext.Clients
-                .Group(NotificationHub.GetUserGroup(driverUserId))
-                .SendAsync(NotificationHub.ReceiveAssignmentUpdatedMethod, detail, cancellationToken);
+            await SendHubAsync(
+                NotificationHub.GetUserGroup(driverUserId),
+                NotificationHub.ReceiveAssignmentUpdatedMethod,
+                detail,
+                "assignment-updated",
+                cancellationToken);
 
             _logger.LogInformation(
                 "Sent ReceiveAssignmentUpdated to driver user {UserId} for assignment {AssignmentId}",
@@ -457,9 +481,12 @@ public sealed class NotificationService : INotificationService
             var driverHomeReadService = scope.ServiceProvider.GetRequiredService<IDriverHomeReadService>();
             var home = await driverHomeReadService.GetHomeAsync(driverUserId, processExpiredOffers: false, cancellationToken);
 
-            await _hubContext.Clients
-                .Group(NotificationHub.GetUserGroup(driverUserId))
-                .SendAsync(NotificationHub.ReceiveDriverHomeUpdatedMethod, home, cancellationToken);
+            await SendHubAsync(
+                NotificationHub.GetUserGroup(driverUserId),
+                NotificationHub.ReceiveDriverHomeUpdatedMethod,
+                home,
+                "driver-home",
+                cancellationToken);
         }
         catch (Exception ex)
         {
@@ -480,9 +507,12 @@ public sealed class NotificationService : INotificationService
             var driverWalletReadService = scope.ServiceProvider.GetRequiredService<IDriverWalletReadService>();
             var wallet = await driverWalletReadService.GetRealtimePayloadAsync(driverUserId, cancellationToken);
 
-            await _hubContext.Clients
-                .Group(NotificationHub.GetUserGroup(driverUserId))
-                .SendAsync(NotificationHub.ReceiveDriverWalletUpdatedMethod, wallet, cancellationToken);
+            await SendHubAsync(
+                NotificationHub.GetUserGroup(driverUserId),
+                NotificationHub.ReceiveDriverWalletUpdatedMethod,
+                wallet,
+                "driver-wallet",
+                cancellationToken);
         }
         catch (Exception ex)
         {
@@ -514,7 +544,10 @@ public sealed class NotificationService : INotificationService
             request.Data);
 
         dbContext.Notifications.Add(notification);
-        await dbContext.SaveChangesAsync(cancellationToken);
+
+        using var persistCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        persistCts.CancelAfter(TimeSpan.FromSeconds(3));
+        await dbContext.SaveChangesAsync(persistCts.Token);
 
         return (notification.Id, notification.CreatedAtUtc);
     }
@@ -541,6 +574,21 @@ public sealed class NotificationService : INotificationService
             sanitized.Data,
             sanitized.DataObject);
     }
+
+    private Task SendHubAsync(
+        string groupName,
+        string methodName,
+        object payload,
+        string operation,
+        CancellationToken cancellationToken) =>
+        SignalRDispatch.SendToGroupAsync(
+            _hubContext,
+            groupName,
+            methodName,
+            payload,
+            _logger,
+            operation,
+            cancellationToken);
 
     private static string? NormalizeToken(string? value) =>
         string.IsNullOrWhiteSpace(value) ? null : value.Trim();

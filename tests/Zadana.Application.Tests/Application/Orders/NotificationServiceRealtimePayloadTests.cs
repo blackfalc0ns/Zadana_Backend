@@ -264,6 +264,51 @@ public class NotificationServiceRealtimePayloadTests
         json.Should().Contain("\"eventName\":\"dispatch.offer_new\"");
     }
 
+    [Fact]
+    public async Task SendDriverArrivalStateChangedToUserAsync_WhenSignalRHangs_ShouldTimeoutWithoutThrowing()
+    {
+        var userId = Guid.NewGuid();
+        var clientProxyMock = new Mock<IClientProxy>();
+        clientProxyMock
+            .Setup(client => client.SendCoreAsync(
+                It.IsAny<string>(),
+                It.IsAny<object?[]>(),
+                It.IsAny<CancellationToken>()))
+            .Returns<string, object?[], CancellationToken>(async (_, _, ct) =>
+            {
+                await Task.Delay(TimeSpan.FromSeconds(20), ct);
+            });
+
+        var clientsMock = new Mock<IHubClients>();
+        clientsMock
+            .Setup(clients => clients.Group(NotificationHub.GetUserGroup(userId)))
+            .Returns(clientProxyMock.Object);
+
+        var hubContextMock = new Mock<IHubContext<NotificationHub>>();
+        hubContextMock
+            .SetupGet(context => context.Clients)
+            .Returns(clientsMock.Object);
+
+        var service = new NotificationService(
+            hubContextMock.Object,
+            Mock.Of<IServiceScopeFactory>(),
+            NullLogger<NotificationService>.Instance);
+
+        var startedAt = DateTime.UtcNow;
+        var act = async () => await service.SendDriverArrivalStateChangedToUserAsync(
+            userId,
+            Guid.NewGuid(),
+            "ORD-HANG-001",
+            "arrived_at_vendor",
+            "Driver User",
+            "driver",
+            "/orders/hang",
+            CancellationToken.None);
+
+        await act.Should().NotThrowAsync();
+        (DateTime.UtcNow - startedAt).Should().BeLessThan(TimeSpan.FromSeconds(5));
+    }
+
     private static (NotificationService Service, SentSignalRMessage Sent) CreateNotificationService(Guid userId)
     {
         var sent = new SentSignalRMessage();

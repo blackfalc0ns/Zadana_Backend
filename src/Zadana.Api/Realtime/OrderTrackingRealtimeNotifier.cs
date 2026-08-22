@@ -13,18 +13,18 @@ public sealed class OrderTrackingRealtimeNotifier : IOrderTrackingRealtimeNotifi
 {
     private readonly IHubContext<OrderTrackingHub> _hubContext;
     private readonly IHubContext<NotificationHub> _notificationHubContext;
-    private readonly IApplicationDbContext _dbContext;
+    private readonly IServiceScopeFactory _scopeFactory;
     private readonly ILogger<OrderTrackingRealtimeNotifier> _logger;
 
     public OrderTrackingRealtimeNotifier(
         IHubContext<OrderTrackingHub> hubContext,
         IHubContext<NotificationHub> notificationHubContext,
-        IApplicationDbContext dbContext,
+        IServiceScopeFactory scopeFactory,
         ILogger<OrderTrackingRealtimeNotifier> logger)
     {
         _hubContext = hubContext;
         _notificationHubContext = notificationHubContext;
-        _dbContext = dbContext;
+        _scopeFactory = scopeFactory;
         _logger = logger;
     }
 
@@ -48,9 +48,14 @@ public sealed class OrderTrackingRealtimeNotifier : IOrderTrackingRealtimeNotifi
                 recordedAtUtc);
 
             var groupName = OrderTrackingHub.GetOrderGroup(orderId);
-            await _hubContext.Clients
-                .Group(groupName)
-                .SendAsync(OrderTrackingHub.ReceiveDriverLocationMethod, payload, cancellationToken);
+            await SignalRDispatch.SendToGroupAsync(
+                _hubContext,
+                groupName,
+                OrderTrackingHub.ReceiveDriverLocationMethod,
+                payload,
+                _logger,
+                "driver-location",
+                cancellationToken);
 
             _logger.LogInformation(
                 "[OrderTrackingHub] Sent ReceiveDriverLocation to group {Group} (orderId={OrderId}, driverId={DriverId}).",
@@ -96,9 +101,14 @@ public sealed class OrderTrackingRealtimeNotifier : IOrderTrackingRealtimeNotifi
                 pickupContext,
                 includeCustomerPickupSecrets: false);
 
-            await _hubContext.Clients
-                .Group(OrderTrackingHub.GetOrderGroup(orderId))
-                .SendAsync(OrderTrackingHub.ReceiveOrderStatusChangedMethod, sharedPayload, cancellationToken);
+            await SignalRDispatch.SendToGroupAsync(
+                _hubContext,
+                OrderTrackingHub.GetOrderGroup(orderId),
+                OrderTrackingHub.ReceiveOrderStatusChangedMethod,
+                sharedPayload,
+                _logger,
+                "tracking-status",
+                cancellationToken);
 
             // Customer apps join user groups on NotificationHub — not OrderTrackingHub.
             // Keep this event silent: customer popups/push copy are owned by
@@ -120,9 +130,14 @@ public sealed class OrderTrackingRealtimeNotifier : IOrderTrackingRealtimeNotifi
                     includeCustomerPickupSecrets: pickupContext.IncludeCustomerPickupSecrets,
                     showPopup: false);
 
-                await _notificationHubContext.Clients
-                    .Group(NotificationHub.GetUserGroup(customerUserId))
-                    .SendAsync(NotificationHub.ReceiveOrderStatusChangedMethod, customerPayload, cancellationToken);
+                await SignalRDispatch.SendToGroupAsync(
+                    _notificationHubContext,
+                    NotificationHub.GetUserGroup(customerUserId),
+                    NotificationHub.ReceiveOrderStatusChangedMethod,
+                    customerPayload,
+                    _logger,
+                    "customer-status",
+                    cancellationToken);
             }
         }
         catch (Exception ex)
@@ -155,9 +170,14 @@ public sealed class OrderTrackingRealtimeNotifier : IOrderTrackingRealtimeNotifi
                 targetUrl,
                 DateTime.UtcNow);
 
-            await _hubContext.Clients
-                .Group(OrderTrackingHub.GetOrderGroup(orderId))
-                .SendAsync(OrderTrackingHub.ReceiveDriverArrivalStateChangedMethod, payload, cancellationToken);
+            await SignalRDispatch.SendToGroupAsync(
+                _hubContext,
+                OrderTrackingHub.GetOrderGroup(orderId),
+                OrderTrackingHub.ReceiveDriverArrivalStateChangedMethod,
+                payload,
+                _logger,
+                "tracking-arrival",
+                cancellationToken);
         }
         catch (Exception ex)
         {
@@ -170,7 +190,10 @@ public sealed class OrderTrackingRealtimeNotifier : IOrderTrackingRealtimeNotifi
 
     private async Task<PickupBroadcastContext> LoadPickupContextAsync(Guid orderId, CancellationToken cancellationToken)
     {
-        var order = await _dbContext.Orders
+        await using var scope = _scopeFactory.CreateAsyncScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<IApplicationDbContext>();
+
+        var order = await dbContext.Orders
             .AsNoTracking()
             .Where(item => item.Id == orderId)
             .Select(item => new
@@ -193,7 +216,7 @@ public sealed class OrderTrackingRealtimeNotifier : IOrderTrackingRealtimeNotifi
         OrderPickupBranchRealtimePayload? branchPayload = null;
         if (order.VendorBranchId.HasValue)
         {
-            var branch = await _dbContext.VendorBranches
+            var branch = await dbContext.VendorBranches
                 .AsNoTracking()
                 .Include(item => item.Vendor)
                 .Include(item => item.OperatingHours)

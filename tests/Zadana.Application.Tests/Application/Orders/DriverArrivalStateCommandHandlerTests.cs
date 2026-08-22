@@ -184,6 +184,7 @@ public class DriverArrivalStateCommandHandlerTests
         dbContext.DeliveryAssignments.Add(assignment);
         await dbContext.SaveChangesAsync();
 
+        var trackingNotifier = new Mock<IOrderTrackingRealtimeNotifier>();
         var handler = new UpdateDriverArrivalStateCommandHandler(
             dbContext,
             dbContext,
@@ -191,7 +192,7 @@ public class DriverArrivalStateCommandHandlerTests
             Mock.Of<IDriverReadService>(),
             notificationService.Object,
             Mock.Of<IOneSignalPushService>(),
-            Mock.Of<IOrderTrackingRealtimeNotifier>(),
+            trackingNotifier.Object,
             Mock.Of<IPublisher>(),
             new OrderInventoryWorkflowService(dbContext),
             NullLogger<UpdateDriverArrivalStateCommandHandler>.Instance);
@@ -205,6 +206,33 @@ public class DriverArrivalStateCommandHandlerTests
         result.ArrivalState.Should().Be("arrived_at_vendor");
         assignment.Status.Should().Be(AssignmentStatus.ArrivedAtVendor);
         elapsed.Should().BeLessThan(TimeSpan.FromSeconds(8));
+        notificationService.Verify(
+            service => service.SendDriverArrivalStateChangedToUserAsync(
+                vendorUser.Id,
+                order.Id,
+                order.OrderNumber,
+                "arrived_at_vendor",
+                driverUser.FullName,
+                "driver",
+                It.IsAny<string?>(),
+                It.IsAny<CancellationToken>()),
+            Times.Once);
+        trackingNotifier.Verify(
+            service => service.BroadcastDriverArrivalStateAsync(
+                order.Id,
+                order.OrderNumber,
+                "arrived_at_vendor",
+                driverUser.FullName,
+                "driver",
+                It.IsAny<CancellationToken>()),
+            Times.Once);
+        notificationService.Verify(
+            service => service.SendAssignmentUpdatedToDriverAsync(
+                driverUser.Id,
+                assignment.Id,
+                order.Id,
+                It.IsAny<CancellationToken>()),
+            Times.Once);
     }
 
     [Fact]

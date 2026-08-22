@@ -192,8 +192,14 @@ public sealed class CustomerPresenceService : ICustomerPresenceService
     }
 
     private Task BroadcastAsync(CustomerPresenceUpdatedDto payload, CancellationToken cancellationToken)
-        => _hubContext.Clients.Group(CustomerPresenceHub.AdminsGroup)
-            .SendAsync("customerPresenceUpdated", payload, cancellationToken);
+        => SignalRDispatch.SendToGroupAsync(
+            _hubContext,
+            CustomerPresenceHub.AdminsGroup,
+            "customerPresenceUpdated",
+            payload,
+            _logger,
+            "customer-presence",
+            cancellationToken);
 
     private sealed record PresenceConnectionState(Guid UserId, bool IsForeground, DateTime LastHeartbeatAtUtc);
 }

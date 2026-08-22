@@ -364,9 +364,14 @@ public sealed class AdminAlertOutboxWorker : BackgroundService
             false,
             DateTime.UtcNow);
 
-        await _hubContext.Clients
-            .Group(NotificationHub.GetUserGroup(recipientId))
-            .SendAsync(NotificationHub.ReceiveNotificationMethod, payload, cancellationToken);
+        await SignalRDispatch.SendToGroupAsync(
+            _hubContext,
+            NotificationHub.GetUserGroup(recipientId),
+            NotificationHub.ReceiveNotificationMethod,
+            payload,
+            _logger,
+            "admin-alert",
+            cancellationToken);
     }
 
     private static async Task<List<Guid>> ResolvePushRecipientIdsAsync(
