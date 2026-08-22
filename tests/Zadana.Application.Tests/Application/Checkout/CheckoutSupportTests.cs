@@ -1,3 +1,4 @@
+using System.Globalization;
 using FluentAssertions;
 
 using Microsoft.EntityFrameworkCore;
@@ -11,6 +12,7 @@ using Zadana.Application.Modules.Delivery.Interfaces;
 using Zadana.Application.Modules.Delivery.Support;
 
 using Zadana.Application.Modules.Geography.Support;
+using Zadana.Application.Modules.Vendors.Support;
 
 using Zadana.Domain.Modules.Geography.Entities;
 
@@ -1273,6 +1275,50 @@ public class CheckoutSupportTests
     }
 
 
+
+    [Fact]
+    public void ResolvePickupBranchName_ShouldFollowUiLanguageLikeOtherVendorNames()
+    {
+        var vendorUser = new User("Store Owner", "store.owner@test.com", "01000000990", UserRole.Vendor);
+        var vendor = new Vendor(
+            vendorUser.Id,
+            "بقالة الأمل",
+            "Amal Grocery",
+            "Groceries",
+            "1234567001",
+            "store.owner@test.com",
+            "01000000990",
+            city: "Dammam");
+        var branch = new VendorBranch(
+            vendor.Id,
+            "بقالة الأمل -2",
+            "BR-AMAL-2",
+            isPrimary: false,
+            "مركز المدينة",
+            "EASTERN",
+            "DAMMAM",
+            26.43m,
+            50.08m,
+            "01000000991",
+            "Manager",
+            "01000000991",
+            20m);
+        typeof(VendorBranch).GetProperty(nameof(VendorBranch.Vendor))!.SetValue(branch, vendor);
+
+        var original = CultureInfo.CurrentUICulture;
+        try
+        {
+            CultureInfo.CurrentUICulture = new CultureInfo("ar");
+            VendorDisplayNames.ResolvePickupBranchName(branch).Should().Be("بقالة الأمل — 2");
+
+            CultureInfo.CurrentUICulture = new CultureInfo("en");
+            VendorDisplayNames.ResolvePickupBranchName(branch).Should().Be("Amal Grocery — 2");
+        }
+        finally
+        {
+            CultureInfo.CurrentUICulture = original;
+        }
+    }
 
     private static ApplicationDbContext CreateDbContext()
 

@@ -195,6 +195,7 @@ public sealed class OrderTrackingRealtimeNotifier : IOrderTrackingRealtimeNotifi
         {
             var branch = await _dbContext.VendorBranches
                 .AsNoTracking()
+                .Include(item => item.Vendor)
                 .Include(item => item.OperatingHours)
                 .FirstOrDefaultAsync(item => item.Id == order.VendorBranchId.Value, cancellationToken);
 
@@ -206,7 +207,7 @@ public sealed class OrderTrackingRealtimeNotifier : IOrderTrackingRealtimeNotifi
                     branch.Region);
 
                 branchPayload = new OrderPickupBranchRealtimePayload(
-                    branch.Name,
+                    VendorDisplayNames.ResolvePickupBranchName(branch),
                     address,
                     BranchOperatingHoursSupport.BuildHoursTodayLabel(branch.OperatingHours.ToList(), DateTime.UtcNow));
             }

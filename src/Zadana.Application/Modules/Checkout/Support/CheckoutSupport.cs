@@ -1930,7 +1930,7 @@ internal static class CheckoutSupport
 
         return new CheckoutPickupBranchDto(
             branch.Id,
-            branch.Name,
+            VendorDisplayNames.ResolvePickupBranchName(branch),
             branch.AddressLine,
             localizedCity,
             address,
