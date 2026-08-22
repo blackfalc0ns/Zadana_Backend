@@ -205,7 +205,10 @@ public class DriverArrivalStateCommandHandlerTests
 
         result.ArrivalState.Should().Be("arrived_at_vendor");
         assignment.Status.Should().Be(AssignmentStatus.ArrivedAtVendor);
-        elapsed.Should().BeLessThan(TimeSpan.FromSeconds(8));
+        elapsed.Should().BeLessThan(TimeSpan.FromSeconds(2));
+
+        await Task.Delay(TimeSpan.FromSeconds(3));
+
         notificationService.Verify(
             service => service.SendDriverArrivalStateChangedToUserAsync(
                 vendorUser.Id,

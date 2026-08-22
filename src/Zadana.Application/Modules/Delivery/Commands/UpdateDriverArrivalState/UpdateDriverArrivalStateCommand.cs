@@ -179,8 +179,10 @@ public class UpdateDriverArrivalStateCommandHandler : IRequestHandler<UpdateDriv
         var updatedDetail = await _driverReadService.GetAssignmentDetailAsync(
             driver.Id, assignment.Id, cancellationToken);
 
-        await NotifyArrivalAsync(
-            assignment,
+        QueueArrivalNotifications(
+            assignment.OrderId,
+            assignment.Order.OrderNumber,
+            assignment.Id,
             request.DriverUserId,
             driver.User.FullName,
             recipientUserId,
@@ -188,8 +190,7 @@ public class UpdateDriverArrivalStateCommandHandler : IRequestHandler<UpdateDriv
             titleAr,
             titleEn,
             bodyAr,
-            bodyEn,
-            cancellationToken);
+            bodyEn);
 
         return new DriverArrivalStateResultDto(
             assignment.OrderId,
@@ -219,8 +220,10 @@ public class UpdateDriverArrivalStateCommandHandler : IRequestHandler<UpdateDriv
             updatedDetail);
     }
 
-    private async Task NotifyArrivalAsync(
-        Domain.Modules.Delivery.Entities.DeliveryAssignment assignment,
+    private void QueueArrivalNotifications(
+        Guid orderId,
+        string orderNumber,
+        Guid assignmentId,
         Guid driverUserId,
         string driverName,
         Guid recipientUserId,
@@ -228,13 +231,39 @@ public class UpdateDriverArrivalStateCommandHandler : IRequestHandler<UpdateDriv
         string titleAr,
         string titleEn,
         string bodyAr,
-        string bodyEn,
-        CancellationToken cancellationToken)
+        string bodyEn)
     {
-        var targetUrl = $"/orders/{assignment.OrderId}";
+        _ = NotifyArrivalAsync(
+            orderId,
+            orderNumber,
+            assignmentId,
+            driverUserId,
+            driverName,
+            recipientUserId,
+            normalizedState,
+            titleAr,
+            titleEn,
+            bodyAr,
+            bodyEn);
+    }
+
+    private async Task NotifyArrivalAsync(
+        Guid orderId,
+        string orderNumber,
+        Guid assignmentId,
+        Guid driverUserId,
+        string driverName,
+        Guid recipientUserId,
+        string normalizedState,
+        string titleAr,
+        string titleEn,
+        string bodyAr,
+        string bodyEn)
+    {
+        var targetUrl = $"/orders/{orderId}";
         var notificationData = BuildArrivalNotificationData(
-            assignment.OrderId,
-            assignment.Order.OrderNumber,
+            orderId,
+            orderNumber,
             normalizedState,
             driverName,
             "driver",
@@ -242,7 +271,7 @@ public class UpdateDriverArrivalStateCommandHandler : IRequestHandler<UpdateDriv
 
         await TryNotifyAsync(
             "vendor-inbox",
-            assignment.OrderId,
+            orderId,
             ct => _notificationService.SendToUserAsync(
                 recipientUserId,
                 titleAr,
@@ -250,30 +279,28 @@ public class UpdateDriverArrivalStateCommandHandler : IRequestHandler<UpdateDriv
                 bodyAr,
                 bodyEn,
                 "driver-arrival",
-                assignment.OrderId,
+                orderId,
                 notificationData,
-                ct),
-            cancellationToken);
+                ct));
 
         await TryNotifyAsync(
             "arrival-state",
-            assignment.OrderId,
+            orderId,
             ct => _notificationService.SendDriverArrivalStateChangedToUserAsync(
                 recipientUserId,
-                assignment.OrderId,
-                assignment.Order.OrderNumber,
+                orderId,
+                orderNumber,
                 normalizedState,
                 driverName,
                 "driver",
                 targetUrl,
-                ct),
-            cancellationToken);
+                ct));
 
         if (normalizedState == "arrived_at_customer")
         {
             await TryNotifyAsync(
                 "customer-push",
-                assignment.OrderId,
+                orderId,
                 async ct =>
                 {
                     var pushResult = await _oneSignalPushService.SendMobileNotificationDirectAsync(
@@ -284,7 +311,7 @@ public class UpdateDriverArrivalStateCommandHandler : IRequestHandler<UpdateDriv
                             bodyAr,
                             bodyEn,
                             "driver-arrival",
-                            assignment.OrderId,
+                            orderId,
                             notificationData,
                             targetUrl,
                             category: NotificationCategories.Order,
@@ -295,54 +322,49 @@ public class UpdateDriverArrivalStateCommandHandler : IRequestHandler<UpdateDriv
                     {
                         _logger.LogWarning(
                             "Customer driver-arrival push was not sent for order {OrderId} user {UserId}. Attempted: {Attempted}. Skipped: {Skipped}. ProviderStatusCode: {ProviderStatusCode}. Reason: {Reason}",
-                            assignment.OrderId,
+                            orderId,
                             recipientUserId,
                             pushResult.Attempted,
                             pushResult.Skipped,
                             pushResult.ProviderStatusCode,
                             pushResult.Reason);
                     }
-                },
-                cancellationToken);
+                });
         }
 
         await TryNotifyAsync(
             "tracking-hub",
-            assignment.OrderId,
+            orderId,
             ct => _orderTrackingRealtimeNotifier.BroadcastDriverArrivalStateAsync(
-                assignment.OrderId,
-                assignment.Order.OrderNumber,
+                orderId,
+                orderNumber,
                 normalizedState,
                 driverName,
                 "driver",
-                ct),
-            cancellationToken);
+                ct));
 
         await TryNotifyAsync(
             "assignment-updated",
-            assignment.OrderId,
+            orderId,
             ct => _notificationService.SendAssignmentUpdatedToDriverAsync(
                 driverUserId,
-                assignment.Id,
-                assignment.OrderId,
-                ct),
-            cancellationToken);
+                assignmentId,
+                orderId,
+                ct));
     }
 
     private async Task TryNotifyAsync(
         string operation,
         Guid orderId,
-        Func<CancellationToken, Task> action,
-        CancellationToken cancellationToken)
+        Func<CancellationToken, Task> action)
     {
-        using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        timeoutCts.CancelAfter(TimeSpan.FromSeconds(2));
+        using var timeoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
 
         try
         {
             await action(timeoutCts.Token);
         }
-        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        catch (OperationCanceledException)
         {
             _logger.LogWarning(
                 "Arrival notification {Operation} timed out for order {OrderId}; continuing remaining events.",
