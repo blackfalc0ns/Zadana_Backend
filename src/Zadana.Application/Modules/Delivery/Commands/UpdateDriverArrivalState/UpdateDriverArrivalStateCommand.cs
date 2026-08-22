@@ -121,20 +121,65 @@ public class UpdateDriverArrivalStateCommandHandler : IRequestHandler<UpdateDriv
                     LocalizedMessages.GetEn(LocalizedMessages.DriverArrivedAtVendor));
             }
 
-            if (assignment.Status is not Domain.Modules.Delivery.Enums.AssignmentStatus.Accepted)
+            if (assignment.Status is not AssignmentStatus.Accepted)
             {
                 throw new BusinessRuleException("INVALID_ARRIVAL_STATE_TRANSITION", "تقدر تسجل الوصول للمتجر فقط بعد قبول الطلب | You can only mark arrival at vendor after accepting the order.");
             }
 
-            assignment.MarkArrivedAtVendor();
-            normalizedState = "arrived_at_vendor";
-            messageAr = LocalizedMessages.GetAr(LocalizedMessages.DriverArrivedAtVendor);
-            messageEn = LocalizedMessages.GetEn(LocalizedMessages.DriverArrivedAtVendor);
-            titleAr = "المندوب وصل إلى المتجر";
-            titleEn = "Driver arrived at the store";
-            bodyAr = $"المندوب وصل لاستلام الطلب {assignment.Order.OrderNumber}.";
-            bodyEn = $"The driver has arrived to pick up order #{assignment.Order.OrderNumber}.";
-            recipientUserId = assignment.Order.Vendor.UserId;
+            var arrivedAtUtc = DateTime.UtcNow;
+            if (_context is DbContext dbContext &&
+                string.Equals(
+                    dbContext.Database.ProviderName,
+                    "Microsoft.EntityFrameworkCore.InMemory",
+                    StringComparison.Ordinal))
+            {
+                assignment.MarkArrivedAtVendor();
+                await _unitOfWork.SaveChangesAsync(cancellationToken);
+            }
+            else
+            {
+                var updatedRows = await _context.DeliveryAssignments
+                    .Where(item =>
+                        item.Id == assignment.Id &&
+                        item.Status == AssignmentStatus.Accepted)
+                    .ExecuteUpdateAsync(
+                        setters => setters
+                            .SetProperty(item => item.Status, AssignmentStatus.ArrivedAtVendor)
+                            .SetProperty(item => item.ArrivedAtVendorAtUtc, arrivedAtUtc)
+                            .SetProperty(item => item.UpdatedAtUtc, arrivedAtUtc),
+                        cancellationToken);
+
+                if (updatedRows != 1)
+                {
+                    throw new BusinessRuleException(
+                        "ARRIVAL_STATE_UPDATE_CONFLICT",
+                        "تعذر تسجيل الوصول لأن حالة الطلب تغيرت، حدّث الصفحة وحاول مرة أخرى | The assignment changed while recording arrival. Refresh and try again.");
+                }
+            }
+
+            const string vendorArrivalState = "arrived_at_vendor";
+            var vendorMessageAr = LocalizedMessages.GetAr(LocalizedMessages.DriverArrivedAtVendor);
+            var vendorMessageEn = LocalizedMessages.GetEn(LocalizedMessages.DriverArrivedAtVendor);
+
+            QueueArrivalNotifications(
+                assignment.OrderId,
+                assignment.Order.OrderNumber,
+                assignment.Id,
+                request.DriverUserId,
+                driver.User.FullName,
+                assignment.Order.Vendor.UserId,
+                vendorArrivalState,
+                "المندوب وصل إلى المتجر",
+                "Driver arrived at the store",
+                $"المندوب وصل لاستلام الطلب {assignment.Order.OrderNumber}.",
+                $"The driver has arrived to pick up order #{assignment.Order.OrderNumber}.");
+
+            return new DriverArrivalStateResultDto(
+                assignment.OrderId,
+                assignment.Id,
+                vendorArrivalState,
+                vendorMessageAr,
+                vendorMessageEn);
         }
         else
         {
@@ -179,7 +224,7 @@ public class UpdateDriverArrivalStateCommandHandler : IRequestHandler<UpdateDriv
             recipientUserId = assignment.Order.UserId;
         }
 
-        await _unitOfWork.SaveChangesAsync(CancellationToken.None);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
 
         QueueArrivalNotifications(
             assignment.OrderId,
