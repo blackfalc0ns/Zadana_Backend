@@ -520,51 +520,56 @@ internal static class CheckoutSupport
         CustomerAddress? address,
         CancellationToken cancellationToken)
     {
-        if (address is null)
+        // Explicit branch selection (classic pickup UX) does not require an address.
+        // Nearest-branch auto-select still needs GPS coordinates on the customer address.
+        Guid? resolvedBranchId = pickupBranchId;
+        if (!resolvedBranchId.HasValue)
         {
-            return new CheckoutPickupAssessment(
-                null,
-                new CheckoutDeliveryCheckDto(
-                    "address_required",
-                    false,
-                    false,
-                    "اختر عنوانًا لتحديد أقرب فرع للاستلام.",
-                    "Choose an address to find the nearest pickup branch.",
+            if (address is null)
+            {
+                return new CheckoutPickupAssessment(
                     null,
-                    null));
-        }
+                    new CheckoutDeliveryCheckDto(
+                        "address_required",
+                        false,
+                        false,
+                        "اختر عنوانًا لتحديد أقرب فرع للاستلام.",
+                        "Choose an address to find the nearest pickup branch.",
+                        null,
+                        null));
+            }
 
-        if (!HasUsableCoordinates(address))
-        {
-            return new CheckoutPickupAssessment(
-                null,
-                new CheckoutDeliveryCheckDto(
-                    "address_coordinates_required",
-                    false,
-                    false,
-                    "العنوان يحتاج موقع GPS لتحديد أقرب فرع للاستلام.",
-                    "Address needs GPS coordinates to find the nearest pickup branch.",
+            if (!HasUsableCoordinates(address))
+            {
+                return new CheckoutPickupAssessment(
                     null,
-                    null));
-        }
+                    new CheckoutDeliveryCheckDto(
+                        "address_coordinates_required",
+                        false,
+                        false,
+                        "العنوان يحتاج موقع GPS لتحديد أقرب فرع للاستلام.",
+                        "Address needs GPS coordinates to find the nearest pickup branch.",
+                        null,
+                        null));
+            }
 
-        if (await ShouldEnforceOperationalGeographyAsync(context, cancellationToken)
-            && !await OperationalGeographyScope.IsOperationalAddressCityAsync(context, address.City, cancellationToken))
-        {
-            return new CheckoutPickupAssessment(
-                null,
-                new CheckoutDeliveryCheckDto(
-                    "service_area_unavailable",
-                    false,
-                    false,
-                    "الاستلام غير متاح في هذه المنطقة حاليًا.",
-                    "Pickup is not available in this service area yet.",
+            if (await ShouldEnforceOperationalGeographyAsync(context, cancellationToken)
+                && !await OperationalGeographyScope.IsOperationalAddressCityAsync(context, address.City, cancellationToken))
+            {
+                return new CheckoutPickupAssessment(
                     null,
-                    null));
-        }
+                    new CheckoutDeliveryCheckDto(
+                        "service_area_unavailable",
+                        false,
+                        false,
+                        "الاستلام غير متاح في هذه المنطقة حاليًا.",
+                        "Pickup is not available in this service area yet.",
+                        null,
+                        null));
+            }
 
-        var resolvedBranchId = pickupBranchId
-            ?? await ResolvePickupBranchForCartAsync(context, cart, vendorId, address, cancellationToken);
+            resolvedBranchId = await ResolvePickupBranchForCartAsync(context, cart, vendorId, address, cancellationToken);
+        }
 
         if (!resolvedBranchId.HasValue)
         {
@@ -618,7 +623,7 @@ internal static class CheckoutSupport
                     null));
         }
 
-        var distanceKm = CalculateBranchDistanceKm(branch, address);
+        var distanceKm = address is null ? null : CalculateBranchDistanceKm(branch, address);
         return new CheckoutPickupAssessment(
             resolvedBranchId,
             new CheckoutDeliveryCheckDto(
