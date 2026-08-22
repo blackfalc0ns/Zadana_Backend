@@ -4,6 +4,7 @@ This folder is prepared for the mobile developer and documents the driver app AP
 
 ## Available Contracts
 
+- `DRIVER_GPS_LOCATION_PUSH_PROBLEM_AR.md` — **عاجل 2026-08-22:** التطبيق مش بيبعت GPS وهو أونلاين → العروض مش بتظهر (الباك سليم)
 - `EASTERN_PROXIMITY_DISPATCH_HANDOFF_AR.md` — **جديد 2026-08-21:** مترو الشرقية، region-only، GPS ≤ 50 كم
 - `HOME_CONTRACT.md`
 - `ORDER_DETAILS_CONTRACT.md`

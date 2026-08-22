@@ -83,6 +83,131 @@ public class DriverArrivalStateCommandHandlerTests
     }
 
     [Fact]
+    public async Task Handle_WhenAlreadyArrivedAtVendor_ShouldReturnSuccessWithoutDuplicateTransition()
+    {
+        await using var dbContext = CreateDbContext();
+
+        var customer = new User("Customer User", "arrival.vendor.idem@test.com", "01000000150", UserRole.Customer);
+        var vendorUser = new User("Vendor User", "arrival.vendor.idem.v@test.com", "01000000151", UserRole.Vendor);
+        var driverUser = new User("Driver User", "arrival.vendor.idem.d@test.com", "01000000152", UserRole.Driver);
+        var vendor = new Vendor(vendorUser.Id, "متجر", "Store", "Groceries", "CR-ARR-V1", "arrival.vendor.idem.v@test.com", "01000000151", city: "Riyadh");
+        var driver = new Driver(driverUser.Id, DriverVehicleType.Car, "1234567894", "CAR-127", region: "RIYADH", city: "RIYADH");
+        driver.Approve(Guid.NewGuid());
+
+        var order = new Order("ORD-ARR-V01", customer.Id, vendor.Id, Guid.NewGuid(), PaymentMethodType.Card, 100m, 0m, 10m, 10m, 0m, 0m, null, null, null, 0m, 0m, 0m, 0m, null, null, false, null, null, null, null, 1, false, 5m);
+        order.ChangeStatus(OrderStatus.DriverAssigned);
+
+        var assignment = new DeliveryAssignment(order.Id, 0m);
+        assignment.OfferTo(driver.Id, 1, DateTime.UtcNow.AddMinutes(5));
+        assignment.Accept();
+        assignment.MarkArrivedAtVendor();
+
+        dbContext.Users.AddRange(customer, vendorUser, driverUser);
+        dbContext.Vendors.Add(vendor);
+        dbContext.Drivers.Add(driver);
+        dbContext.Orders.Add(order);
+        dbContext.DeliveryAssignments.Add(assignment);
+        await dbContext.SaveChangesAsync();
+
+        var notificationService = new Mock<INotificationService>();
+        var handler = new UpdateDriverArrivalStateCommandHandler(
+            dbContext,
+            dbContext,
+            new DriverRepository(dbContext),
+            Mock.Of<IDriverReadService>(),
+            notificationService.Object,
+            Mock.Of<IOneSignalPushService>(),
+            Mock.Of<IOrderTrackingRealtimeNotifier>(),
+            Mock.Of<IPublisher>(),
+            new OrderInventoryWorkflowService(dbContext),
+            NullLogger<UpdateDriverArrivalStateCommandHandler>.Instance);
+
+        var result = await handler.Handle(
+            new UpdateDriverArrivalStateCommand(order.Id, driverUser.Id, "arrived_at_vendor"),
+            CancellationToken.None);
+
+        result.ArrivalState.Should().Be("arrived_at_vendor");
+        assignment.Status.Should().Be(AssignmentStatus.ArrivedAtVendor);
+        notificationService.Verify(
+            service => service.SendToUserAsync(
+                It.IsAny<Guid>(),
+                It.IsAny<string>(),
+                It.IsAny<string>(),
+                It.IsAny<string>(),
+                It.IsAny<string>(),
+                It.IsAny<string>(),
+                It.IsAny<Guid>(),
+                It.IsAny<string?>(),
+                It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    [Fact]
+    public async Task Handle_WhenVendorArrivalNotificationsHang_ShouldStillPersistAndReturn()
+    {
+        await using var dbContext = CreateDbContext();
+        var notificationService = new Mock<INotificationService>();
+        notificationService
+            .Setup(service => service.SendToUserAsync(
+                It.IsAny<Guid>(),
+                It.IsAny<string>(),
+                It.IsAny<string>(),
+                It.IsAny<string>(),
+                It.IsAny<string>(),
+                It.IsAny<string>(),
+                It.IsAny<Guid?>(),
+                It.IsAny<string?>(),
+                It.IsAny<CancellationToken>()))
+            .Returns(async (Guid _, string _, string _, string _, string _, string? _, Guid? _, string? _, CancellationToken ct) =>
+            {
+                await Task.Delay(TimeSpan.FromSeconds(20), ct);
+            });
+
+        var customer = new User("Customer User", "arrival.hang.c@test.com", "01000000153", UserRole.Customer);
+        var vendorUser = new User("Vendor User", "arrival.hang.v@test.com", "01000000154", UserRole.Vendor);
+        var driverUser = new User("Driver User", "arrival.hang.d@test.com", "01000000155", UserRole.Driver);
+        var vendor = new Vendor(vendorUser.Id, "متجر", "Store", "Groceries", "CR-ARR-H1", "arrival.hang.v@test.com", "01000000154", city: "Riyadh");
+        var driver = new Driver(driverUser.Id, DriverVehicleType.Car, "1234567895", "CAR-128", region: "RIYADH", city: "RIYADH");
+        driver.Approve(Guid.NewGuid());
+
+        var order = new Order("ORD-ARR-H01", customer.Id, vendor.Id, Guid.NewGuid(), PaymentMethodType.Card, 100m, 0m, 10m, 10m, 0m, 0m, null, null, null, 0m, 0m, 0m, 0m, null, null, false, null, null, null, null, 1, false, 5m);
+        order.ChangeStatus(OrderStatus.DriverAssigned);
+
+        var assignment = new DeliveryAssignment(order.Id, 0m);
+        assignment.OfferTo(driver.Id, 1, DateTime.UtcNow.AddMinutes(5));
+        assignment.Accept();
+
+        dbContext.Users.AddRange(customer, vendorUser, driverUser);
+        dbContext.Vendors.Add(vendor);
+        dbContext.Drivers.Add(driver);
+        dbContext.Orders.Add(order);
+        dbContext.DeliveryAssignments.Add(assignment);
+        await dbContext.SaveChangesAsync();
+
+        var handler = new UpdateDriverArrivalStateCommandHandler(
+            dbContext,
+            dbContext,
+            new DriverRepository(dbContext),
+            Mock.Of<IDriverReadService>(),
+            notificationService.Object,
+            Mock.Of<IOneSignalPushService>(),
+            Mock.Of<IOrderTrackingRealtimeNotifier>(),
+            Mock.Of<IPublisher>(),
+            new OrderInventoryWorkflowService(dbContext),
+            NullLogger<UpdateDriverArrivalStateCommandHandler>.Instance);
+
+        var startedAt = DateTime.UtcNow;
+        var result = await handler.Handle(
+            new UpdateDriverArrivalStateCommand(order.Id, driverUser.Id, "arrived_at_vendor"),
+            CancellationToken.None);
+        var elapsed = DateTime.UtcNow - startedAt;
+
+        result.ArrivalState.Should().Be("arrived_at_vendor");
+        assignment.Status.Should().Be(AssignmentStatus.ArrivedAtVendor);
+        elapsed.Should().BeLessThan(TimeSpan.FromSeconds(8));
+    }
+
+    [Fact]
     public async Task Handle_WhenArrivedAtCustomerWithoutOnTheWay_ShouldAutoPromoteAndNotifyCustomer()
     {
         await using var dbContext = CreateDbContext();

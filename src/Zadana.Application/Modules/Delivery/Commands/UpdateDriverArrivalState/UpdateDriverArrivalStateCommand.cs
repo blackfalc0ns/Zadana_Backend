@@ -111,6 +111,11 @@ public class UpdateDriverArrivalStateCommandHandler : IRequestHandler<UpdateDriv
 
         if (request.ArrivalState.Equals("arrived_at_vendor", StringComparison.OrdinalIgnoreCase))
         {
+            if (assignment.Status == AssignmentStatus.ArrivedAtVendor)
+            {
+                return await BuildArrivedAtVendorResultAsync(driver.Id, assignment, cancellationToken);
+            }
+
             if (assignment.Status is not Domain.Modules.Delivery.Enums.AssignmentStatus.Accepted)
             {
                 throw new BusinessRuleException("INVALID_ARRIVAL_STATE_TRANSITION", "تقدر تسجل الوصول للمتجر فقط بعد قبول الطلب | You can only mark arrival at vendor after accepting the order.");
@@ -171,12 +176,113 @@ public class UpdateDriverArrivalStateCommandHandler : IRequestHandler<UpdateDriv
 
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
+        var updatedDetail = await _driverReadService.GetAssignmentDetailAsync(
+            driver.Id, assignment.Id, cancellationToken);
+
+        await NotifyArrivalBestEffortAsync(
+            assignment,
+            request.DriverUserId,
+            driver.User.FullName,
+            recipientUserId,
+            normalizedState,
+            titleAr,
+            titleEn,
+            bodyAr,
+            bodyEn,
+            cancellationToken);
+
+        return new DriverArrivalStateResultDto(
+            assignment.OrderId,
+            assignment.Id,
+            normalizedState,
+            messageAr,
+            messageEn,
+            updatedDetail);
+    }
+
+    private async Task<DriverArrivalStateResultDto> BuildArrivedAtVendorResultAsync(
+        Guid driverId,
+        Domain.Modules.Delivery.Entities.DeliveryAssignment assignment,
+        CancellationToken cancellationToken)
+    {
+        var updatedDetail = await _driverReadService.GetAssignmentDetailAsync(
+            driverId,
+            assignment.Id,
+            cancellationToken);
+
+        return new DriverArrivalStateResultDto(
+            assignment.OrderId,
+            assignment.Id,
+            "arrived_at_vendor",
+            LocalizedMessages.GetAr(LocalizedMessages.DriverArrivedAtVendor),
+            LocalizedMessages.GetEn(LocalizedMessages.DriverArrivedAtVendor),
+            updatedDetail);
+    }
+
+    private async Task NotifyArrivalBestEffortAsync(
+        Domain.Modules.Delivery.Entities.DeliveryAssignment assignment,
+        Guid driverUserId,
+        string driverName,
+        Guid recipientUserId,
+        string normalizedState,
+        string titleAr,
+        string titleEn,
+        string bodyAr,
+        string bodyEn,
+        CancellationToken cancellationToken)
+    {
+        var notifyTask = NotifyArrivalAsync(
+            assignment,
+            driverUserId,
+            driverName,
+            recipientUserId,
+            normalizedState,
+            titleAr,
+            titleEn,
+            bodyAr,
+            bodyEn,
+            cancellationToken);
+
+        var completed = await Task.WhenAny(notifyTask, Task.Delay(TimeSpan.FromSeconds(3), cancellationToken));
+        if (completed != notifyTask)
+        {
+            _logger.LogWarning(
+                "Arrival notifications exceeded 3s for order {OrderId}; returning success after persist.",
+                assignment.OrderId);
+            return;
+        }
+
+        try
+        {
+            await notifyTask;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(
+                ex,
+                "Arrival notifications failed for order {OrderId}; state already persisted.",
+                assignment.OrderId);
+        }
+    }
+
+    private async Task NotifyArrivalAsync(
+        Domain.Modules.Delivery.Entities.DeliveryAssignment assignment,
+        Guid driverUserId,
+        string driverName,
+        Guid recipientUserId,
+        string normalizedState,
+        string titleAr,
+        string titleEn,
+        string bodyAr,
+        string bodyEn,
+        CancellationToken cancellationToken)
+    {
         var targetUrl = $"/orders/{assignment.OrderId}";
         var notificationData = BuildArrivalNotificationData(
             assignment.OrderId,
             assignment.Order.OrderNumber,
             normalizedState,
-            driver.User.FullName,
+            driverName,
             "driver",
             targetUrl);
 
@@ -196,7 +302,7 @@ public class UpdateDriverArrivalStateCommandHandler : IRequestHandler<UpdateDriv
             assignment.OrderId,
             assignment.Order.OrderNumber,
             normalizedState,
-            driver.User.FullName,
+            driverName,
             "driver",
             targetUrl,
             cancellationToken);
@@ -231,36 +337,19 @@ public class UpdateDriverArrivalStateCommandHandler : IRequestHandler<UpdateDriv
             }
         }
 
-        // Push the same arrival state event to the dedicated order tracking channel
-        // so any party (admin / vendor / customer / driver) subscribed to the order
-        // gets the update without going through their personal user feed.
         await _orderTrackingRealtimeNotifier.BroadcastDriverArrivalStateAsync(
             assignment.OrderId,
             assignment.Order.OrderNumber,
             normalizedState,
-            driver.User.FullName,
+            driverName,
             "driver",
             cancellationToken);
 
-        // Push full assignment detail to the driver so their order detail screen refreshes in real-time
         await _notificationService.SendAssignmentUpdatedToDriverAsync(
-            request.DriverUserId,
+            driverUserId,
             assignment.Id,
             assignment.OrderId,
             cancellationToken);
-
-
-        // Fetch the full updated assignment detail so mobile can refresh UI immediately
-        var updatedDetail = await _driverReadService.GetAssignmentDetailAsync(
-            driver.Id, assignment.Id, cancellationToken);
-
-        return new DriverArrivalStateResultDto(
-            assignment.OrderId,
-            assignment.Id,
-            normalizedState,
-            messageAr,
-            messageEn,
-            updatedDetail);
     }
 
     private async Task<DriverArrivalStateResultDto> BuildArrivedAtCustomerResultAsync(
