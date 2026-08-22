@@ -106,8 +106,8 @@ if (builder.Environment.IsProduction())
         "Email:Smtp:Username",
         "Email:Smtp:Password",
         "BankTransfer:WebhookSecret",
-        "Security:SearchableHashKey",
-        "BotChallenge:SecretKey"
+        "Security:SearchableHashKey"
+        // BotChallenge:SecretKey is optional — Turnstile stays disabled when unset.
     };
 
     if (useLocalFileStorage)
