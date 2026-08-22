@@ -417,18 +417,22 @@ public static class OperationalGeographyScope
             return null;
         }
 
-        var normalizedCity = DeliveryCityMatcher.Normalize(cityName);
-        return await context.SaudiCities
+        var trimmed = cityName.Trim();
+        var normalizedCity = DeliveryCityMatcher.Normalize(trimmed);
+
+        // Load locally: DeliveryCityMatcher.Normalize cannot be translated by SQL Server
+        // and was throwing 500 on checkout/summary for Arabic city names like "الظهران".
+        var cities = await context.SaudiCities
             .AsNoTracking()
             .Include(city => city.Region)
-            .FirstOrDefaultAsync(
-                city =>
-                    city.Code == cityName.Trim().ToUpperInvariant()
-                    || city.NameAr == cityName.Trim()
-                    || city.NameEn == cityName.Trim()
-                    || DeliveryCityMatcher.Normalize(city.NameAr) == normalizedCity
-                    || DeliveryCityMatcher.Normalize(city.NameEn) == normalizedCity,
-                cancellationToken);
+            .ToListAsync(cancellationToken);
+
+        return cities.FirstOrDefault(city =>
+            string.Equals(city.Code, trimmed, StringComparison.OrdinalIgnoreCase)
+            || string.Equals(city.NameAr, trimmed, StringComparison.Ordinal)
+            || string.Equals(city.NameEn, trimmed, StringComparison.OrdinalIgnoreCase)
+            || string.Equals(DeliveryCityMatcher.Normalize(city.NameAr), normalizedCity, StringComparison.OrdinalIgnoreCase)
+            || string.Equals(DeliveryCityMatcher.Normalize(city.NameEn), normalizedCity, StringComparison.OrdinalIgnoreCase));
     }
 }
 

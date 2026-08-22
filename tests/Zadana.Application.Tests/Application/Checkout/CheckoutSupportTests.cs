@@ -10,6 +10,8 @@ using Zadana.Application.Modules.Delivery.Interfaces;
 
 using Zadana.Application.Modules.Delivery.Support;
 
+using Zadana.Application.Modules.Geography.Support;
+
 using Zadana.Domain.Modules.Geography.Entities;
 
 using Zadana.Domain.Modules.Identity.Entities;
@@ -847,6 +849,236 @@ public class CheckoutSupportTests
         assessment.DeliveryCheck.Status.Should().Be("pickup_ready");
 
         assessment.DeliveryCheck.CanProceedToCheckout.Should().BeTrue();
+
+    }
+
+
+
+    [Fact]
+
+    public async Task EvaluatePickupAsync_WhenArabicCityName_ShouldResolveOperationalGeography()
+
+    {
+
+        await using var dbContext = CreateDbContext();
+
+        await SeedEasternOperationalGeographyAsync(dbContext);
+
+        var customer = new User("Arabic Pickup Customer", "checkout.pickup.ar.customer@test.com", "01000000250", UserRole.Customer);
+
+        var vendorUser = new User("Arabic Pickup Vendor", "checkout.pickup.ar.vendor@test.com", "01000000251", UserRole.Vendor);
+
+        var vendor = new Vendor(
+
+            vendorUser.Id,
+
+            "متجر الظهران",
+
+            "Dhahran Store",
+
+            "Groceries",
+
+            "1234567855",
+
+            "checkout.pickup.ar.vendor@test.com",
+
+            "01000000251",
+
+            city: "الظهران");
+
+        vendor.Approve(10m, Guid.NewGuid());
+
+
+
+        var branch = new VendorBranch(
+
+            vendor.Id,
+
+            "بقالة الأمل -2",
+
+            "BR-DHA",
+
+            isPrimary: false,
+
+            "مركز المدينة",
+
+            "EASTERN",
+
+            "الظهران",
+
+            latitude: 26.2361m,
+
+            longitude: 50.0393m,
+
+            contactPhone: "01000000252",
+
+            managerName: "Branch Manager",
+
+            managerContact: "01000000253",
+
+            deliveryRadiusKm: 20m);
+
+        var address = new CustomerAddress(
+
+            customer.Id,
+
+            "Arabic Pickup Customer",
+
+            "01000000250",
+
+            "Home",
+
+            AddressLabel.Home,
+
+            city: "الظهران",
+
+            latitude: 26.2361m,
+
+            longitude: 50.0393m);
+
+        var cart = new Cart(customer.Id);
+
+        dbContext.Users.AddRange(customer, vendorUser);
+
+        dbContext.Vendors.Add(vendor);
+
+        dbContext.VendorBranches.Add(branch);
+
+        dbContext.CustomerAddresses.Add(address);
+
+        dbContext.Carts.Add(cart);
+
+        await dbContext.SaveChangesAsync();
+
+
+
+        (await OperationalGeographyScope.IsOperationalAddressCityAsync(dbContext, "الظهران", CancellationToken.None))
+
+            .Should().BeTrue();
+
+
+
+        var assessment = await CheckoutSupport.EvaluatePickupAsync(
+
+            dbContext,
+
+            cart,
+
+            vendor.Id,
+
+            pickupBranchId: branch.Id,
+
+            address,
+
+            CancellationToken.None);
+
+
+
+        assessment.BranchId.Should().Be(branch.Id);
+
+        assessment.DeliveryCheck.Status.Should().Be("pickup_ready");
+
+    }
+
+
+
+    [Fact]
+
+    public async Task EvaluatePickupAsync_WhenExplicitBranchWithoutAddress_ShouldBeReady()
+
+    {
+
+        await using var dbContext = CreateDbContext();
+
+        await SeedEasternOperationalGeographyAsync(dbContext);
+
+        var customer = new User("No Address Pickup", "checkout.pickup.noaddr.customer@test.com", "01000000260", UserRole.Customer);
+
+        var vendorUser = new User("No Address Vendor", "checkout.pickup.noaddr.vendor@test.com", "01000000261", UserRole.Vendor);
+
+        var vendor = new Vendor(
+
+            vendorUser.Id,
+
+            "متجر بدون عنوان",
+
+            "No Address Store",
+
+            "Groceries",
+
+            "1234567844",
+
+            "checkout.pickup.noaddr.vendor@test.com",
+
+            "01000000261",
+
+            city: "Dammam");
+
+        vendor.Approve(10m, Guid.NewGuid());
+
+
+
+        var branch = new VendorBranch(
+
+            vendor.Id,
+
+            "Dammam Branch",
+
+            "BR-NOADDR",
+
+            isPrimary: true,
+
+            "King Fahd Road",
+
+            "EASTERN",
+
+            "DAMMAM",
+
+            latitude: 26.43m,
+
+            longitude: 50.08m,
+
+            contactPhone: "01000000262",
+
+            managerName: "Branch Manager",
+
+            managerContact: "01000000263",
+
+            deliveryRadiusKm: 20m);
+
+        var cart = new Cart(customer.Id);
+
+        dbContext.Users.AddRange(customer, vendorUser);
+
+        dbContext.Vendors.Add(vendor);
+
+        dbContext.VendorBranches.Add(branch);
+
+        dbContext.Carts.Add(cart);
+
+        await dbContext.SaveChangesAsync();
+
+
+
+        var assessment = await CheckoutSupport.EvaluatePickupAsync(
+
+            dbContext,
+
+            cart,
+
+            vendor.Id,
+
+            pickupBranchId: branch.Id,
+
+            address: null,
+
+            CancellationToken.None);
+
+
+
+        assessment.BranchId.Should().Be(branch.Id);
+
+        assessment.DeliveryCheck.Status.Should().Be("pickup_ready");
 
     }
 
