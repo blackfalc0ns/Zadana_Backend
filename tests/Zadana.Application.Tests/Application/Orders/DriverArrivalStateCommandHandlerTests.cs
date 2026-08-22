@@ -69,6 +69,7 @@ public class DriverArrivalStateCommandHandlerTests
         result.ArrivalState.Should().Be("arrived_at_vendor");
         assignment.Status.Should().Be(AssignmentStatus.ArrivedAtVendor);
         assignment.ArrivedAtVendorAtUtc.Should().NotBeNull();
+        await Task.Delay(500);
         notificationService.Verify(
             service => service.SendDriverArrivalStateChangedToUserAsync(
                 vendorUser.Id,
@@ -299,6 +300,7 @@ public class DriverArrivalStateCommandHandlerTests
         order.Status.Should().Be(OrderStatus.OnTheWay);
         assignment.Status.Should().Be(AssignmentStatus.ArrivedAtCustomer);
         assignment.ArrivedAtCustomerAtUtc.Should().NotBeNull();
+        await Task.Delay(500);
         notificationService.Verify(
             service => service.SendToUserAsync(
                 customer.Id,

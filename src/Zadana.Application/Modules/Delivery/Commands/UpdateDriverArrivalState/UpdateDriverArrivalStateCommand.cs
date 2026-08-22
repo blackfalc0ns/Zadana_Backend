@@ -176,9 +176,6 @@ public class UpdateDriverArrivalStateCommandHandler : IRequestHandler<UpdateDriv
 
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
-        var updatedDetail = await _driverReadService.GetAssignmentDetailAsync(
-            driver.Id, assignment.Id, cancellationToken);
-
         QueueArrivalNotifications(
             assignment.OrderId,
             assignment.Order.OrderNumber,
@@ -191,6 +188,8 @@ public class UpdateDriverArrivalStateCommandHandler : IRequestHandler<UpdateDriv
             titleEn,
             bodyAr,
             bodyEn);
+
+        var updatedDetail = await TryGetAssignmentDetailAsync(driver.Id, assignment.Id, cancellationToken);
 
         return new DriverArrivalStateResultDto(
             assignment.OrderId,
@@ -233,18 +232,57 @@ public class UpdateDriverArrivalStateCommandHandler : IRequestHandler<UpdateDriv
         string bodyAr,
         string bodyEn)
     {
-        _ = NotifyArrivalAsync(
-            orderId,
-            orderNumber,
-            assignmentId,
-            driverUserId,
-            driverName,
-            recipientUserId,
-            normalizedState,
-            titleAr,
-            titleEn,
-            bodyAr,
-            bodyEn);
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await NotifyArrivalAsync(
+                    orderId,
+                    orderNumber,
+                    assignmentId,
+                    driverUserId,
+                    driverName,
+                    recipientUserId,
+                    normalizedState,
+                    titleAr,
+                    titleEn,
+                    bodyAr,
+                    bodyEn);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Arrival notification fan-out failed for order {OrderId}.", orderId);
+            }
+        });
+    }
+
+    private async Task<DTOs.DriverAssignmentDetailDto?> TryGetAssignmentDetailAsync(
+        Guid driverId,
+        Guid assignmentId,
+        CancellationToken cancellationToken)
+    {
+        using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        timeoutCts.CancelAfter(TimeSpan.FromSeconds(2));
+
+        try
+        {
+            return await _driverReadService.GetAssignmentDetailAsync(driverId, assignmentId, timeoutCts.Token);
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            _logger.LogWarning(
+                "Assignment detail read timed out after arrival persist for assignment {AssignmentId}.",
+                assignmentId);
+            return null;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(
+                ex,
+                "Assignment detail read failed after arrival persist for assignment {AssignmentId}.",
+                assignmentId);
+            return null;
+        }
     }
 
     private async Task NotifyArrivalAsync(
