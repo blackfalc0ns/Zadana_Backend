@@ -746,21 +746,54 @@ public class IdentityAccountService : IIdentityAccountService
             return new IdentityOperationResult(false, policyErrors);
         }
 
-        if (string.IsNullOrEmpty(user.PasswordHash))
+        // Reload so we operate on the current SecurityStamp / concurrency token.
+        var trackedUser = await _userManager.FindByIdAsync(user.Id.ToString());
+        if (trackedUser is null)
         {
-            var addResult = await _userManager.AddPasswordAsync(user, newPassword);
-            return addResult.Succeeded
-                ? new IdentityOperationResult(true)
-                : new IdentityOperationResult(false, MapIdentityErrors(addResult.Errors));
+            return new IdentityOperationResult(false, ["User account was not found."]);
         }
 
-        // Atomic replace: Identity reset token path validates again and never clears the
-        // existing hash unless the new password is accepted.
-        var resetToken = await _userManager.GeneratePasswordResetTokenAsync(user);
-        var resetResult = await _userManager.ResetPasswordAsync(user, resetToken, newPassword);
-        return resetResult.Succeeded
-            ? new IdentityOperationResult(true)
-            : new IdentityOperationResult(false, MapIdentityErrors(resetResult.Errors));
+        if (string.IsNullOrEmpty(trackedUser.PasswordHash))
+        {
+            var addOnlyResult = await _userManager.AddPasswordAsync(trackedUser, newPassword);
+            return addOnlyResult.Succeeded
+                ? new IdentityOperationResult(true)
+                : new IdentityOperationResult(false, MapIdentityErrors(addOnlyResult.Errors));
+        }
+
+        // Prefer Identity reset-token path when it works. In production we have seen
+        // freshly generated reset tokens fail VerifyUserTokenAsync with InvalidToken
+        // (DataProtector / stamp edge cases). Fall back to Remove+Add only after
+        // policy validation so a rejected password can never wipe the existing hash.
+        var resetToken = await _userManager.GeneratePasswordResetTokenAsync(trackedUser);
+        var resetResult = await _userManager.ResetPasswordAsync(trackedUser, resetToken, newPassword);
+        if (resetResult.Succeeded)
+        {
+            return new IdentityOperationResult(true);
+        }
+
+        var resetErrors = MapIdentityErrors(resetResult.Errors);
+        var isInvalidToken = resetResult.Errors.Any(error =>
+            string.Equals(error.Code, "InvalidToken", StringComparison.OrdinalIgnoreCase));
+
+        if (!isInvalidToken)
+        {
+            return new IdentityOperationResult(false, resetErrors);
+        }
+
+        var removeResult = await _userManager.RemovePasswordAsync(trackedUser);
+        if (!removeResult.Succeeded)
+        {
+            return new IdentityOperationResult(false, MapIdentityErrors(removeResult.Errors));
+        }
+
+        var addResult = await _userManager.AddPasswordAsync(trackedUser, newPassword);
+        if (!addResult.Succeeded)
+        {
+            return new IdentityOperationResult(false, MapIdentityErrors(addResult.Errors));
+        }
+
+        return new IdentityOperationResult(true);
     }
 
     private async Task<User?> FindUserByIdentifierAsync(string identifier, CancellationToken cancellationToken)
