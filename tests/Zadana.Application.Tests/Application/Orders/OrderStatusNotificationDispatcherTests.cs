@@ -11,7 +11,7 @@ namespace Zadana.Application.Tests.Application.Orders;
 public class OrderStatusNotificationDispatcherTests
 {
     [Fact]
-    public async Task DispatchCustomerAsync_ShouldQueueInboxRealtimeAndUseProductionOrderStatusPushContract()
+    public async Task DispatchCustomerAsync_ShouldPersistInboxAndUseProductionOrderStatusPushContract()
     {
         var notificationServiceMock = new Mock<INotificationService>();
         var pushServiceMock = new Mock<IOneSignalPushService>();
@@ -20,7 +20,7 @@ public class OrderStatusNotificationDispatcherTests
         var vendorId = Guid.NewGuid();
 
         notificationServiceMock
-            .Setup(service => service.SendToUserAsync(
+            .Setup(service => service.PersistToUserAsync(
                 It.IsAny<Guid>(),
                 It.IsAny<string>(),
                 It.IsAny<string>(),
@@ -30,21 +30,6 @@ public class OrderStatusNotificationDispatcherTests
                 It.IsAny<Guid?>(),
                 It.IsAny<string?>(),
                 It.IsAny<CancellationToken>()))
-            .Returns(Task.CompletedTask);
-        notificationServiceMock
-            .Setup(service => service.SendOrderStatusChangedToUserAsync(
-                It.IsAny<Guid>(),
-                It.IsAny<Guid>(),
-                It.IsAny<string>(),
-                It.IsAny<Guid>(),
-                It.IsAny<string>(),
-                It.IsAny<string>(),
-                It.IsAny<string?>(),
-                It.IsAny<string?>(),
-                It.IsAny<string?>(),
-                It.IsAny<CancellationToken>(),
-                It.IsAny<string?>(),
-                It.IsAny<bool>()))
             .Returns(Task.CompletedTask);
 
         pushServiceMock
@@ -84,13 +69,13 @@ public class OrderStatusNotificationDispatcherTests
             CancellationToken.None);
 
         result.InboxQueued.Should().BeTrue();
-        result.RealtimeQueued.Should().BeTrue();
+        result.RealtimeQueued.Should().BeFalse();
         result.PushAttempted.Should().BeTrue();
         result.PushSent.Should().BeTrue();
         result.PushProviderStatusCode.Should().Be(200);
 
         notificationServiceMock.Verify(
-            service => service.SendToUserAsync(
+            service => service.PersistToUserAsync(
                 userId,
                 "تم القبول",
                 "Accepted",
@@ -112,19 +97,19 @@ public class OrderStatusNotificationDispatcherTests
 
         notificationServiceMock.Verify(
             service => service.SendOrderStatusChangedToUserAsync(
-                userId,
-                orderId,
-                "ORD-DISPATCH-001",
-                vendorId,
-                OrderStatus.PendingVendorAcceptance.ToString(),
-                OrderStatus.Accepted.ToString(),
-                "vendor",
+                It.IsAny<Guid>(),
+                It.IsAny<Guid>(),
+                It.IsAny<string>(),
+                It.IsAny<Guid>(),
+                It.IsAny<string>(),
+                It.IsAny<string>(),
+                It.IsAny<string?>(),
                 It.IsAny<string?>(),
                 It.IsAny<string?>(),
                 It.IsAny<CancellationToken>(),
                 It.IsAny<string?>(),
-                false),
-            Times.Once);
+                It.IsAny<bool>()),
+            Times.Never);
 
         pushServiceMock.Verify(
             service => service.SendMobileNotificationAsync(
@@ -186,7 +171,7 @@ public class OrderStatusNotificationDispatcherTests
         result.PushReason.Should().Contain("DriverAssignmentInProgress");
 
         notificationServiceMock.Verify(
-            service => service.SendToUserAsync(
+            service => service.PersistToUserAsync(
                 It.IsAny<Guid>(),
                 It.IsAny<string>(),
                 It.IsAny<string>(),
@@ -213,7 +198,7 @@ public class OrderStatusNotificationDispatcherTests
         var userId = Guid.NewGuid();
 
         notificationServiceMock
-            .Setup(service => service.SendToUserAsync(
+            .Setup(service => service.PersistToUserAsync(
                 It.IsAny<Guid>(),
                 It.IsAny<string>(),
                 It.IsAny<string>(),
@@ -223,21 +208,6 @@ public class OrderStatusNotificationDispatcherTests
                 It.IsAny<Guid?>(),
                 It.IsAny<string?>(),
                 It.IsAny<CancellationToken>()))
-            .Returns(Task.CompletedTask);
-        notificationServiceMock
-            .Setup(service => service.SendOrderStatusChangedToUserAsync(
-                It.IsAny<Guid>(),
-                It.IsAny<Guid>(),
-                It.IsAny<string>(),
-                It.IsAny<Guid>(),
-                It.IsAny<string>(),
-                It.IsAny<string>(),
-                It.IsAny<string?>(),
-                It.IsAny<string?>(),
-                It.IsAny<string?>(),
-                It.IsAny<CancellationToken>(),
-                It.IsAny<string?>(),
-                It.IsAny<bool>()))
             .Returns(Task.CompletedTask);
         presenceServiceMock.Setup(service => service.IsOnline(userId)).Returns(true);
 
@@ -259,7 +229,7 @@ public class OrderStatusNotificationDispatcherTests
             CancellationToken.None);
 
         result.InboxQueued.Should().BeTrue();
-        result.RealtimeQueued.Should().BeTrue();
+        result.RealtimeQueued.Should().BeFalse();
         result.PushAttempted.Should().BeFalse();
         result.PushSent.Should().BeFalse();
         pushServiceMock.Verify(
@@ -279,7 +249,7 @@ public class OrderStatusNotificationDispatcherTests
         var orderId = Guid.NewGuid();
 
         notificationServiceMock
-            .Setup(service => service.SendToUserAsync(
+            .Setup(service => service.PersistToUserAsync(
                 It.IsAny<Guid>(),
                 It.IsAny<string>(),
                 It.IsAny<string>(),
@@ -289,21 +259,6 @@ public class OrderStatusNotificationDispatcherTests
                 It.IsAny<Guid?>(),
                 It.IsAny<string?>(),
                 It.IsAny<CancellationToken>()))
-            .Returns(Task.CompletedTask);
-        notificationServiceMock
-            .Setup(service => service.SendOrderStatusChangedToUserAsync(
-                It.IsAny<Guid>(),
-                It.IsAny<Guid>(),
-                It.IsAny<string>(),
-                It.IsAny<Guid>(),
-                It.IsAny<string>(),
-                It.IsAny<string>(),
-                It.IsAny<string?>(),
-                It.IsAny<string?>(),
-                It.IsAny<string?>(),
-                It.IsAny<CancellationToken>(),
-                It.IsAny<string?>(),
-                It.IsAny<bool>()))
             .Returns(Task.CompletedTask);
         presenceServiceMock.Setup(service => service.IsOnline(userId)).Returns(true);
         pushServiceMock
@@ -330,7 +285,7 @@ public class OrderStatusNotificationDispatcherTests
                 Fulfillment: FulfillmentType.Pickup),
             CancellationToken.None);
 
-        result.RealtimeQueued.Should().BeTrue();
+        result.RealtimeQueued.Should().BeFalse();
         result.PushAttempted.Should().BeTrue();
         result.PushSent.Should().BeTrue();
         pushServiceMock.Verify(
@@ -355,7 +310,7 @@ public class OrderStatusNotificationDispatcherTests
         var vendorId = Guid.NewGuid();
 
         notificationServiceMock
-            .Setup(service => service.SendToUserAsync(
+            .Setup(service => service.PersistToUserAsync(
                 It.IsAny<Guid>(),
                 It.IsAny<string>(),
                 It.IsAny<string>(),
@@ -365,21 +320,6 @@ public class OrderStatusNotificationDispatcherTests
                 It.IsAny<Guid?>(),
                 It.IsAny<string?>(),
                 It.IsAny<CancellationToken>()))
-            .Returns(Task.CompletedTask);
-        notificationServiceMock
-            .Setup(service => service.SendOrderStatusChangedToUserAsync(
-                It.IsAny<Guid>(),
-                It.IsAny<Guid>(),
-                It.IsAny<string>(),
-                It.IsAny<Guid>(),
-                It.IsAny<string>(),
-                It.IsAny<string>(),
-                It.IsAny<string?>(),
-                It.IsAny<string?>(),
-                It.IsAny<string?>(),
-                It.IsAny<CancellationToken>(),
-                It.IsAny<string?>(),
-                It.IsAny<bool>()))
             .Returns(Task.CompletedTask);
 
         pushServiceMock
@@ -404,6 +344,22 @@ public class OrderStatusNotificationDispatcherTests
                 OrderStatus.Refunded,
                 ActorRole: "support"),
             CancellationToken.None);
+
+        notificationServiceMock.Verify(
+            service => service.SendOrderStatusChangedToUserAsync(
+                It.IsAny<Guid>(),
+                It.IsAny<Guid>(),
+                It.IsAny<string>(),
+                It.IsAny<Guid>(),
+                It.IsAny<string>(),
+                It.IsAny<string>(),
+                It.IsAny<string?>(),
+                It.IsAny<string?>(),
+                It.IsAny<string?>(),
+                It.IsAny<CancellationToken>(),
+                It.IsAny<string?>(),
+                It.IsAny<bool>()),
+            Times.Never);
 
         pushServiceMock.Verify(
             service => service.SendMobileNotificationAsync(

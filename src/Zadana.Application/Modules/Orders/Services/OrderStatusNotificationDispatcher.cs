@@ -58,7 +58,6 @@ public sealed class OrderStatusNotificationDispatcher : IOrderStatusNotification
         var pushRequest = BuildCustomerMobilePushRequest(request, composed);
 
         var inboxQueued = false;
-        var realtimeQueued = false;
 
         _logger.LogInformation(
             "Dispatching customer order-status notification for order {OrderId} user {UserId} from {OldStatus} to {NewStatus}",
@@ -69,7 +68,9 @@ public sealed class OrderStatusNotificationDispatcher : IOrderStatusNotification
 
         try
         {
-            await _notificationService.SendToUserAsync(
+            // Inbox only — no ReceiveNotification SignalR event. OneSignal push owns the visible banner;
+            // ReceiveNotification duplicated the push and ReceiveOrderStatusChanged duplicated tracking UI popups.
+            await _notificationService.PersistToUserAsync(
                 request.UserId,
                 composed.TitleAr,
                 composed.TitleEn,
@@ -90,33 +91,9 @@ public sealed class OrderStatusNotificationDispatcher : IOrderStatusNotification
                 request.UserId);
         }
 
-        try
-        {
-            // Silent realtime only — tracking UI updates without a second OS banner.
-            // showPopup=true caused the customer app to invent "تحديث على الطلب" with the order GUID.
-            await _notificationService.SendOrderStatusChangedToUserAsync(
-                request.UserId,
-                request.OrderId,
-                request.OrderNumber,
-                request.VendorId,
-                request.OldStatus.ToString(),
-                request.NewStatus.ToString(),
-                request.ActorRole,
-                composed.Action,
-                composed.TargetUrl,
-                cancellationToken,
-                request.Fulfillment.ToString(),
-                showPopup: false);
-            realtimeQueued = true;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(
-                ex,
-                "Failed to send ReceiveOrderStatusChanged realtime event for order {OrderId} user {UserId}",
-                request.OrderId,
-                request.UserId);
-        }
+        // Live order UI (ReceiveOrderStatusChanged, silent) is owned by OrderTrackingRealtimeNotifier
+        // so pickup OTP and tracking refresh are not duplicated here.
+        const bool realtimeQueued = false;
 
         var isForeground = _customerPresenceService.IsOnline(request.UserId);
         var shouldSuppressPush = ShouldSuppressForegroundPush(request, isForeground);

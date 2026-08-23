@@ -111,9 +111,8 @@ public sealed class OrderTrackingRealtimeNotifier : IOrderTrackingRealtimeNotifi
                 cancellationToken);
 
             // Customer apps join user groups on NotificationHub — not OrderTrackingHub.
-            // Keep this event silent: customer popups/push copy are owned by
-            // OrderStatusNotificationDispatcher (correct action + localized titles).
-            // Sending showPopup=true here duplicated a generic "order update" popup on place.
+            // Single silent ReceiveOrderStatusChanged for tracking UI + pickup OTP secrets.
+            // Push/inbox copy is owned by OrderStatusNotificationDispatcher (OneSignal + inbox persist only).
             if (customerUserId != Guid.Empty)
             {
                 var customerPayload = BuildPayload(
