@@ -212,7 +212,7 @@ public class OrderStatusNotificationDispatcherTests
     }
 
     [Fact]
-    public async Task DispatchCustomerAsync_WhenCustomerIsForeground_ShouldSuppressDuplicatePush()
+    public async Task DispatchCustomerAsync_WhenCustomerIsForeground_ShouldStillSendPush()
     {
         var notificationServiceMock = new Mock<INotificationService>();
         var pushServiceMock = new Mock<IOneSignalPushService>();
@@ -232,6 +232,11 @@ public class OrderStatusNotificationDispatcherTests
                 It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
         presenceServiceMock.Setup(service => service.IsOnline(userId)).Returns(true);
+        pushServiceMock
+            .Setup(service => service.SendMobileNotificationAsync(
+                It.IsAny<OneSignalMobilePushRequest>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new OneSignalPushDispatchResult(true, true, false, 200, "push-id", null));
 
         await using var dbContext = CreateDbContext();
         var dispatcher = new OrderStatusNotificationDispatcher(
@@ -254,13 +259,13 @@ public class OrderStatusNotificationDispatcherTests
 
         result.InboxQueued.Should().BeTrue();
         result.RealtimeQueued.Should().BeFalse();
-        result.PushAttempted.Should().BeFalse();
-        result.PushSent.Should().BeFalse();
+        result.PushAttempted.Should().BeTrue();
+        result.PushSent.Should().BeTrue();
         pushServiceMock.Verify(
             service => service.SendMobileNotificationAsync(
                 It.IsAny<OneSignalMobilePushRequest>(),
                 It.IsAny<CancellationToken>()),
-            Times.Never);
+            Times.Once);
     }
 
     [Fact]

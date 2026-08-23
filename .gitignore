@@ -22,6 +22,8 @@ temp-build/
 .temp/
 .codex-build/
 publish/
+publish-out/
+zadana-api-publish.zip
 test-publish/
 **/temp_*/
 **/tmp_*/
