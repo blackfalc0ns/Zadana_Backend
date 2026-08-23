@@ -737,28 +737,30 @@ public class IdentityAccountService : IIdentityAccountService
 
     private async Task<IdentityOperationResult> SetPasswordAfterOtpVerificationAsync(User user, string newPassword)
     {
-        IdentityResult result;
+        // Validate BEFORE mutating PasswordHash. The previous RemovePassword+AddPassword
+        // path wiped the existing hash even when AddPassword failed Identity policy
+        // (e.g. missing lowercase), leaving the account unable to log in with either password.
+        var policyErrors = await ValidatePasswordPolicyAsync(user, newPassword);
+        if (policyErrors.Length > 0)
+        {
+            return new IdentityOperationResult(false, policyErrors);
+        }
+
         if (string.IsNullOrEmpty(user.PasswordHash))
         {
-            result = await _userManager.AddPasswordAsync(user, newPassword);
-        }
-        else
-        {
-            var removeResult = await _userManager.RemovePasswordAsync(user);
-            if (!removeResult.Succeeded)
-            {
-                return new IdentityOperationResult(false, MapIdentityErrors(removeResult.Errors));
-            }
-
-            result = await _userManager.AddPasswordAsync(user, newPassword);
+            var addResult = await _userManager.AddPasswordAsync(user, newPassword);
+            return addResult.Succeeded
+                ? new IdentityOperationResult(true)
+                : new IdentityOperationResult(false, MapIdentityErrors(addResult.Errors));
         }
 
-        if (!result.Succeeded)
-        {
-            return new IdentityOperationResult(false, MapIdentityErrors(result.Errors));
-        }
-
-        return new IdentityOperationResult(true);
+        // Atomic replace: Identity reset token path validates again and never clears the
+        // existing hash unless the new password is accepted.
+        var resetToken = await _userManager.GeneratePasswordResetTokenAsync(user);
+        var resetResult = await _userManager.ResetPasswordAsync(user, resetToken, newPassword);
+        return resetResult.Succeeded
+            ? new IdentityOperationResult(true)
+            : new IdentityOperationResult(false, MapIdentityErrors(resetResult.Errors));
     }
 
     private async Task<User?> FindUserByIdentifierAsync(string identifier, CancellationToken cancellationToken)

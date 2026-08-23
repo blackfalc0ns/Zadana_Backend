@@ -23,6 +23,8 @@ public class ResetPasswordCommandValidator : AbstractValidator<ResetPasswordComm
         RuleFor(x => x.NewPassword)
             .NotEmpty().WithMessage(localizer["RequiredField"].Value)
             .MinimumLength(8).WithMessage(localizer["PasswordMinLength"].Value)
+            .Matches("[a-z]").WithMessage(localizer["PasswordComplexity"].Value)
+            .Matches("[0-9]").WithMessage(localizer["PasswordComplexity"].Value)
             .WithName(localizer["NewPassword"].Value);
     }
 }

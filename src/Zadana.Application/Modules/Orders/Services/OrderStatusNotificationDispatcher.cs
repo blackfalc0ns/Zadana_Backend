@@ -37,6 +37,24 @@ public sealed class OrderStatusNotificationDispatcher : IOrderStatusNotification
             request.NewStatus,
             request.ActorRole,
             request.Fulfillment);
+
+        if (composed is null)
+        {
+            _logger.LogInformation(
+                "Skipping customer order-status notification for order {OrderId} user {UserId}: status {NewStatus} is outside the customer notify whitelist.",
+                request.OrderId,
+                request.UserId,
+                request.NewStatus);
+
+            return new OrderStatusNotificationDispatchResult(
+                InboxQueued: false,
+                RealtimeQueued: false,
+                PushAttempted: false,
+                PushSent: false,
+                PushProviderStatusCode: null,
+                PushReason: $"Status {request.NewStatus} is not customer-notified.");
+        }
+
         var pushRequest = BuildCustomerMobilePushRequest(request, composed);
 
         var inboxQueued = false;

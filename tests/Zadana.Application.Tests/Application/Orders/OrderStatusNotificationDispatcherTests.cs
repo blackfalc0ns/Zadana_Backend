@@ -91,10 +91,10 @@ public class OrderStatusNotificationDispatcherTests
         notificationServiceMock.Verify(
             service => service.SendToUserAsync(
                 userId,
-                It.IsAny<string>(),
-                "Order Accepted",
-                It.IsAny<string>(),
-                It.Is<string>(body => body.Contains("ORD-DISPATCH-001")),
+                "تم القبول",
+                "Accepted",
+                "تم القبول",
+                "Accepted",
                 NotificationTypes.OrderStatusChanged,
                 orderId,
                 It.Is<string?>(data =>
@@ -128,8 +128,10 @@ public class OrderStatusNotificationDispatcherTests
             service => service.SendMobileNotificationAsync(
                 It.Is<OneSignalMobilePushRequest>(request =>
                     request.ExternalUserId == userId.ToString() &&
-                    request.TitleEn == "Order Accepted" &&
-                    request.BodyEn.Contains("ORD-DISPATCH-001") &&
+                    request.TitleAr == "تم القبول" &&
+                    request.TitleEn == "Accepted" &&
+                    request.BodyAr == "تم القبول" &&
+                    request.BodyEn == "Accepted" &&
                     request.Type == NotificationTypes.OrderStatusChanged &&
                     request.ReferenceId == orderId &&
                     request.Data != null &&
@@ -150,6 +152,54 @@ public class OrderStatusNotificationDispatcherTests
                     request.Profile == OneSignalPushProfile.MobileHeadsUp),
                 It.IsAny<CancellationToken>()),
             Times.Once);
+    }
+
+    [Fact]
+    public async Task DispatchCustomerAsync_WhenStatusOutsideWhitelist_ShouldSkipCustomerNotification()
+    {
+        var notificationServiceMock = new Mock<INotificationService>();
+        var pushServiceMock = new Mock<IOneSignalPushService>();
+
+        var dispatcher = new OrderStatusNotificationDispatcher(
+            notificationServiceMock.Object,
+            pushServiceMock.Object,
+            Mock.Of<ICustomerPresenceService>(),
+            NullLogger<OrderStatusNotificationDispatcher>.Instance);
+
+        var result = await dispatcher.DispatchCustomerAsync(
+            new OrderStatusCustomerNotificationRequest(
+                Guid.NewGuid(),
+                Guid.NewGuid(),
+                Guid.NewGuid(),
+                "ORD-SKIP-NOISE-001",
+                OrderStatus.ReadyForPickup,
+                OrderStatus.DriverAssignmentInProgress,
+                ActorRole: "system"),
+            CancellationToken.None);
+
+        result.InboxQueued.Should().BeFalse();
+        result.RealtimeQueued.Should().BeFalse();
+        result.PushAttempted.Should().BeFalse();
+        result.PushSent.Should().BeFalse();
+        result.PushReason.Should().Contain("DriverAssignmentInProgress");
+
+        notificationServiceMock.Verify(
+            service => service.SendToUserAsync(
+                It.IsAny<Guid>(),
+                It.IsAny<string>(),
+                It.IsAny<string>(),
+                It.IsAny<string>(),
+                It.IsAny<string>(),
+                It.IsAny<string?>(),
+                It.IsAny<Guid?>(),
+                It.IsAny<string?>(),
+                It.IsAny<CancellationToken>()),
+            Times.Never);
+        pushServiceMock.Verify(
+            service => service.SendMobileNotificationAsync(
+                It.IsAny<OneSignalMobilePushRequest>(),
+                It.IsAny<CancellationToken>()),
+            Times.Never);
     }
 
     [Fact]

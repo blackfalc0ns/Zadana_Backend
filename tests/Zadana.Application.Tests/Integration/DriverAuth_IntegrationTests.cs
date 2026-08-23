@@ -197,6 +197,128 @@ public class DriverAuth_IntegrationTests : IClassFixture<ZadanaWebFactory>
         newLoginResponse.StatusCode.Should().Be(HttpStatusCode.OK, loginContent);
     }
 
+    /// <summary>
+    /// Regression: CompletePasswordResetAsync RemovePassword+AddPassword without pre-validating
+    /// the new password. FluentValidation only requires length >= 8, but Identity also requires
+    /// a lowercase letter. A rejected new password must not wipe the existing hash, otherwise
+    /// subsequent login returns InvalidCredentials for both old and new passwords.
+    /// </summary>
+    [Fact]
+    public async Task ResetPassword_WithPasswordFailingIdentityPolicy_MustNotWipeExistingPassword()
+    {
+        var email = $"driver_wipe_{Guid.NewGuid():N}@test.com";
+        var phone = "016" + Random.Shared.Next(10000000, 99999999);
+        const string originalPassword = "P@ssword1234";
+        // Passes ResetPasswordCommandValidator (length >= 8) but fails Identity RequireLowercase.
+        const string invalidNewPassword = "12345678";
+
+        using var scope = _factory.Services.CreateScope();
+        var userManager = scope.ServiceProvider.GetRequiredService<UserManager<User>>();
+        var identityAccountService = scope.ServiceProvider.GetRequiredService<IIdentityAccountService>();
+
+        var user = new User("Driver Wipe Test", email, phone, UserRole.Driver);
+        var createResult = await userManager.CreateAsync(user, originalPassword);
+        createResult.Succeeded.Should().BeTrue(string.Join(", ", createResult.Errors.Select(error => error.Description)));
+        await userManager.AddToRoleAsync(user, UserRole.Driver.ToString());
+        user.VerifyEmail();
+        await userManager.UpdateAsync(user);
+
+        var otpResult = await identityAccountService.GeneratePasswordResetOtpAsync(email);
+        otpResult.Status.Should().Be(OtpDispatchStatus.Succeeded);
+        var otpCode = otpResult.OtpCode!;
+
+        var verifyResponse = await _client.PostAsJsonAsync("/api/drivers/auth/verify-reset-otp", new
+        {
+            identifier = email,
+            otpCode
+        });
+        var verifyContent = await verifyResponse.Content.ReadAsStringAsync();
+        verifyResponse.StatusCode.Should().Be(HttpStatusCode.OK, verifyContent);
+
+        using var verifyDocument = JsonDocument.Parse(verifyContent);
+        var resetToken = verifyDocument.RootElement.GetProperty("resetToken").GetString();
+        resetToken.Should().NotBeNullOrWhiteSpace();
+
+        var resetResponse = await _client.PostAsJsonAsync("/api/drivers/auth/reset-password", new
+        {
+            identifier = email,
+            resetToken,
+            newPassword = invalidNewPassword
+        });
+        resetResponse.StatusCode.Should().NotBe(HttpStatusCode.OK);
+
+        // Critical: original password must still authenticate after a rejected reset.
+        using var assertScope = _factory.Services.CreateScope();
+        var assertUserManager = assertScope.ServiceProvider.GetRequiredService<UserManager<User>>();
+        var reloaded = await assertUserManager.FindByEmailAsync(email);
+        reloaded.Should().NotBeNull();
+        reloaded!.PasswordHash.Should().NotBeNullOrEmpty(
+            "rejected reset must not leave PasswordHash null after RemovePasswordAsync");
+        (await assertUserManager.CheckPasswordAsync(reloaded, originalPassword))
+            .Should().BeTrue("rejected reset must not wipe the existing password hash");
+
+        var loginResponse = await _client.PostAsJsonAsync("/api/drivers/auth/login", new
+        {
+            identifier = email,
+            password = originalPassword
+        });
+        var loginContent = await loginResponse.Content.ReadAsStringAsync();
+        loginResponse.StatusCode.Should().Be(HttpStatusCode.OK, loginContent);
+    }
+
+    [Fact]
+    public async Task ResetPassword_WithPhoneIdentifier_UpdatesPasswordAndAllowsPhoneLogin()
+    {
+        var email = $"driver_phone_reset_{Guid.NewGuid():N}@test.com";
+        var phone = "016" + Random.Shared.Next(10000000, 99999999);
+        const string originalPassword = "P@ssword1234";
+        const string newPassword = "Yahya123!";
+
+        using var scope = _factory.Services.CreateScope();
+        var userManager = scope.ServiceProvider.GetRequiredService<UserManager<User>>();
+        var identityAccountService = scope.ServiceProvider.GetRequiredService<IIdentityAccountService>();
+
+        var user = new User("Driver Phone Reset Test", email, phone, UserRole.Driver);
+        var createResult = await userManager.CreateAsync(user, originalPassword);
+        createResult.Succeeded.Should().BeTrue(string.Join(", ", createResult.Errors.Select(error => error.Description)));
+        await userManager.AddToRoleAsync(user, UserRole.Driver.ToString());
+        user.VerifyEmail();
+        await userManager.UpdateAsync(user);
+
+        var otpResult = await identityAccountService.GeneratePasswordResetOtpAsync(phone);
+        otpResult.Status.Should().Be(OtpDispatchStatus.Succeeded);
+        var otpCode = otpResult.OtpCode!;
+
+        var verifyResponse = await _client.PostAsJsonAsync("/api/drivers/auth/verify-reset-otp", new
+        {
+            identifier = phone,
+            otpCode
+        });
+        var verifyContent = await verifyResponse.Content.ReadAsStringAsync();
+        verifyResponse.StatusCode.Should().Be(HttpStatusCode.OK, verifyContent);
+
+        using var verifyDocument = JsonDocument.Parse(verifyContent);
+        var resetToken = verifyDocument.RootElement.GetProperty("resetToken").GetString();
+        resetToken.Should().NotBeNullOrWhiteSpace();
+
+        var resetResponse = await _client.PostAsJsonAsync("/api/drivers/auth/reset-password", new
+        {
+            identifier = phone,
+            resetToken,
+            newPassword
+        });
+        var resetContent = await resetResponse.Content.ReadAsStringAsync();
+        resetResponse.StatusCode.Should().Be(HttpStatusCode.OK, resetContent);
+
+        var newLoginResponse = await _client.PostAsJsonAsync("/api/drivers/auth/login", new
+        {
+            identifier = phone,
+            password = newPassword
+        });
+        var loginContent = await newLoginResponse.Content.ReadAsStringAsync();
+        newLoginResponse.StatusCode.Should().Be(HttpStatusCode.OK, loginContent);
+    }
+
     private static object BuildDriverRegisterBody(string email, string password = "P@ssword1234")
     {
         var unique = Guid.NewGuid().ToString("N");

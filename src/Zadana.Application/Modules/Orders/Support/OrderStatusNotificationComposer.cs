@@ -6,7 +6,24 @@ namespace Zadana.Application.Modules.Orders.Support;
 
 internal static class OrderStatusNotificationComposer
 {
-    public static CustomerOrderStatusNotification ComposeCustomer(
+    /// <summary>
+    /// Customer push/inbox is limited to eight status-name notifications.
+    /// Intermediate noise (assignment in progress, picked up, payment pending, etc.) is skipped.
+    /// </summary>
+    public static bool ShouldNotifyCustomer(OrderStatus newStatus) =>
+        newStatus is OrderStatus.PendingVendorAcceptance
+            or OrderStatus.Accepted
+            or OrderStatus.Preparing
+            or OrderStatus.ReadyForPickup
+            or OrderStatus.DriverAssigned
+            or OrderStatus.OnTheWay
+            or OrderStatus.Delivered
+            or OrderStatus.Cancelled
+            or OrderStatus.VendorRejected
+            or OrderStatus.DeliveryFailed
+            or OrderStatus.Refunded;
+
+    public static CustomerOrderStatusNotification? ComposeCustomer(
         Guid orderId,
         Guid vendorId,
         string orderNumber,
@@ -15,10 +32,15 @@ internal static class OrderStatusNotificationComposer
         string? actorRole,
         FulfillmentType fulfillment = FulfillmentType.Delivery)
     {
+        if (!ShouldNotifyCustomer(newStatus))
+        {
+            return null;
+        }
+
         var action = ResolveAction(newStatus);
         var targetUrl = ResolveTargetUrl(orderId);
         var type = ResolveNotificationType(newStatus, fulfillment);
-        var (titleAr, titleEn, bodyAr, bodyEn) = GetCustomerNotificationContent(newStatus, orderNumber, fulfillment);
+        var (titleAr, titleEn, bodyAr, bodyEn) = GetCustomerNotificationContent(newStatus);
 
         return new CustomerOrderStatusNotification(
             titleAr,
@@ -112,105 +134,62 @@ internal static class OrderStatusNotificationComposer
     public static string ResolveTargetUrl(Guid orderId) => $"/orders/{orderId}";
 
     private static (string TitleAr, string TitleEn, string BodyAr, string BodyEn) GetCustomerNotificationContent(
-        OrderStatus status,
-        string orderNumber,
-        FulfillmentType fulfillment)
+        OrderStatus status)
     {
+        // Title and body are the status name only (no order number / generic update copy).
         return status switch
         {
-            OrderStatus.Placed => (
-                "أكدنا الطلب",
-                "Order Confirmed",
-                $"أكدنا طلبك رقم {orderNumber} بنجاح",
-                $"Your order #{orderNumber} has been confirmed successfully"),
-
             OrderStatus.PendingVendorAcceptance => (
                 "بانتظار قبول التاجر",
-                "Awaiting Vendor Approval",
-                $"طلبك رقم {orderNumber} بانتظار قبول التاجر",
-                $"Your order #{orderNumber} is awaiting vendor approval"),
+                "Awaiting vendor approval",
+                "بانتظار قبول التاجر",
+                "Awaiting vendor approval"),
 
             OrderStatus.Accepted => (
-                "قبل التاجر الطلب",
-                "Order Accepted",
-                $"قبل التاجر طلبك رقم {orderNumber}",
-                $"Your order #{orderNumber} has been accepted by the vendor"),
-
-            OrderStatus.VendorRejected => (
-                "رفض التاجر الطلب",
-                "Order Rejected",
-                $"للأسف، رفض التاجر طلبك رقم {orderNumber}",
-                $"Sorry, your order #{orderNumber} has been rejected by the vendor"),
+                "تم القبول",
+                "Accepted",
+                "تم القبول",
+                "Accepted"),
 
             OrderStatus.Preparing => (
-                "المتجر يجهّز الطلب",
-                "Order Being Prepared",
-                $"طلبك رقم {orderNumber} ينجهز الآن",
-                $"Your order #{orderNumber} is now being prepared"),
-
-            OrderStatus.ReadyForPickup when fulfillment == FulfillmentType.Pickup => (
-                "الطلب جاهز للاستلام",
-                "Order Ready for Pickup",
-                $"طلبك رقم {orderNumber} جاهز للاستلام من الفرع. افتح تفاصيل الطلب لعرض رمز الاستلام.",
-                $"Your order #{orderNumber} is ready for pickup at the branch. Open order details to view your pickup code."),
+                "جاري التجهيز",
+                "Preparing",
+                "جاري التجهيز",
+                "Preparing"),
 
             OrderStatus.ReadyForPickup => (
-                "الطلب جاهز للاستلام",
-                "Order Ready for Pickup",
-                $"طلبك رقم {orderNumber} جاهز وبانتظار المندوب",
-                $"Your order #{orderNumber} is ready and waiting for the driver"),
+                "جاهز للاستلام",
+                "Ready for pickup",
+                "جاهز للاستلام",
+                "Ready for pickup"),
 
             OrderStatus.DriverAssigned => (
-                "عيّنا مندوب التوصيل",
-                "Driver Assigned",
-                $"عيّنا مندوب يوصل طلبك رقم {orderNumber}",
-                $"A driver has been assigned to deliver your order #{orderNumber}"),
-
-            OrderStatus.PickedUp => (
-                "استلم المندوب الطلب",
-                "Order Picked Up",
-                $"المندوب استلم طلبك رقم {orderNumber} من التاجر",
-                $"The driver has picked up your order #{orderNumber} from the vendor"),
+                "تم تعيين المندوب",
+                "Driver assigned",
+                "تم تعيين المندوب",
+                "Driver assigned"),
 
             OrderStatus.OnTheWay => (
-                "الطلب في الطريق إليك",
-                "Order On The Way",
-                $"طلبك رقم {orderNumber} في الطريق إليك الآن!",
-                $"Your order #{orderNumber} is on its way to you!"),
+                "في الطريق",
+                "On the way",
+                "في الطريق",
+                "On the way"),
 
             OrderStatus.Delivered => (
-                "وصل طلبك بنجاح",
-                "Order Delivered",
-                $"وصل طلبك رقم {orderNumber} بنجاح. شكرًا لك!",
-                $"Your order #{orderNumber} has been delivered successfully. Thank you!"),
+                "تم التسليم",
+                "Delivered",
+                "تم التسليم",
+                "Delivered"),
 
-            OrderStatus.DeliveryFailed => (
-                "فشل التوصيل",
-                "Delivery Failed",
-                $"للأسف، ما قدرنا نوصل طلبك رقم {orderNumber}. راح نتواصل معك",
-                $"Sorry, delivery of your order #{orderNumber} failed. We will contact you"),
+            OrderStatus.Cancelled or OrderStatus.VendorRejected
+                or OrderStatus.DeliveryFailed or OrderStatus.Refunded => (
+                "ملغي",
+                "Cancelled",
+                "ملغي",
+                "Cancelled"),
 
-            OrderStatus.Cancelled => (
-                "ألغينا الطلب",
-                "Order Cancelled",
-                fulfillment == FulfillmentType.Pickup
-                    ? $"ألغينا طلب الاستلام رقم {orderNumber}"
-                    : $"ألغينا طلبك رقم {orderNumber}",
-                fulfillment == FulfillmentType.Pickup
-                    ? $"Your pickup order #{orderNumber} has been cancelled"
-                    : $"Your order #{orderNumber} has been cancelled"),
-
-            OrderStatus.Refunded => (
-                "استرجعنا المبلغ",
-                "Order Refunded",
-                $"استرجعنا مبلغ طلبك رقم {orderNumber}",
-                $"Your order #{orderNumber} has been refunded"),
-
-            _ => (
-                "تحديث على الطلب",
-                "Order Update",
-                $"حدّثنا حالة طلبك رقم {orderNumber}",
-                $"Your order #{orderNumber} status has been updated")
+            _ => throw new InvalidOperationException(
+                $"Customer order-status notification is not configured for {status}.")
         };
     }
 }
