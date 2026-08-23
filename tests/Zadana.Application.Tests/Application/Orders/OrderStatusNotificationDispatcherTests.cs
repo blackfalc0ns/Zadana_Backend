@@ -43,7 +43,8 @@ public class OrderStatusNotificationDispatcherTests
                 It.IsAny<string?>(),
                 It.IsAny<string?>(),
                 It.IsAny<CancellationToken>(),
-                It.IsAny<string?>()))
+                It.IsAny<string?>(),
+                It.IsAny<bool>()))
             .Returns(Task.CompletedTask);
 
         pushServiceMock
@@ -93,8 +94,8 @@ public class OrderStatusNotificationDispatcherTests
                 userId,
                 "تم القبول",
                 "Accepted",
-                "تم القبول",
-                "Accepted",
+                "طلب رقم ORD-DISPATCH-001",
+                "Order #ORD-DISPATCH-001",
                 NotificationTypes.OrderStatusChanged,
                 orderId,
                 It.Is<string?>(data =>
@@ -103,9 +104,9 @@ public class OrderStatusNotificationDispatcherTests
                     data.Contains("\"oldStatus\":\"PendingVendorAcceptance\"") &&
                     data.Contains("\"dedupeKey\":\"order-status:") &&
                     data.Contains("\"action\":\"status_changed\"") &&
-                    data.Contains("\"presentation\":\"popup\"") &&
+                    data.Contains("\"presentation\":\"silent\"") &&
                     data.Contains("\"popupType\":\"order_status_changed\"") &&
-                    data.Contains("\"showPopup\":true")),
+                    data.Contains("\"showPopup\":false")),
                 It.IsAny<CancellationToken>()),
             Times.Once);
 
@@ -121,7 +122,8 @@ public class OrderStatusNotificationDispatcherTests
                 It.IsAny<string?>(),
                 It.IsAny<string?>(),
                 It.IsAny<CancellationToken>(),
-                It.IsAny<string?>()),
+                It.IsAny<string?>(),
+                false),
             Times.Once);
 
         pushServiceMock.Verify(
@@ -130,8 +132,8 @@ public class OrderStatusNotificationDispatcherTests
                     request.ExternalUserId == userId.ToString() &&
                     request.TitleAr == "تم القبول" &&
                     request.TitleEn == "Accepted" &&
-                    request.BodyAr == "تم القبول" &&
-                    request.BodyEn == "Accepted" &&
+                    request.BodyAr == "طلب رقم ORD-DISPATCH-001" &&
+                    request.BodyEn == "Order #ORD-DISPATCH-001" &&
                     request.Type == NotificationTypes.OrderStatusChanged &&
                     request.ReferenceId == orderId &&
                     request.Data != null &&
@@ -142,9 +144,9 @@ public class OrderStatusNotificationDispatcherTests
                     request.Data.Contains("\"newStatus\":\"Accepted\"") &&
                     request.Data.Contains("\"actorRole\":\"vendor\"") &&
                     request.Data.Contains("\"action\":\"status_changed\"") &&
-                    request.Data.Contains("\"presentation\":\"popup\"") &&
+                    request.Data.Contains("\"presentation\":\"silent\"") &&
                     request.Data.Contains("\"popupType\":\"order_status_changed\"") &&
-                    request.Data.Contains("\"showPopup\":true") &&
+                    request.Data.Contains("\"showPopup\":false") &&
                     request.Data.Contains("\"targetUrl\":\"/orders/") &&
                     request.TargetUrl == $"/orders/{orderId}" &&
                     request.Category == NotificationCategories.Order &&
@@ -234,7 +236,8 @@ public class OrderStatusNotificationDispatcherTests
                 It.IsAny<string?>(),
                 It.IsAny<string?>(),
                 It.IsAny<CancellationToken>(),
-                It.IsAny<string?>()))
+                It.IsAny<string?>(),
+                It.IsAny<bool>()))
             .Returns(Task.CompletedTask);
         presenceServiceMock.Setup(service => service.IsOnline(userId)).Returns(true);
 
@@ -299,7 +302,8 @@ public class OrderStatusNotificationDispatcherTests
                 It.IsAny<string?>(),
                 It.IsAny<string?>(),
                 It.IsAny<CancellationToken>(),
-                It.IsAny<string?>()))
+                It.IsAny<string?>(),
+                It.IsAny<bool>()))
             .Returns(Task.CompletedTask);
         presenceServiceMock.Setup(service => service.IsOnline(userId)).Returns(true);
         pushServiceMock
@@ -335,7 +339,7 @@ public class OrderStatusNotificationDispatcherTests
                     request.ExternalUserId == userId.ToString() &&
                     request.Profile == OneSignalPushProfile.MobileHeadsUp &&
                     request.Data != null &&
-                    request.Data.Contains("\"showPopup\":true") &&
+                    request.Data.Contains("\"showPopup\":false") &&
                     request.Data.Contains("\"eventName\":\"order.pickup.ready\"")),
                 It.IsAny<CancellationToken>()),
             Times.Once);
@@ -374,7 +378,8 @@ public class OrderStatusNotificationDispatcherTests
                 It.IsAny<string?>(),
                 It.IsAny<string?>(),
                 It.IsAny<CancellationToken>(),
-                It.IsAny<string?>()))
+                It.IsAny<string?>(),
+                It.IsAny<bool>()))
             .Returns(Task.CompletedTask);
 
         pushServiceMock
@@ -411,9 +416,9 @@ public class OrderStatusNotificationDispatcherTests
                     request.Profile == OneSignalPushProfile.MobileHeadsUp &&
                     request.TargetApplication == OneSignalApplicationTarget.Customer &&
                     request.Data != null &&
-                    request.Data.Contains("\"presentation\":\"popup\"") &&
+                    request.Data.Contains("\"presentation\":\"silent\"") &&
                     request.Data.Contains("\"popupType\":\"order_refund_status_changed\"") &&
-                    request.Data.Contains("\"showPopup\":true") &&
+                    request.Data.Contains("\"showPopup\":false") &&
                     request.Data.Contains("\"eventName\":\"order.refund.refunded\"") &&
                     request.Data.Contains("\"isRefund\":true") &&
                     request.Data.Contains("\"refundStatus\":\"refunded\"")),

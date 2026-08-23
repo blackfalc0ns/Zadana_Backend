@@ -40,7 +40,7 @@ internal static class OrderStatusNotificationComposer
         var action = ResolveAction(newStatus);
         var targetUrl = ResolveTargetUrl(orderId);
         var type = ResolveNotificationType(newStatus, fulfillment);
-        var (titleAr, titleEn, bodyAr, bodyEn) = GetCustomerNotificationContent(newStatus);
+        var (titleAr, titleEn, bodyAr, bodyEn) = GetCustomerNotificationContent(newStatus, orderNumber);
 
         return new CustomerOrderStatusNotification(
             titleAr,
@@ -105,9 +105,11 @@ internal static class OrderStatusNotificationComposer
             ["targetUrl"] = targetUrl,
             ["category"] = "order",
             ["screen"] = "order_tracking",
-            ["presentation"] = "popup",
+            // Silent for in-app: push + inbox already surface the message.
+            // showPopup=true made the mobile app invent a second "تحديث على الطلب" banner (often with order GUID).
+            ["presentation"] = "silent",
             ["popupType"] = popupType,
-            ["showPopup"] = true,
+            ["showPopup"] = false,
             ["eventName"] = eventName,
             ["fulfillmentType"] = fulfillment.ToString()
         };
@@ -134,63 +136,36 @@ internal static class OrderStatusNotificationComposer
     public static string ResolveTargetUrl(Guid orderId) => $"/orders/{orderId}";
 
     private static (string TitleAr, string TitleEn, string BodyAr, string BodyEn) GetCustomerNotificationContent(
-        OrderStatus status)
+        OrderStatus status,
+        string orderNumber)
     {
-        // Title and body are the status name only (no order number / generic update copy).
-        return status switch
+        var number = string.IsNullOrWhiteSpace(orderNumber) ? string.Empty : orderNumber.Trim();
+        var bodyAr = string.IsNullOrEmpty(number) ? string.Empty : $"طلب رقم {number}";
+        var bodyEn = string.IsNullOrEmpty(number) ? string.Empty : $"Order #{number}";
+
+        var (titleAr, titleEn) = status switch
         {
-            OrderStatus.PendingVendorAcceptance => (
-                "بانتظار قبول التاجر",
-                "Awaiting vendor approval",
-                "بانتظار قبول التاجر",
-                "Awaiting vendor approval"),
-
-            OrderStatus.Accepted => (
-                "تم القبول",
-                "Accepted",
-                "تم القبول",
-                "Accepted"),
-
-            OrderStatus.Preparing => (
-                "جاري التجهيز",
-                "Preparing",
-                "جاري التجهيز",
-                "Preparing"),
-
-            OrderStatus.ReadyForPickup => (
-                "جاهز للاستلام",
-                "Ready for pickup",
-                "جاهز للاستلام",
-                "Ready for pickup"),
-
-            OrderStatus.DriverAssigned => (
-                "تم تعيين المندوب",
-                "Driver assigned",
-                "تم تعيين المندوب",
-                "Driver assigned"),
-
-            OrderStatus.OnTheWay => (
-                "في الطريق",
-                "On the way",
-                "في الطريق",
-                "On the way"),
-
-            OrderStatus.Delivered => (
-                "تم التسليم",
-                "Delivered",
-                "تم التسليم",
-                "Delivered"),
-
+            OrderStatus.PendingVendorAcceptance => ("بانتظار قبول التاجر", "Awaiting vendor approval"),
+            OrderStatus.Accepted => ("تم القبول", "Accepted"),
+            OrderStatus.Preparing => ("جاري التجهيز", "Preparing"),
+            OrderStatus.ReadyForPickup => ("جاهز للاستلام", "Ready for pickup"),
+            OrderStatus.DriverAssigned => ("تم تعيين المندوب", "Driver assigned"),
+            OrderStatus.OnTheWay => ("في الطريق", "On the way"),
+            OrderStatus.Delivered => ("تم التسليم", "Delivered"),
             OrderStatus.Cancelled or OrderStatus.VendorRejected
-                or OrderStatus.DeliveryFailed or OrderStatus.Refunded => (
-                "ملغي",
-                "Cancelled",
-                "ملغي",
-                "Cancelled"),
-
+                or OrderStatus.DeliveryFailed or OrderStatus.Refunded => ("ملغي", "Cancelled"),
             _ => throw new InvalidOperationException(
                 $"Customer order-status notification is not configured for {status}.")
         };
+
+        // Body falls back to the status name only when order number is missing.
+        if (string.IsNullOrEmpty(bodyAr))
+        {
+            bodyAr = titleAr;
+            bodyEn = titleEn;
+        }
+
+        return (titleAr, titleEn, bodyAr, bodyEn);
     }
 }
 

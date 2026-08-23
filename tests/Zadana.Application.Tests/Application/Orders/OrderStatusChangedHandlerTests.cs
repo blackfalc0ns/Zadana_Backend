@@ -94,7 +94,8 @@ public class OrderStatusChangedHandlerTests
                 "placed",
                 It.Is<string>(url => url.Contains("/orders/")),
                 It.IsAny<CancellationToken>(),
-                It.IsAny<string?>()),
+                It.IsAny<string?>(),
+                true),
             Times.Once);
 
         pushServiceMock.Verify(
@@ -186,7 +187,8 @@ public class OrderStatusChangedHandlerTests
                 "cancelled",
                 It.Is<string>(url => url.Contains("/orders/")),
                 It.IsAny<CancellationToken>(),
-                It.IsAny<string?>()),
+                It.IsAny<string?>(),
+                true),
             Times.Once);
 
         pushServiceMock.Verify(
@@ -278,7 +280,8 @@ public class OrderStatusChangedHandlerTests
                 "placed",
                 It.Is<string>(url => url.Contains("/orders/")),
                 It.IsAny<CancellationToken>(),
-                It.IsAny<string?>()),
+                It.IsAny<string?>(),
+                true),
             Times.Once);
 
         pushServiceMock.Verify(
@@ -554,7 +557,8 @@ public class OrderStatusChangedHandlerTests
                 "status_changed",
                 It.Is<string>(url => url.Contains("/orders/")),
                 It.IsAny<CancellationToken>(),
-                It.IsAny<string?>()),
+                It.IsAny<string?>(),
+                true),
             Times.Once);
     }
 

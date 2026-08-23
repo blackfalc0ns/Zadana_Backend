@@ -145,7 +145,8 @@ public sealed class NotificationService : INotificationService
         string? action = null,
         string? targetUrl = null,
         CancellationToken cancellationToken = default,
-        string? fulfillmentType = null)
+        string? fulfillmentType = null,
+        bool showPopup = false)
     {
         try
         {
@@ -163,9 +164,9 @@ public sealed class NotificationService : INotificationService
                 string.IsNullOrWhiteSpace(action) ? "status_changed" : action,
                 string.IsNullOrWhiteSpace(targetUrl) ? $"/orders/{orderId}" : targetUrl,
                 DateTime.UtcNow,
-                "popup",
+                showPopup ? "popup" : "silent",
                 ResolveOrderStatusPopupType(newStatus, fulfillment),
-                true,
+                showPopup,
                 oldStatus,
                 newStatus,
                 normalizedFulfillment);

@@ -30,7 +30,8 @@ public class NotificationServiceRealtimePayloadTests
             "driver",
             "status_changed",
             $"/orders/{orderId}",
-            CancellationToken.None);
+            CancellationToken.None,
+            showPopup: true);
 
         sent.Method.Should().Be(NotificationHub.ReceiveOrderStatusChangedMethod);
         var payload = sent.Payload.Should().BeOfType<OrderStatusChangedRealtimePayload>().Subject;
@@ -113,7 +114,8 @@ public class NotificationServiceRealtimePayloadTests
             "support",
             "status_changed",
             $"/orders/{orderId}",
-            CancellationToken.None);
+            CancellationToken.None,
+            showPopup: true);
 
         sent.Method.Should().Be(NotificationHub.ReceiveOrderStatusChangedMethod);
         var payload = sent.Payload.Should().BeOfType<OrderStatusChangedRealtimePayload>().Subject;

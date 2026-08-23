@@ -224,7 +224,8 @@ public class OrderStatusChangedHandler : INotificationHandler<OrderStatusChanged
                 notification.ActorRole,
                 action,
                 targetUrl,
-                cancellationToken);
+                cancellationToken,
+                showPopup: true);
         }
 
         if (notification.NewStatus == OrderStatus.PendingVendorAcceptance && !vendorRecipient.NewOrdersNotificationsEnabled)
@@ -584,7 +585,8 @@ public class OrderStatusChangedHandler : INotificationHandler<OrderStatusChanged
             notification.ActorRole,
             action,
             targetUrl,
-            cancellationToken);
+            cancellationToken,
+            showPopup: true);
 
         // Push full assignment detail so the driver's order detail page refreshes in real-time
         await _notificationService.SendAssignmentUpdatedToDriverAsync(

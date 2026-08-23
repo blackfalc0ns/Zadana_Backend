@@ -92,7 +92,8 @@ public sealed class OrderStatusNotificationDispatcher : IOrderStatusNotification
 
         try
         {
-            // Dedicated realtime popup channel expected by the customer app contracts.
+            // Silent realtime only — tracking UI updates without a second OS banner.
+            // showPopup=true caused the customer app to invent "تحديث على الطلب" with the order GUID.
             await _notificationService.SendOrderStatusChangedToUserAsync(
                 request.UserId,
                 request.OrderId,
@@ -104,7 +105,8 @@ public sealed class OrderStatusNotificationDispatcher : IOrderStatusNotification
                 composed.Action,
                 composed.TargetUrl,
                 cancellationToken,
-                request.Fulfillment.ToString());
+                request.Fulfillment.ToString(),
+                showPopup: false);
             realtimeQueued = true;
         }
         catch (Exception ex)
