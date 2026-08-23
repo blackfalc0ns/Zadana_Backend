@@ -6,6 +6,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Zadana.Application.Common.Interfaces;
+using Zadana.Application.Modules.Orders.Support;
 using Zadana.Application.Modules.Social.Support;
 using Zadana.Domain.Modules.Identity.Entities;
 using Zadana.Domain.Modules.Social.Enums;
@@ -167,6 +168,14 @@ public sealed class OneSignalPushService : IOneSignalPushService
     private static bool IsRetryableSkipReason(string? reason) =>
         !string.IsNullOrWhiteSpace(reason) &&
         reason.Contains("No registered push devices found", StringComparison.OrdinalIgnoreCase);
+
+    private static Guid ResolveNotificationEventId(string? dataJson)
+    {
+        var dedupeKey = OrderStatusCustomerNotificationDedupe.TryExtractDedupeKey(dataJson);
+        return string.IsNullOrWhiteSpace(dedupeKey)
+            ? Guid.NewGuid()
+            : OrderStatusCustomerNotificationDedupe.CreateStableNotificationId(dedupeKey);
+    }
 
     public async Task<OneSignalPushDispatchResult> SendMobileNotificationDirectAsync(
         OneSignalMobilePushRequest request,
@@ -354,7 +363,7 @@ public sealed class OneSignalPushService : IOneSignalPushService
 
         var sanitized = NotificationPayloadHelper.Sanitize(titleAr, titleEn, bodyAr, bodyEn, type, data);
         var resolvedTargetUrl = ShouldIncludeWebUrl(profile) ? ResolveTargetUrl(targetUrl, targetApplication) : null;
-        var notificationEventId = Guid.NewGuid();
+        var notificationEventId = ResolveNotificationEventId(sanitized.Data);
 
         var recipientIdentity = await ResolvePushRecipientIdentityAsync(
             normalizedExternalUserIds,
@@ -430,7 +439,7 @@ public sealed class OneSignalPushService : IOneSignalPushService
                     appConfiguration.RestApiKey,
                     profile,
                     notificationEventId,
-                    Guid.NewGuid(),
+                    notificationEventId,
                     preferredLocale,
                     category,
                     notificationSound);
@@ -460,7 +469,7 @@ public sealed class OneSignalPushService : IOneSignalPushService
                         appConfiguration.RestApiKey,
                         profile,
                         notificationEventId,
-                        Guid.NewGuid(),
+                        notificationEventId,
                         preferredLocale,
                         category,
                         cancellationToken);
@@ -474,7 +483,7 @@ public sealed class OneSignalPushService : IOneSignalPushService
                         appConfiguration.RestApiKey,
                         profile,
                         notificationEventId,
-                        Guid.NewGuid(),
+                        notificationEventId,
                         preferredLocale,
                         cancellationToken);
 

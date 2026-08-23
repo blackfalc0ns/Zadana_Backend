@@ -1,3 +1,4 @@
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Modules.Orders.Support;
@@ -11,17 +12,20 @@ public sealed class OrderStatusNotificationDispatcher : IOrderStatusNotification
     private readonly INotificationService _notificationService;
     private readonly IOneSignalPushService _oneSignalPushService;
     private readonly ICustomerPresenceService _customerPresenceService;
+    private readonly IApplicationDbContext _context;
     private readonly ILogger<OrderStatusNotificationDispatcher> _logger;
 
     public OrderStatusNotificationDispatcher(
         INotificationService notificationService,
         IOneSignalPushService oneSignalPushService,
         ICustomerPresenceService customerPresenceService,
+        IApplicationDbContext context,
         ILogger<OrderStatusNotificationDispatcher> logger)
     {
         _notificationService = notificationService;
         _oneSignalPushService = oneSignalPushService;
         _customerPresenceService = customerPresenceService;
+        _context = context;
         _logger = logger;
     }
 
@@ -56,6 +60,26 @@ public sealed class OrderStatusNotificationDispatcher : IOrderStatusNotification
         }
 
         var pushRequest = BuildCustomerMobilePushRequest(request, composed);
+        var dedupeKey = OrderStatusCustomerNotificationDedupe.TryExtractDedupeKey(composed.Data);
+
+        if (!string.IsNullOrWhiteSpace(dedupeKey) &&
+            await HasRecentDuplicateAsync(request.UserId, dedupeKey, cancellationToken))
+        {
+            _logger.LogInformation(
+                "Skipping duplicate customer order-status notification for order {OrderId} user {UserId} status {NewStatus} (dedupeKey {DedupeKey}).",
+                request.OrderId,
+                request.UserId,
+                request.NewStatus,
+                dedupeKey);
+
+            return new OrderStatusNotificationDispatchResult(
+                InboxQueued: false,
+                RealtimeQueued: false,
+                PushAttempted: false,
+                PushSent: false,
+                PushProviderStatusCode: null,
+                PushReason: $"Duplicate suppressed for {dedupeKey}.");
+        }
 
         var inboxQueued = false;
 
@@ -229,4 +253,20 @@ public sealed class OrderStatusNotificationDispatcher : IOrderStatusNotification
             composed.TargetUrl,
             category: NotificationCategories.Order,
             targetApplication: OneSignalApplicationTarget.Customer);
+
+    private async Task<bool> HasRecentDuplicateAsync(
+        Guid userId,
+        string dedupeKey,
+        CancellationToken cancellationToken)
+    {
+        var marker = $"\"dedupeKey\":\"{dedupeKey}\"";
+        return await _context.Notifications
+            .AsNoTracking()
+            .AnyAsync(
+                notification =>
+                    notification.UserId == userId &&
+                    notification.Data != null &&
+                    notification.Data.Contains(marker),
+                cancellationToken);
+    }
 }

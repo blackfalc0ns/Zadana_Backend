@@ -86,10 +86,8 @@ internal static class OrderStatusNotificationComposer
             : newStatus == OrderStatus.ReadyForPickup && fulfillment == FulfillmentType.Pickup
                 ? "order.pickup.ready"
                 : $"order.status.{newStatus.ToString().ToLowerInvariant()}";
-        // Cancelled notifications must collapse across duplicate publish paths / retries.
-        var dedupeKey = newStatus is OrderStatus.Cancelled or OrderStatus.VendorRejected
-            ? $"order-cancelled:{orderId:N}"
-            : $"order-status:{orderId:N}:{oldStatus}:{newStatus}";
+        // One dedupe key per order + terminal/new status (retries must not re-notify).
+        var dedupeKey = OrderStatusCustomerNotificationDedupe.BuildDedupeKey(orderId, newStatus);
 
         var data = new Dictionary<string, object?>
         {

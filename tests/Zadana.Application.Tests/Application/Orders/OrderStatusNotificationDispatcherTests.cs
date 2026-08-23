@@ -1,15 +1,33 @@
 using FluentAssertions;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Modules.Orders.Services;
+using Zadana.Application.Modules.Orders.Support;
 using Zadana.Domain.Modules.Orders.Enums;
+using Zadana.Domain.Modules.Social.Entities;
 using Zadana.Domain.Modules.Social.Enums;
+using Zadana.Infrastructure.Persistence;
+using Zadana.Infrastructure.Persistence.Interceptors;
 
 namespace Zadana.Application.Tests.Application.Orders;
 
 public class OrderStatusNotificationDispatcherTests
 {
+    [Fact]
+    public void BuildDedupeKey_ForDelivered_ShouldCollapseRetriesToSingleKey()
+    {
+        var orderId = Guid.Parse("22222222-2222-2222-2222-222222222222");
+        var keyA = OrderStatusCustomerNotificationDedupe.BuildDedupeKey(orderId, OrderStatus.Delivered);
+        var keyB = OrderStatusCustomerNotificationDedupe.BuildDedupeKey(orderId, OrderStatus.Delivered);
+
+        keyA.Should().Be("order-status:22222222222222222222222222222222:Delivered");
+        keyA.Should().Be(keyB);
+        OrderStatusCustomerNotificationDedupe.CreateStableNotificationId(keyA)
+            .Should().Be(OrderStatusCustomerNotificationDedupe.CreateStableNotificationId(keyB));
+    }
+
     [Fact]
     public async Task DispatchCustomerAsync_ShouldPersistInboxAndUseProductionOrderStatusPushContract()
     {
@@ -51,10 +69,12 @@ public class OrderStatusNotificationDispatcherTests
                 ProviderNotificationId: "push-id",
                 Reason: null));
 
+        await using var dbContext = CreateDbContext();
         var dispatcher = new OrderStatusNotificationDispatcher(
             notificationServiceMock.Object,
             pushServiceMock.Object,
             Mock.Of<ICustomerPresenceService>(),
+            dbContext,
             NullLogger<OrderStatusNotificationDispatcher>.Instance);
 
         var result = await dispatcher.DispatchCustomerAsync(
@@ -87,7 +107,7 @@ public class OrderStatusNotificationDispatcherTests
                     data != null &&
                     data.Contains("\"newStatus\":\"Accepted\"") &&
                     data.Contains("\"oldStatus\":\"PendingVendorAcceptance\"") &&
-                    data.Contains("\"dedupeKey\":\"order-status:") &&
+                    data.Contains($"\"dedupeKey\":\"order-status:{orderId:N}:Accepted\"") &&
                     data.Contains("\"action\":\"status_changed\"") &&
                     data.Contains("\"presentation\":\"silent\"") &&
                     data.Contains("\"popupType\":\"order_status_changed\"") &&
@@ -147,10 +167,12 @@ public class OrderStatusNotificationDispatcherTests
         var notificationServiceMock = new Mock<INotificationService>();
         var pushServiceMock = new Mock<IOneSignalPushService>();
 
+        await using var dbContext = CreateDbContext();
         var dispatcher = new OrderStatusNotificationDispatcher(
             notificationServiceMock.Object,
             pushServiceMock.Object,
             Mock.Of<ICustomerPresenceService>(),
+            dbContext,
             NullLogger<OrderStatusNotificationDispatcher>.Instance);
 
         var result = await dispatcher.DispatchCustomerAsync(
@@ -211,10 +233,12 @@ public class OrderStatusNotificationDispatcherTests
             .Returns(Task.CompletedTask);
         presenceServiceMock.Setup(service => service.IsOnline(userId)).Returns(true);
 
+        await using var dbContext = CreateDbContext();
         var dispatcher = new OrderStatusNotificationDispatcher(
             notificationServiceMock.Object,
             pushServiceMock.Object,
             presenceServiceMock.Object,
+            dbContext,
             NullLogger<OrderStatusNotificationDispatcher>.Instance);
 
         var result = await dispatcher.DispatchCustomerAsync(
@@ -267,10 +291,12 @@ public class OrderStatusNotificationDispatcherTests
                 It.IsAny<CancellationToken>()))
             .ReturnsAsync(new OneSignalPushDispatchResult(true, true, false, 200, "push-id", null));
 
+        await using var dbContext = CreateDbContext();
         var dispatcher = new OrderStatusNotificationDispatcher(
             notificationServiceMock.Object,
             pushServiceMock.Object,
             presenceServiceMock.Object,
+            dbContext,
             NullLogger<OrderStatusNotificationDispatcher>.Instance);
 
         var result = await dispatcher.DispatchCustomerAsync(
@@ -328,10 +354,12 @@ public class OrderStatusNotificationDispatcherTests
                 It.IsAny<CancellationToken>()))
             .ReturnsAsync(new OneSignalPushDispatchResult(true, true, false, 200, "push-id", null));
 
+        await using var dbContext = CreateDbContext();
         var dispatcher = new OrderStatusNotificationDispatcher(
             notificationServiceMock.Object,
             pushServiceMock.Object,
             Mock.Of<ICustomerPresenceService>(),
+            dbContext,
             NullLogger<OrderStatusNotificationDispatcher>.Instance);
 
         await dispatcher.DispatchCustomerAsync(
@@ -380,5 +408,78 @@ public class OrderStatusNotificationDispatcherTests
                     request.Data.Contains("\"refundStatus\":\"refunded\"")),
                 It.IsAny<CancellationToken>()),
             Times.Once);
+    }
+
+    [Fact]
+    public async Task DispatchCustomerAsync_WhenSameStatusAlreadyPersisted_ShouldSuppressDuplicatePush()
+    {
+        var notificationServiceMock = new Mock<INotificationService>();
+        var pushServiceMock = new Mock<IOneSignalPushService>();
+        await using var dbContext = CreateDbContext();
+        var orderId = Guid.NewGuid();
+        var userId = Guid.NewGuid();
+        var dedupeKey = OrderStatusCustomerNotificationDedupe.BuildDedupeKey(orderId, OrderStatus.Delivered);
+
+        dbContext.Notifications.Add(new Notification(
+            userId,
+            "تم التسليم",
+            "Delivered",
+            "طلب رقم ORD-DUP-001",
+            "Order #ORD-DUP-001",
+            NotificationTypes.OrderStatusChanged,
+            null,
+            null,
+            orderId,
+            $$"""{"dedupeKey":"{{dedupeKey}}","orderId":"{{orderId}}"}"""));
+        await dbContext.SaveChangesAsync();
+
+        var dispatcher = new OrderStatusNotificationDispatcher(
+            notificationServiceMock.Object,
+            pushServiceMock.Object,
+            Mock.Of<ICustomerPresenceService>(),
+            dbContext,
+            NullLogger<OrderStatusNotificationDispatcher>.Instance);
+
+        var result = await dispatcher.DispatchCustomerAsync(
+            new OrderStatusCustomerNotificationRequest(
+                userId,
+                orderId,
+                Guid.NewGuid(),
+                "ORD-DUP-001",
+                OrderStatus.OnTheWay,
+                OrderStatus.Delivered,
+                ActorRole: "driver"),
+            CancellationToken.None);
+
+        result.InboxQueued.Should().BeFalse();
+        result.PushAttempted.Should().BeFalse();
+        result.PushReason.Should().Contain("Duplicate suppressed");
+
+        notificationServiceMock.Verify(
+            service => service.PersistToUserAsync(
+                It.IsAny<Guid>(),
+                It.IsAny<string>(),
+                It.IsAny<string>(),
+                It.IsAny<string>(),
+                It.IsAny<string>(),
+                It.IsAny<string?>(),
+                It.IsAny<Guid?>(),
+                It.IsAny<string?>(),
+                It.IsAny<CancellationToken>()),
+            Times.Never);
+        pushServiceMock.Verify(
+            service => service.SendMobileNotificationAsync(
+                It.IsAny<OneSignalMobilePushRequest>(),
+                It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    private static ApplicationDbContext CreateDbContext()
+    {
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .Options;
+
+        return new ApplicationDbContext(options, new AuditableEntityInterceptor());
     }
 }
