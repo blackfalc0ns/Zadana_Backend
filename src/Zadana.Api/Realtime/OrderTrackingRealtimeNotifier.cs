@@ -12,18 +12,15 @@ namespace Zadana.Api.Realtime;
 public sealed class OrderTrackingRealtimeNotifier : IOrderTrackingRealtimeNotifier
 {
     private readonly IHubContext<OrderTrackingHub> _hubContext;
-    private readonly IHubContext<NotificationHub> _notificationHubContext;
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly ILogger<OrderTrackingRealtimeNotifier> _logger;
 
     public OrderTrackingRealtimeNotifier(
         IHubContext<OrderTrackingHub> hubContext,
-        IHubContext<NotificationHub> notificationHubContext,
         IServiceScopeFactory scopeFactory,
         ILogger<OrderTrackingRealtimeNotifier> logger)
     {
         _hubContext = hubContext;
-        _notificationHubContext = notificationHubContext;
         _scopeFactory = scopeFactory;
         _logger = logger;
     }
@@ -99,7 +96,8 @@ public sealed class OrderTrackingRealtimeNotifier : IOrderTrackingRealtimeNotifi
                 targetUrl,
                 changedAtUtc,
                 pickupContext,
-                includeCustomerPickupSecrets: false);
+                includeCustomerPickupSecrets: false,
+                showPopup: false);
 
             await SignalRDispatch.SendToGroupAsync(
                 _hubContext,
@@ -110,35 +108,12 @@ public sealed class OrderTrackingRealtimeNotifier : IOrderTrackingRealtimeNotifi
                 "tracking-status",
                 cancellationToken);
 
-            // Do NOT fan out ReceiveOrderStatusChanged on NotificationHub for normal status changes.
-            // Customer apps invent a second OS banner ("تحديث على الطلب" + order GUID) from that event,
-            // even when showPopup=false. Visible copy is OneSignal-only via OrderStatusNotificationDispatcher.
-            // Exception: pickup OTP secrets must reach the authenticated customer user group.
-            if (customerUserId != Guid.Empty && pickupContext.IncludeCustomerPickupSecrets)
-            {
-                var customerPayload = BuildPayload(
-                    orderId,
-                    orderNumber,
-                    vendorId,
-                    oldStatus,
-                    newStatus,
-                    actorRole,
-                    action,
-                    targetUrl,
-                    changedAtUtc,
-                    pickupContext,
-                    includeCustomerPickupSecrets: true,
-                    showPopup: false);
-
-                await SignalRDispatch.SendToGroupAsync(
-                    _notificationHubContext,
-                    NotificationHub.GetUserGroup(customerUserId),
-                    NotificationHub.ReceiveOrderStatusChangedMethod,
-                    customerPayload,
-                    _logger,
-                    "customer-pickup-otp",
-                    cancellationToken);
-            }
+            // Never send ReceiveOrderStatusChanged on NotificationHub for customers.
+            // The customer app turns that event into a second OS banner ("تحديث على الطلب" + GUID)
+            // for Preparing / ReadyForPickup / DriverAssigned / Delivered — even with showPopup=false.
+            // Visible customer copy is OneSignal-only (OrderStatusNotificationDispatcher).
+            // Pickup OTP stays on the order details API / tracking refresh, not a parallel banner event.
+            _ = customerUserId;
         }
         catch (Exception ex)
         {

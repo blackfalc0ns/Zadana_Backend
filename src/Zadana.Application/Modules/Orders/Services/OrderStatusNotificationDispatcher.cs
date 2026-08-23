@@ -91,8 +91,8 @@ public sealed class OrderStatusNotificationDispatcher : IOrderStatusNotification
                 request.UserId);
         }
 
-        // Live order UI (ReceiveOrderStatusChanged, silent) is owned by OrderTrackingRealtimeNotifier
-        // so pickup OTP and tracking refresh are not duplicated here.
+        // Inbox persist only + one OneSignal push. No ReceiveNotification / ReceiveOrderStatusChanged
+        // (those made the customer app show "تحديث على الطلب" + duplicate status banners).
         const bool realtimeQueued = false;
 
         var isForeground = _customerPresenceService.IsOnline(request.UserId);
