@@ -421,18 +421,16 @@ public class UpdateDriverArrivalStateCommandHandler : IRequestHandler<UpdateDriv
         Domain.Modules.Delivery.Entities.DeliveryAssignment assignment,
         CancellationToken cancellationToken)
     {
-        var updatedDetail = await _driverReadService.GetAssignmentDetailAsync(
-            driverId,
-            assignment.Id,
-            cancellationToken);
+        // Persist-only idempotent response — avoid GetAssignmentDetail on the hot path.
+        _ = driverId;
+        _ = cancellationToken;
 
         return new DriverArrivalStateResultDto(
             assignment.OrderId,
             assignment.Id,
             "arrived_at_customer",
             LocalizedMessages.GetAr(LocalizedMessages.DriverArrivedAtCustomer),
-            LocalizedMessages.GetEn(LocalizedMessages.DriverArrivedAtCustomer),
-            updatedDetail);
+            LocalizedMessages.GetEn(LocalizedMessages.DriverArrivedAtCustomer));
     }
 
     private async Task PromoteOrderToOnTheWayAsync(
@@ -448,44 +446,14 @@ public class UpdateDriverArrivalStateCommandHandler : IRequestHandler<UpdateDriv
 
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
-        await _notificationService.SendToUserAsync(
-            order.UserId,
-            "رمز التسليم جاهز",
-            "Delivery OTP is ready",
-            $"رمز تسليم طلبك رقم {order.OrderNumber} جاهز. افتح تفاصيل الطلب لعرض الرمز المؤمّن عند وصول المندوب.",
-            $"Your delivery code for order #{order.OrderNumber} is ready. Open the order details to view it when the driver arrives.",
-            "delivery-otp",
+        QueueOrderStatusSideEffects(
             order.Id,
-            "otpType=delivery",
-            cancellationToken);
-
-        await _oneSignalPushService.SendMobileNotificationDirectAsync(
-            OneSignalMobilePushRequest.CreateHeadsUp(
-                order.UserId.ToString(),
-                "رمز التسليم جاهز",
-                "Delivery OTP is ready",
-                $"رمز تسليم طلبك رقم {order.OrderNumber} جاهز. افتح تفاصيل الطلب لعرض الرمز المؤمّن عند وصول المندوب.",
-                $"Your delivery code for order #{order.OrderNumber} is ready. Open the order details to view it when the driver arrives.",
-                "delivery-otp",
-                order.Id,
-                "otpType=delivery",
-                $"/orders/{order.Id}",
-                category: NotificationCategories.Order,
-                targetApplication: OneSignalApplicationTarget.Customer),
-            cancellationToken);
-
-        await _publisher.Publish(
-            new OrderStatusChangedNotification(
-                order.Id,
-                order.UserId,
-                order.VendorId,
-                order.OrderNumber,
-                oldStatus,
-                OrderStatus.OnTheWay,
-                NotifyCustomer: true,
-                NotifyVendor: false,
-                ActorRole: "driver"),
-            cancellationToken);
+            order.UserId,
+            order.VendorId,
+            order.OrderNumber,
+            oldStatus,
+            OrderStatus.OnTheWay,
+            notifyDeliveryOtp: true);
     }
 
     private async Task CompletePickupHandoffAsync(
@@ -510,18 +478,76 @@ public class UpdateDriverArrivalStateCommandHandler : IRequestHandler<UpdateDriv
         await _orderInventoryWorkflowService.ApplyPickupDeductionAsync(order.Id, cancellationToken);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
-        await _publisher.Publish(
-            new OrderStatusChangedNotification(
-                order.Id,
-                order.UserId,
-                order.VendorId,
-                order.OrderNumber,
-                oldStatus,
-                order.Status,
-                NotifyCustomer: true,
-                NotifyVendor: false,
-                ActorRole: "driver"),
-            cancellationToken);
+        QueueOrderStatusSideEffects(
+            order.Id,
+            order.UserId,
+            order.VendorId,
+            order.OrderNumber,
+            oldStatus,
+            order.Status,
+            notifyDeliveryOtp: false);
+    }
+
+    private void QueueOrderStatusSideEffects(
+        Guid orderId,
+        Guid customerUserId,
+        Guid vendorId,
+        string orderNumber,
+        OrderStatus oldStatus,
+        OrderStatus newStatus,
+        bool notifyDeliveryOtp)
+    {
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                if (notifyDeliveryOtp)
+                {
+                    await _notificationService.SendToUserAsync(
+                        customerUserId,
+                        "رمز التسليم جاهز",
+                        "Delivery OTP is ready",
+                        $"رمز تسليم طلبك رقم {orderNumber} جاهز. افتح تفاصيل الطلب لعرض الرمز المؤمّن عند وصول المندوب.",
+                        $"Your delivery code for order #{orderNumber} is ready. Open the order details to view it when the driver arrives.",
+                        "delivery-otp",
+                        orderId,
+                        "otpType=delivery",
+                        CancellationToken.None);
+
+                    await _oneSignalPushService.SendMobileNotificationDirectAsync(
+                        OneSignalMobilePushRequest.CreateHeadsUp(
+                            customerUserId.ToString(),
+                            "رمز التسليم جاهز",
+                            "Delivery OTP is ready",
+                            $"رمز تسليم طلبك رقم {orderNumber} جاهز. افتح تفاصيل الطلب لعرض الرمز المؤمّن عند وصول المندوب.",
+                            $"Your delivery code for order #{orderNumber} is ready. Open the order details to view it when the driver arrives.",
+                            "delivery-otp",
+                            orderId,
+                            "otpType=delivery",
+                            $"/orders/{orderId}",
+                            category: NotificationCategories.Order,
+                            targetApplication: OneSignalApplicationTarget.Customer),
+                        CancellationToken.None);
+                }
+
+                await _publisher.Publish(
+                    new OrderStatusChangedNotification(
+                        orderId,
+                        customerUserId,
+                        vendorId,
+                        orderNumber,
+                        oldStatus,
+                        newStatus,
+                        NotifyCustomer: true,
+                        NotifyVendor: false,
+                        ActorRole: "driver"),
+                    CancellationToken.None);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Customer-arrival status side effects failed for order {OrderId}.", orderId);
+            }
+        });
     }
 
     private static string ResolveCustomerArrivalBlockErrorCode(

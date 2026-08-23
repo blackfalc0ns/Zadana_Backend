@@ -1,6 +1,7 @@
 using FluentAssertions;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Modules.Delivery.Interfaces;
@@ -53,7 +54,8 @@ public class DriverUpdateOrderStatusCommandHandlerTests
             Mock.Of<IDriverReadService>(),
             Mock.Of<INotificationService>(),
             Mock.Of<IOneSignalPushService>(),
-            new OrderInventoryWorkflowService(dbContext));
+            new OrderInventoryWorkflowService(dbContext),
+            NullLogger<DriverUpdateOrderStatusCommandHandler>.Instance);
 
         var action = () => handler.Handle(
             new DriverUpdateOrderStatusCommand(order.Id, driverUser.Id, OrderStatus.PickedUp, "Picked up"),
@@ -94,7 +96,8 @@ public class DriverUpdateOrderStatusCommandHandlerTests
             Mock.Of<IDriverReadService>(),
             Mock.Of<INotificationService>(),
             Mock.Of<IOneSignalPushService>(),
-            new OrderInventoryWorkflowService(dbContext));
+            new OrderInventoryWorkflowService(dbContext),
+            NullLogger<DriverUpdateOrderStatusCommandHandler>.Instance);
 
         var action = () => handler.Handle(
             new DriverUpdateOrderStatusCommand(order.Id, driverUser.Id, OrderStatus.PickedUp, "Picked up"),
@@ -138,7 +141,8 @@ public class DriverUpdateOrderStatusCommandHandlerTests
             Mock.Of<IDriverReadService>(),
             Mock.Of<INotificationService>(),
             Mock.Of<IOneSignalPushService>(),
-            new OrderInventoryWorkflowService(dbContext));
+            new OrderInventoryWorkflowService(dbContext),
+            NullLogger<DriverUpdateOrderStatusCommandHandler>.Instance);
 
         var action = () => handler.Handle(
             new DriverUpdateOrderStatusCommand(order.Id, driverUser.Id, OrderStatus.Delivered, "Delivered"),
@@ -179,7 +183,8 @@ public class DriverUpdateOrderStatusCommandHandlerTests
             Mock.Of<IDriverReadService>(),
             Mock.Of<INotificationService>(),
             Mock.Of<IOneSignalPushService>(),
-            new OrderInventoryWorkflowService(dbContext));
+            new OrderInventoryWorkflowService(dbContext),
+            NullLogger<DriverUpdateOrderStatusCommandHandler>.Instance);
 
         var action = () => handler.Handle(
             new DriverUpdateOrderStatusCommand(order.Id, driverUser.Id, OrderStatus.DeliveryFailed, null),
@@ -224,7 +229,8 @@ public class DriverUpdateOrderStatusCommandHandlerTests
             Mock.Of<IDriverReadService>(),
             Mock.Of<INotificationService>(),
             Mock.Of<IOneSignalPushService>(),
-            new OrderInventoryWorkflowService(dbContext));
+            new OrderInventoryWorkflowService(dbContext),
+            NullLogger<DriverUpdateOrderStatusCommandHandler>.Instance);
 
         var result = await handler.Handle(
             new DriverUpdateOrderStatusCommand(order.Id, driverUser.Id, OrderStatus.Delivered, "Delivered"),
@@ -269,7 +275,8 @@ public class DriverUpdateOrderStatusCommandHandlerTests
             Mock.Of<IDriverReadService>(),
             Mock.Of<INotificationService>(),
             Mock.Of<IOneSignalPushService>(),
-            new OrderInventoryWorkflowService(dbContext));
+            new OrderInventoryWorkflowService(dbContext),
+            NullLogger<DriverUpdateOrderStatusCommandHandler>.Instance);
 
         var result = await handler.Handle(
             new DriverUpdateOrderStatusCommand(order.Id, driverUser.Id, OrderStatus.PickedUp, "Picked up"),
@@ -318,7 +325,8 @@ public class DriverUpdateOrderStatusCommandHandlerTests
             Mock.Of<IDriverReadService>(),
             Mock.Of<INotificationService>(),
             Mock.Of<IOneSignalPushService>(),
-            new OrderInventoryWorkflowService(dbContext));
+            new OrderInventoryWorkflowService(dbContext),
+            NullLogger<DriverUpdateOrderStatusCommandHandler>.Instance);
 
         var result = await handler.Handle(
             new DriverUpdateOrderStatusCommand(order.Id, driverUser.Id, OrderStatus.Delivered, "Delivered"),
@@ -365,7 +373,8 @@ public class DriverUpdateOrderStatusCommandHandlerTests
             Mock.Of<IDriverReadService>(),
             Mock.Of<INotificationService>(),
             Mock.Of<IOneSignalPushService>(),
-            new OrderInventoryWorkflowService(dbContext));
+            new OrderInventoryWorkflowService(dbContext),
+            NullLogger<DriverUpdateOrderStatusCommandHandler>.Instance);
 
         await handler.Handle(
             new DriverUpdateOrderStatusCommand(order.Id, driverUser.Id, OrderStatus.PickedUp, "Picked up"),
@@ -414,7 +423,8 @@ public class DriverUpdateOrderStatusCommandHandlerTests
             Mock.Of<IDriverReadService>(),
             Mock.Of<INotificationService>(),
             Mock.Of<IOneSignalPushService>(),
-            new OrderInventoryWorkflowService(dbContext));
+            new OrderInventoryWorkflowService(dbContext),
+            NullLogger<DriverUpdateOrderStatusCommandHandler>.Instance);
 
         await handler.Handle(
             new DriverUpdateOrderStatusCommand(order.Id, driverUser.Id, OrderStatus.DeliveryFailed, "Customer unreachable"),
@@ -459,7 +469,8 @@ public class DriverUpdateOrderStatusCommandHandlerTests
             Mock.Of<IDriverReadService>(),
             Mock.Of<INotificationService>(),
             Mock.Of<IOneSignalPushService>(),
-            new OrderInventoryWorkflowService(dbContext));
+            new OrderInventoryWorkflowService(dbContext),
+            NullLogger<DriverUpdateOrderStatusCommandHandler>.Instance);
 
         var action = () => handler.Handle(
             new DriverUpdateOrderStatusCommand(order.Id, driverUser.Id, OrderStatus.PickedUp, "Picked up"),

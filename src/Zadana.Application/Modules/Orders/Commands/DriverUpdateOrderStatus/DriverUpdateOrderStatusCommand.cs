@@ -2,6 +2,7 @@ using FluentValidation;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Localization;
+using Microsoft.Extensions.Logging;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Common.Localization;
 using Zadana.Application.Modules.Delivery.Interfaces;
@@ -55,10 +56,10 @@ public class DriverUpdateOrderStatusCommandHandler : IRequestHandler<DriverUpdat
     private readonly IUnitOfWork _unitOfWork;
     private readonly IPublisher _publisher;
     private readonly IDriverRepository _driverRepository;
-    private readonly IDriverReadService _driverReadService;
     private readonly INotificationService _notificationService;
     private readonly IOneSignalPushService _oneSignalPushService;
     private readonly OrderInventoryWorkflowService _orderInventoryWorkflowService;
+    private readonly ILogger<DriverUpdateOrderStatusCommandHandler> _logger;
 
     public DriverUpdateOrderStatusCommandHandler(
         IApplicationDbContext context,
@@ -68,21 +69,24 @@ public class DriverUpdateOrderStatusCommandHandler : IRequestHandler<DriverUpdat
         IDriverReadService driverReadService,
         INotificationService notificationService,
         IOneSignalPushService oneSignalPushService,
-        OrderInventoryWorkflowService orderInventoryWorkflowService)
+        OrderInventoryWorkflowService orderInventoryWorkflowService,
+        ILogger<DriverUpdateOrderStatusCommandHandler> logger)
     {
         _context = context;
         _unitOfWork = unitOfWork;
         _publisher = publisher;
         _driverRepository = driverRepository;
-        _driverReadService = driverReadService;
         _notificationService = notificationService;
         _oneSignalPushService = oneSignalPushService;
         _orderInventoryWorkflowService = orderInventoryWorkflowService;
+        _logger = logger;
+        // driverReadService kept in ctor for DI compatibility with existing registrations/tests;
+        // assignment detail is no longer loaded on the hot path.
+        _ = driverReadService;
     }
 
     public async Task<DriverUpdateOrderStatusResultDto> Handle(DriverUpdateOrderStatusCommand request, CancellationToken cancellationToken)
     {
-        // BUG FIX: Resolve Driver.Id from the current user's UserId first
         var driver = await _driverRepository.GetByUserIdAsync(request.DriverUserId, cancellationToken)
             ?? throw new BusinessRuleException("DRIVER_NOT_FOUND", "ما لقينا حساب مندوب مرتبط بهذا المستخدم | No driver profile found for the current user.");
 
@@ -98,12 +102,11 @@ public class DriverUpdateOrderStatusCommandHandler : IRequestHandler<DriverUpdat
                 "تحتاج مراجعة واعتماد من الإدارة قبل البدء بتوصيل الطلبات | Your account must be reviewed and approved by admin before handling deliveries.");
         }
 
-        // Now compare using the actual Driver.Id against the assignment
         var assignment = await _context.DeliveryAssignments
             .FirstOrDefaultAsync(x => x.OrderId == request.OrderId && x.DriverId == driver.Id, cancellationToken);
 
+        // Do not Include StatusHistory — loading it on this hot path hung the same way as arrived-at-vendor.
         var order = await _context.Orders
-            .Include(x => x.StatusHistory)
             .FirstOrDefaultAsync(x => x.Id == request.OrderId, cancellationToken)
             ?? throw new NotFoundException("Order", request.OrderId);
 
@@ -155,7 +158,6 @@ public class DriverUpdateOrderStatusCommandHandler : IRequestHandler<DriverUpdat
             deliveryOtpReady = true;
         }
 
-        // Update assignment status to match order status
         if (request.NewStatus == OrderStatus.PickedUp)
         {
             assignment.MarkPickedUp();
@@ -165,7 +167,6 @@ public class DriverUpdateOrderStatusCommandHandler : IRequestHandler<DriverUpdat
         {
             assignment.MarkDelivered();
 
-            // COD: mark payment as Paid when driver delivers and collects cash
             if (order.PaymentMethod == PaymentMethodType.CashOnDelivery)
             {
                 order.UpdatePaymentStatus(PaymentStatus.Paid);
@@ -185,59 +186,82 @@ public class DriverUpdateOrderStatusCommandHandler : IRequestHandler<DriverUpdat
 
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
-        if (deliveryOtpReady)
-        {
-            await _notificationService.SendToUserAsync(
-                order.UserId,
-                "رمز التسليم جاهز",
-                "Delivery OTP is ready",
-                $"رمز تسليم طلبك رقم {order.OrderNumber} جاهز. افتح تفاصيل الطلب لعرض الرمز المؤمّن عند وصول المندوب.",
-                $"Your delivery code for order #{order.OrderNumber} is ready. Open the order details to view it when the driver arrives.",
-                "delivery-otp",
-                order.Id,
-                "otpType=delivery",
-                cancellationToken);
-
-            await _oneSignalPushService.SendMobileNotificationDirectAsync(
-                OneSignalMobilePushRequest.CreateHeadsUp(
-                    order.UserId.ToString(),
-                    "رمز التسليم جاهز",
-                    "Delivery OTP is ready",
-                    $"رمز تسليم طلبك رقم {order.OrderNumber} جاهز. افتح تفاصيل الطلب لعرض الرمز المؤمّن عند وصول المندوب.",
-                    $"Your delivery code for order #{order.OrderNumber} is ready. Open the order details to view it when the driver arrives.",
-                    "delivery-otp",
-                    order.Id,
-                    "otpType=delivery",
-                    $"/orders/{order.Id}",
-                    category: NotificationCategories.Order,
-                    targetApplication: OneSignalApplicationTarget.Customer),
-                cancellationToken);
-        }
-
-        // Publish notification event
-        await _publisher.Publish(
-            new OrderStatusChangedNotification(
-                order.Id,
-                order.UserId,
-                order.VendorId,
-                order.OrderNumber,
-                oldStatus,
-                request.NewStatus,
-                NotifyCustomer: true,
-                NotifyVendor: request.NewStatus is OrderStatus.DeliveryFailed or OrderStatus.Delivered,
-                ActorRole: "driver"),
-            cancellationToken);
-
-        // Fetch the full updated assignment detail so mobile can refresh UI immediately
-        var updatedDetail = await _driverReadService.GetAssignmentDetailAsync(
-            driver.Id, assignment.Id, cancellationToken);
+        QueuePostPersistNotifications(
+            order.Id,
+            order.UserId,
+            order.VendorId,
+            order.OrderNumber,
+            oldStatus,
+            request.NewStatus,
+            deliveryOtpReady);
 
         return new DriverUpdateOrderStatusResultDto(
             order.Id,
             request.NewStatus.ToString(),
             LocalizedMessages.GetAr(LocalizedMessages.OrderStatusUpdated),
-            LocalizedMessages.GetEn(LocalizedMessages.OrderStatusUpdated),
-            updatedDetail);
+            LocalizedMessages.GetEn(LocalizedMessages.OrderStatusUpdated));
+    }
+
+    private void QueuePostPersistNotifications(
+        Guid orderId,
+        Guid customerUserId,
+        Guid vendorId,
+        string orderNumber,
+        OrderStatus oldStatus,
+        OrderStatus newStatus,
+        bool deliveryOtpReady)
+    {
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                if (deliveryOtpReady)
+                {
+                    await _notificationService.SendToUserAsync(
+                        customerUserId,
+                        "رمز التسليم جاهز",
+                        "Delivery OTP is ready",
+                        $"رمز تسليم طلبك رقم {orderNumber} جاهز. افتح تفاصيل الطلب لعرض الرمز المؤمّن عند وصول المندوب.",
+                        $"Your delivery code for order #{orderNumber} is ready. Open the order details to view it when the driver arrives.",
+                        "delivery-otp",
+                        orderId,
+                        "otpType=delivery",
+                        CancellationToken.None);
+
+                    await _oneSignalPushService.SendMobileNotificationDirectAsync(
+                        OneSignalMobilePushRequest.CreateHeadsUp(
+                            customerUserId.ToString(),
+                            "رمز التسليم جاهز",
+                            "Delivery OTP is ready",
+                            $"رمز تسليم طلبك رقم {orderNumber} جاهز. افتح تفاصيل الطلب لعرض الرمز المؤمّن عند وصول المندوب.",
+                            $"Your delivery code for order #{orderNumber} is ready. Open the order details to view it when the driver arrives.",
+                            "delivery-otp",
+                            orderId,
+                            "otpType=delivery",
+                            $"/orders/{orderId}",
+                            category: NotificationCategories.Order,
+                            targetApplication: OneSignalApplicationTarget.Customer),
+                        CancellationToken.None);
+                }
+
+                await _publisher.Publish(
+                    new OrderStatusChangedNotification(
+                        orderId,
+                        customerUserId,
+                        vendorId,
+                        orderNumber,
+                        oldStatus,
+                        newStatus,
+                        NotifyCustomer: true,
+                        NotifyVendor: newStatus is OrderStatus.DeliveryFailed or OrderStatus.Delivered,
+                        ActorRole: "driver"),
+                    CancellationToken.None);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Driver status post-persist fan-out failed for order {OrderId}.", orderId);
+            }
+        });
     }
 
     private static void ValidateTransition(OrderStatus current, OrderStatus target)
@@ -269,6 +293,7 @@ public class DriverUpdateOrderStatusCommandHandler : IRequestHandler<DriverUpdat
             OrderStatus.PickedUp => orderStatus == OrderStatus.PickedUp &&
                                     assignment.IsPickupOtpVerified &&
                                     assignment.Status == Domain.Modules.Delivery.Enums.AssignmentStatus.PickedUp,
+            OrderStatus.OnTheWay => orderStatus == OrderStatus.OnTheWay,
             OrderStatus.Delivered => orderStatus == OrderStatus.Delivered &&
                                      assignment.IsDeliveryOtpVerified &&
                                      assignment.Status == Domain.Modules.Delivery.Enums.AssignmentStatus.Delivered,
