@@ -672,7 +672,7 @@ public class DriverReadServiceTests
         result.NationalId.Should().Be(payload.NationalId);
         result.LicenseNumber.Should().Be(payload.LicenseNumber);
         result.VehicleLicenseNumber.Should().Be(payload.VehicleLicenseNumber);
-        result.Operations.Region.Should().Be("Eastern Region");
+        result.Operations.Region.Should().Be("Eastern Region (Dammam, Dhahran, Khobar)");
         result.Operations.City.Should().Be("Dammam");
         result.Documents.Single(document => document.DocumentType == "NationalId").Number.Should().Be(payload.NationalId);
         result.Documents.Single(document => document.DocumentType == "DriverLicense").Number.Should().Be(payload.LicenseNumber);

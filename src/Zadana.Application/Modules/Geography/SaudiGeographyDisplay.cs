@@ -70,14 +70,18 @@ public static class SaudiGeographyDisplay
         return key switch
         {
             "EASTERN" or "EASTERNREGION" or "EASTERNPROVINCE" or "EASTERN_REGION" =>
-                preferArabic ? "المنطقة الشرقية" : "Eastern Region",
+                preferArabic
+                    ? "المنطقة الشرقية (الدمام - الظهران - الخبر)"
+                    : "Eastern Region (Dammam, Dhahran, Khobar)",
             "RIYADH" or "RIYADHREGION" or "CENTRAL" =>
                 preferArabic ? "منطقة الرياض" : "Riyadh Region",
             "MAKKAH" or "MAKKAHREGION" or "WESTERN" =>
                 preferArabic ? "منطقة مكة" : "Makkah Region",
             "MADINAH" or "MADINAHREGION" =>
                 preferArabic ? "منطقة المدينة" : "Madinah Region",
-            "EASTERN REGION" => preferArabic ? "المنطقة الشرقية" : "Eastern Region",
+            "EASTERN REGION" => preferArabic
+                ? "المنطقة الشرقية (الدمام - الظهران - الخبر)"
+                : "Eastern Region (Dammam, Dhahran, Khobar)",
             _ => region.Trim()
         };
     }

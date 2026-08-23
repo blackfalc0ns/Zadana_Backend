@@ -80,11 +80,12 @@ public class GeographyController : ApiControllerBase
     [HttpGet("driver/regions")]
     public async Task<IReadOnlyList<SaudiDriverRegionLookupDto>> GetDriverRegions(CancellationToken cancellationToken)
     {
-        return await _dbContext.SaudiRegions
+        var regions = await _dbContext.SaudiRegions
             .AsNoTracking()
             .OrderBy(region => region.SortOrder)
             .ThenBy(region => region.NameEn)
-            .Select(region => new SaudiDriverRegionLookupDto(
+            .Select(region => new
+            {
                 region.Code,
                 region.NameAr,
                 region.NameEn,
@@ -92,8 +93,40 @@ public class GeographyController : ApiControllerBase
                 region.Longitude,
                 region.MapZoom,
                 region.SortOrder,
-                region.IsOperational))
+                region.IsOperational
+            })
             .ToListAsync(cancellationToken);
+
+        return regions
+            .Select(region =>
+            {
+                var (nameAr, nameEn) = ResolveDriverRegionDisplayNames(region.Code, region.NameAr, region.NameEn);
+                return new SaudiDriverRegionLookupDto(
+                    region.Code,
+                    nameAr,
+                    nameEn,
+                    region.Latitude,
+                    region.Longitude,
+                    region.MapZoom,
+                    region.SortOrder,
+                    region.IsOperational);
+            })
+            .ToList();
+    }
+
+    private static (string NameAr, string NameEn) ResolveDriverRegionDisplayNames(
+        string code,
+        string nameAr,
+        string nameEn)
+    {
+        if (string.Equals(code, "EASTERN", StringComparison.OrdinalIgnoreCase))
+        {
+            return (
+                "المنطقة الشرقية (الدمام - الظهران - الخبر)",
+                "Eastern Region (Dammam, Dhahran, Khobar)");
+        }
+
+        return (nameAr, nameEn);
     }
 
     [HttpGet("driver/regions/{regionCode}/cities")]
