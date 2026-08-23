@@ -113,7 +113,10 @@ public class OrderStatusChangedHandler : INotificationHandler<OrderStatusChanged
 
         if (notification.NotifyCustomer)
         {
-            if (!notification.CustomerNotificationAlreadySent)
+            // Idempotent OTP / retry publishes (same status) must not re-push "تم التسليم".
+            var statusActuallyChanged = notification.OldStatus != notification.NewStatus;
+
+            if (statusActuallyChanged && !notification.CustomerNotificationAlreadySent)
             {
                 await _orderStatusNotificationDispatcher.DispatchCustomerAsync(
                     new OrderStatusCustomerNotificationRequest(
@@ -128,7 +131,10 @@ public class OrderStatusChangedHandler : INotificationHandler<OrderStatusChanged
                     cancellationToken);
             }
 
-            await DispatchCustomerOrderEmailAsync(notification, cancellationToken);
+            if (statusActuallyChanged)
+            {
+                await DispatchCustomerOrderEmailAsync(notification, cancellationToken);
+            }
         }
 
         await SendRealtimeToAssignedDriverAsync(notification, action, targetUrl, cancellationToken);

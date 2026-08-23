@@ -110,10 +110,11 @@ public sealed class OrderTrackingRealtimeNotifier : IOrderTrackingRealtimeNotifi
                 "tracking-status",
                 cancellationToken);
 
-            // Customer apps join user groups on NotificationHub — not OrderTrackingHub.
-            // Single silent ReceiveOrderStatusChanged for tracking UI + pickup OTP secrets.
-            // Push/inbox copy is owned by OrderStatusNotificationDispatcher (OneSignal + inbox persist only).
-            if (customerUserId != Guid.Empty)
+            // Do NOT fan out ReceiveOrderStatusChanged on NotificationHub for normal status changes.
+            // Customer apps invent a second OS banner ("تحديث على الطلب" + order GUID) from that event,
+            // even when showPopup=false. Visible copy is OneSignal-only via OrderStatusNotificationDispatcher.
+            // Exception: pickup OTP secrets must reach the authenticated customer user group.
+            if (customerUserId != Guid.Empty && pickupContext.IncludeCustomerPickupSecrets)
             {
                 var customerPayload = BuildPayload(
                     orderId,
@@ -126,7 +127,7 @@ public sealed class OrderTrackingRealtimeNotifier : IOrderTrackingRealtimeNotifi
                     targetUrl,
                     changedAtUtc,
                     pickupContext,
-                    includeCustomerPickupSecrets: pickupContext.IncludeCustomerPickupSecrets,
+                    includeCustomerPickupSecrets: true,
                     showPopup: false);
 
                 await SignalRDispatch.SendToGroupAsync(
@@ -135,7 +136,7 @@ public sealed class OrderTrackingRealtimeNotifier : IOrderTrackingRealtimeNotifi
                     NotificationHub.ReceiveOrderStatusChangedMethod,
                     customerPayload,
                     _logger,
-                    "customer-status",
+                    "customer-pickup-otp",
                     cancellationToken);
             }
         }

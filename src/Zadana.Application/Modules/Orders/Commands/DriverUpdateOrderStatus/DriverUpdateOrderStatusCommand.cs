@@ -217,7 +217,8 @@ public class DriverUpdateOrderStatusCommandHandler : IRequestHandler<DriverUpdat
             {
                 if (deliveryOtpReady)
                 {
-                    await _notificationService.SendToUserAsync(
+                    // Persist inbox only — SendToUserAsync also emits ReceiveNotification and duplicates the push banner.
+                    await _notificationService.PersistToUserAsync(
                         customerUserId,
                         "رمز التسليم جاهز",
                         "Delivery OTP is ready",
@@ -252,7 +253,7 @@ public class DriverUpdateOrderStatusCommandHandler : IRequestHandler<DriverUpdat
                         orderNumber,
                         oldStatus,
                         newStatus,
-                        NotifyCustomer: true,
+                        NotifyCustomer: oldStatus != newStatus,
                         NotifyVendor: newStatus is OrderStatus.DeliveryFailed or OrderStatus.Delivered,
                         ActorRole: "driver"),
                     CancellationToken.None);

@@ -204,18 +204,22 @@ public class VerifyAssignmentOtpCommandHandler : IRequestHandler<VerifyAssignmen
 
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
-        await _publisher.Publish(
-            new OrderStatusChangedNotification(
-                assignment.OrderId,
-                assignment.Order.UserId,
-                assignment.Order.VendorId,
-                assignment.Order.OrderNumber,
-                oldStatus,
-                assignment.Order.Status,
-                NotifyCustomer: true,
-                NotifyVendor: assignment.Order.Status is OrderStatus.Delivered or OrderStatus.DeliveryFailed,
-                ActorRole: "driver"),
-            cancellationToken);
+        // Only fan out when the order status actually moved (avoids duplicate "تم التسليم" on OTP retries).
+        if (oldStatus != assignment.Order.Status)
+        {
+            await _publisher.Publish(
+                new OrderStatusChangedNotification(
+                    assignment.OrderId,
+                    assignment.Order.UserId,
+                    assignment.Order.VendorId,
+                    assignment.Order.OrderNumber,
+                    oldStatus,
+                    assignment.Order.Status,
+                    NotifyCustomer: true,
+                    NotifyVendor: assignment.Order.Status is OrderStatus.Delivered or OrderStatus.DeliveryFailed,
+                    ActorRole: "driver"),
+                cancellationToken);
+        }
 
         // Fetch the full updated assignment detail so mobile can refresh UI immediately
         var updatedDetail = await _driverReadService.GetAssignmentDetailAsync(
