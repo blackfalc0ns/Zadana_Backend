@@ -6,6 +6,7 @@ using Zadana.Application.Common.Localization;
 using Zadana.Application.Modules.Geography.Support;
 using Zadana.Application.Modules.Vendors.DTOs;
 using Zadana.Application.Modules.Vendors.Interfaces;
+using Zadana.Application.Modules.Vendors.Support;
 using Zadana.SharedKernel.Exceptions;
 
 namespace Zadana.Application.Modules.Vendors.Commands.AdminUpdateVendorStore;
@@ -44,6 +45,10 @@ public class AdminUpdateVendorStoreCommandValidator : AbstractValidator<AdminUpd
         RuleFor(x => x.CommercialRegistrationNumber).MaximumLength(50);
         RuleFor(x => x.BranchLatitude).InclusiveBetween(-90, 90).When(x => x.BranchLatitude.HasValue);
         RuleFor(x => x.BranchLongitude).InclusiveBetween(-180, 180).When(x => x.BranchLongitude.HasValue);
+        RuleFor(x => x)
+            .Must(x => VendorBranchCoordinateValidation.AreBothMissingOrBothMeaningful(x.BranchLatitude, x.BranchLongitude))
+            .WithMessage("Branch map coordinates are required.")
+            .OverridePropertyName(nameof(AdminUpdateVendorStoreCommand.BranchLatitude));
     }
 }
 

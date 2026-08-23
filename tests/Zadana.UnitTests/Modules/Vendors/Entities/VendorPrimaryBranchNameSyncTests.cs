@@ -1,5 +1,6 @@
 using FluentAssertions;
 using Zadana.Domain.Modules.Vendors.Entities;
+using Zadana.SharedKernel.Exceptions;
 
 namespace Zadana.UnitTests.Modules.Vendors.Entities;
 
@@ -60,17 +61,43 @@ public class VendorPrimaryBranchNameSyncTests
     }
 
     [Fact]
-    public void SetStoreLocation_DoesNothingWhenVendorHasNoPrimaryBranch()
+    public void SetStoreLocation_PromotesFirstBranchWhenNoPrimaryExists()
     {
         var vendor = CreateVendor();
         var secondary = CreateBranch(vendor.Id, "فرع الخبر", isPrimary: false, 26.2173m, 50.1971m);
         vendor.Branches.Add(secondary);
 
+        vendor.SetStoreLocation(26.3927m, 49.9777m);
+
+        secondary.IsPrimary.Should().BeTrue();
+        secondary.Latitude.Should().Be(26.3927m);
+        secondary.Longitude.Should().Be(49.9777m);
+    }
+
+    [Fact]
+    public void SetStoreLocation_ThrowsWhenVendorHasNoBranches()
+    {
+        var vendor = CreateVendor();
+
         var act = () => vendor.SetStoreLocation(26.3927m, 49.9777m);
 
-        act.Should().NotThrow();
-        secondary.Latitude.Should().Be(26.2173m);
-        secondary.Longitude.Should().Be(50.1971m);
+        act.Should()
+            .Throw<BusinessRuleException>()
+            .Which.ErrorCode.Should().Be("PRIMARY_BRANCH_REQUIRED");
+    }
+
+    [Fact]
+    public void UpdateContact_SyncsPrimaryBranchAddressFields()
+    {
+        var vendor = CreateVendor();
+        var primary = CreateBranch(vendor.Id, "اسواق النخبة", isPrimary: true);
+        vendor.Branches.Add(primary);
+
+        vendor.UpdateContact("EASTERN", "DAMMAM", "National Address 1");
+
+        primary.Region.Should().Be("EASTERN");
+        primary.City.Should().Be("DAMMAM");
+        primary.AddressLine.Should().Be("National Address 1");
     }
 
     [Fact]

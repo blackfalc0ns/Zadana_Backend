@@ -1,6 +1,7 @@
 using MediatR;
 using Zadana.Application.Common.Interfaces;
 using Zadana.Application.Modules.Vendors.Interfaces;
+using Zadana.Application.Modules.Vendors.Support;
 using Zadana.Domain.Modules.Vendors.Entities;
 using Zadana.SharedKernel.Exceptions;
 
@@ -26,13 +27,15 @@ public class AddVendorBranchCommandHandler : IRequestHandler<AddVendorBranchComm
         }
 
         // 2. Create the Vendor Branch
+        VendorBranchCoordinateValidation.EnsureRequired(request.Latitude, request.Longitude);
+
         // Provide a default delivery radius of 5.0 for this simple implementation
         var branch = new VendorBranch(
             vendorId: request.VendorId,
             name: request.Name,
             addressLine: request.AddressLine,
-            latitude: request.Latitude ?? 0,
-            longitude: request.Longitude ?? 0,
+            latitude: request.Latitude!.Value,
+            longitude: request.Longitude!.Value,
             contactPhone: request.Phone ?? string.Empty,
             deliveryRadiusKm: 5.0m 
         );

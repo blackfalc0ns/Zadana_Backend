@@ -204,12 +204,33 @@ public class Vendor : BaseEntity
 
         UpdatedAtUtc = DateTime.UtcNow;
         SyncPrimaryBranchNameFromStore();
+        SyncPrimaryBranchContactFromVendor();
     }
 
     public void SetStoreLocation(decimal latitude, decimal longitude)
     {
-        var primary = FindPrimaryBranch();
-        primary?.SetLocation(latitude, longitude);
+        VendorBranchCoordinates.EnsureValid(latitude, longitude);
+
+        var primary = FindPrimaryBranch()
+            ?? Branches
+                .OrderByDescending(branch => branch.IsActive)
+                .ThenBy(branch => branch.CreatedAtUtc)
+                .FirstOrDefault()
+            ?? throw new BusinessRuleException(
+                "PRIMARY_BRANCH_REQUIRED",
+                "لازم يكون عندك فرع أساسي قبل حفظ موقع المتجر.|A primary branch is required before setting store location.");
+
+        if (!primary.IsPrimary)
+        {
+            foreach (var branch in Branches.Where(item => item.IsPrimary && item.Id != primary.Id))
+            {
+                branch.SetPrimary(false);
+            }
+
+            primary.SetPrimary(true);
+        }
+
+        primary.SetLocation(latitude, longitude);
         UpdatedAtUtc = DateTime.UtcNow;
     }
 
@@ -236,6 +257,7 @@ public class Vendor : BaseEntity
         Region = region.Trim();
         City = city.Trim();
         NationalAddress = nationalAddress.Trim();
+        SyncPrimaryBranchContactFromVendor();
         UpdatedAtUtc = DateTime.UtcNow;
     }
 
@@ -552,6 +574,24 @@ public class Vendor : BaseEntity
 
         primary.Rename(storeName);
     }
+
+    private void SyncPrimaryBranchContactFromVendor()
+    {
+        var primary = FindPrimaryBranch();
+        if (primary is null)
+        {
+            return;
+        }
+
+        primary.SyncContactAddress(
+            FirstNonBlank(NationalAddress, primary.AddressLine),
+            FirstNonBlank(Region, primary.Region),
+            FirstNonBlank(City, primary.City),
+            FirstNonBlank(ContactPhone, primary.ContactPhone));
+    }
+
+    private static string FirstNonBlank(params string?[] values) =>
+        values.FirstOrDefault(value => !string.IsNullOrWhiteSpace(value))?.Trim() ?? string.Empty;
 
     private VendorBranch? FindPrimaryBranch() =>
         Branches.FirstOrDefault(branch => branch.IsPrimary);

@@ -17,6 +17,7 @@ using Zadana.Application.Modules.Identity.DTOs;
 using Zadana.Application.Modules.Identity.Interfaces;
 using Zadana.Application.Modules.Identity.Queries.GetUserEffectiveAccess;
 using Zadana.Application.Modules.Orders.Support;
+using Zadana.Application.Modules.Vendors.Support;
 using Zadana.Domain.Modules.Identity.Constants;
 using Zadana.Domain.Modules.Identity.Entities;
 using Zadana.Domain.Modules.Identity.Enums;
@@ -133,6 +134,7 @@ public class VendorAccessController : ApiControllerBase
             region,
             city,
             cancellationToken);
+        VendorBranchCoordinateValidation.EnsureRequired(request.Latitude, request.Longitude);
         var isPrimary = request.IsPrimary || !await _context.VendorBranches
             .AsNoTracking()
             .AnyAsync(branch => branch.VendorId == scope.VendorId, cancellationToken);
@@ -165,8 +167,8 @@ public class VendorAccessController : ApiControllerBase
             addressLine,
             region,
             city,
-            request.Latitude ?? 0,
-            request.Longitude ?? 0,
+            request.Latitude!.Value,
+            request.Longitude!.Value,
             contactPhone,
             managerName,
             managerContact,
@@ -238,14 +240,7 @@ public class VendorAccessController : ApiControllerBase
         var latitude = request.Latitude ?? branch.Latitude;
         var longitude = request.Longitude ?? branch.Longitude;
         var deliveryRadiusKm = request.DeliveryRadiusKm.GetValueOrDefault(branch.DeliveryRadiusKm);
-        if (latitude is < -90 or > 90)
-        {
-            throw new BusinessRuleException("BRANCH_LATITUDE_INVALID", "Latitude must be between -90 and 90.");
-        }
-        if (longitude is < -180 or > 180)
-        {
-            throw new BusinessRuleException("BRANCH_LONGITUDE_INVALID", "Longitude must be between -180 and 180.");
-        }
+        VendorBranchCoordinateValidation.EnsureValid(latitude, longitude);
         if (deliveryRadiusKm <= 0)
         {
             throw new BusinessRuleException("BRANCH_RADIUS_INVALID", "Delivery radius must be greater than zero.");

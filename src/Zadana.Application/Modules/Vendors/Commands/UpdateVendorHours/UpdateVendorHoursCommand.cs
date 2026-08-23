@@ -71,24 +71,7 @@ public class UpdateVendorHoursCommandHandler : IRequestHandler<UpdateVendorHours
         var vendor = await _vendorRepository.GetByUserIdAsync(userId, cancellationToken)
             ?? throw new NotFoundException("Vendor", userId);
 
-        var primaryBranch = vendor.Branches
-            .OrderByDescending(branch => branch.IsActive)
-            .ThenBy(branch => branch.CreatedAtUtc)
-            .FirstOrDefault();
-
-        var branchWasCreated = primaryBranch == null;
-        if (primaryBranch == null)
-        {
-            primaryBranch = VendorPrimaryBranchFactory.CreateForHoursProfile(vendor);
-
-            _vendorRepository.AddBranch(primaryBranch);
-            vendor.Branches.Add(primaryBranch);
-        }
-
-        if (branchWasCreated)
-        {
-            await _unitOfWork.SaveChangesAsync(cancellationToken);
-        }
+        var primaryBranch = VendorPrimaryBranchFactory.RequireExistingOrThrow(vendor);
 
         var replacementHours = BuildReplacementHours(primaryBranch, requestedHours);
         await _vendorRepository.ReplaceBranchOperatingHoursAsync(primaryBranch.Id, replacementHours, cancellationToken);

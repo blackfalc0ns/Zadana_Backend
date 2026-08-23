@@ -1,5 +1,6 @@
 using FluentValidation;
 using Zadana.Application.Common.Validation;
+using Zadana.Application.Modules.Vendors.Support;
 using Zadana.Domain.Modules.Wallets.Enums;
 
 namespace Zadana.Application.Modules.Vendors.Commands.RegisterVendor;
@@ -119,6 +120,10 @@ public class RegisterVendorCommandValidator : AbstractValidator<RegisterVendorCo
         RuleFor(x => x.BranchLongitude)
             .InclusiveBetween(-180, 180).WithMessage(localizer["InvalidRange"].Value)
             .WithName(localizer["BranchLongitude"].Value);
+        RuleFor(x => x)
+            .Must(x => VendorBranchCoordinateValidation.AreMeaningful(x.BranchLatitude, x.BranchLongitude))
+            .WithMessage(localizer["InvalidValue"].Value)
+            .OverridePropertyName("BranchLatitude");
         RuleFor(x => x.BranchContactPhone)
             .NotEmpty().WithMessage(localizer["RequiredField"].Value)
             .MaximumLength(20).WithMessage(localizer["MaxLength"].Value)

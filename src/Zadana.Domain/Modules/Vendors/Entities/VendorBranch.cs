@@ -40,10 +40,7 @@ public class VendorBranch : BaseEntity
         string managerContact,
         decimal deliveryRadiusKm)
     {
-        if (latitude < -90 || latitude > 90)
-            throw new InvalidOperationException("Latitude must be between -90 and 90.");
-        if (longitude < -180 || longitude > 180)
-            throw new InvalidOperationException("Longitude must be between -180 and 180.");
+        VendorBranchCoordinates.EnsureValid(latitude, longitude);
         if (deliveryRadiusKm <= 0)
             throw new InvalidOperationException("Delivery radius must be greater than zero.");
 
@@ -102,6 +99,8 @@ public class VendorBranch : BaseEntity
         string managerContact,
         decimal deliveryRadiusKm)
     {
+        VendorBranchCoordinates.EnsureValid(latitude, longitude);
+
         Name = name.Trim();
         Code = code.Trim();
         IsPrimary = isPrimary;
@@ -147,12 +146,21 @@ public class VendorBranch : BaseEntity
         Name = name.Trim();
     }
 
+    public void SyncContactAddress(string addressLine, string region, string city, string? contactPhone = null)
+    {
+        AddressLine = addressLine.Trim();
+        Region = region.Trim();
+        City = city.Trim();
+
+        if (!string.IsNullOrWhiteSpace(contactPhone))
+        {
+            ContactPhone = contactPhone.Trim();
+        }
+    }
+
     public void SetLocation(decimal latitude, decimal longitude)
     {
-        if (latitude < -90 || latitude > 90)
-            throw new InvalidOperationException("Latitude must be between -90 and 90.");
-        if (longitude < -180 || longitude > 180)
-            throw new InvalidOperationException("Longitude must be between -180 and 180.");
+        VendorBranchCoordinates.EnsureValid(latitude, longitude);
 
         Latitude = latitude;
         Longitude = longitude;

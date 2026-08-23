@@ -1,6 +1,7 @@
 using FluentValidation;
 using Microsoft.Extensions.Localization;
 using Zadana.Application.Common.Localization;
+using Zadana.Application.Modules.Vendors.Support;
 
 namespace Zadana.Application.Modules.Vendors.Commands.AddVendorBranch;
 
@@ -40,10 +41,17 @@ public class AddVendorBranchCommandValidator : AbstractValidator<AddVendorBranch
             .MaximumLength(100).WithMessage(x => localizer["MaxLength"]);
 
         RuleFor(x => x.Latitude)
+            .NotNull().WithMessage(x => localizer["RequiredField"])
             .InclusiveBetween(-90, 90).WithMessage(x => localizer["InvalidRange"]);
 
         RuleFor(x => x.Longitude)
+            .NotNull().WithMessage(x => localizer["RequiredField"])
             .InclusiveBetween(-180, 180).WithMessage(x => localizer["InvalidRange"]);
+
+        RuleFor(x => x)
+            .Must(x => VendorBranchCoordinateValidation.AreMeaningful(x.Latitude, x.Longitude))
+            .WithMessage(x => localizer["InvalidValue"])
+            .OverridePropertyName(nameof(AddVendorBranchCommand.Latitude));
 
         RuleFor(x => x.OpensAt)
             .MaximumLength(20).WithMessage(x => localizer["MaxLength"]);

@@ -561,7 +561,6 @@ public class OrderReadService : IOrderReadService
             .Include(item => item.Items)
                 .ThenInclude(item => item.MasterProduct)
                     .ThenInclude(product => product!.Images)
-            .Include(item => item.StatusHistory)
             .Include(item => item.Vendor)
             .Where(item =>
                 item.VendorId == vendorId &&
@@ -581,6 +580,14 @@ public class OrderReadService : IOrderReadService
         {
             return null;
         }
+
+        // Load timeline history separately — Include(StatusHistory) on the main
+        // order graph has hung under load the same way driver arrival did.
+        var statusHistory = await _dbContext.OrderStatusHistories
+            .AsNoTracking()
+            .Where(entry => entry.OrderId == order.Id)
+            .OrderBy(entry => entry.CreatedAtUtc)
+            .ToListAsync(cancellationToken);
 
         var productImageLookup = await LoadMasterProductPrimaryImageLookupAsync(
             order.Items.Select(item => item.MasterProductId),
@@ -765,7 +772,7 @@ public class OrderReadService : IOrderReadService
                 BuildPackageTypeName(item),
                 item.MasterProduct?.MeasurementValue,
                 BuildMeasurementUnitName(item))).ToList(),
-            BuildVendorTimeline(order));
+            BuildVendorTimeline(order, statusHistory));
     }
 
     public async Task<AdminOrdersListDto> GetAdminOrdersAsync(
@@ -2252,9 +2259,12 @@ public class OrderReadService : IOrderReadService
             ? SaudiTime.ToSaudi(dateTimeUtc.Value).ToString("hh:mm tt", CultureInfo.InvariantCulture)
             : string.Empty;
 
-    private static IReadOnlyList<VendorOrderTimelineItemDto> BuildVendorTimeline(Order order)
+    private static IReadOnlyList<VendorOrderTimelineItemDto> BuildVendorTimeline(
+        Order order,
+        IReadOnlyCollection<OrderStatusHistory>? statusHistory = null)
     {
-        var history = order.StatusHistory
+        IEnumerable<OrderStatusHistory> historySource = statusHistory ?? (IEnumerable<OrderStatusHistory>)order.StatusHistory;
+        var history = historySource
             .OrderBy(entry => entry.CreatedAtUtc)
             .ToList();
 

@@ -86,11 +86,51 @@ public class UpdateVendorHoursCommandValidatorTests
             "vendor@test.com",
             "1234567890");
 
-        var branch = VendorPrimaryBranchFactory.CreateForHoursProfile(vendor);
+        var branch = VendorPrimaryBranchFactory.CreateForHoursProfile(vendor, 26.3927m, 49.9777m);
 
         branch.Code.Should().HaveLength(50);
         branch.Name.Should().HaveLength(80);
         branch.IsPrimary.Should().BeTrue();
+        branch.Latitude.Should().Be(26.3927m);
+        branch.Longitude.Should().Be(49.9777m);
+    }
+
+    [Fact]
+    public void PrimaryBranchFactory_ShouldRejectUnsetCoordinates()
+    {
+        var vendor = new Vendor(
+            Guid.NewGuid(),
+            "متجر",
+            "Store",
+            "Retail",
+            "CR123",
+            "vendor@test.com",
+            "1234567890");
+
+        var act = () => VendorPrimaryBranchFactory.CreateForHoursProfile(vendor, 0m, 0m);
+
+        act.Should()
+            .Throw<BusinessRuleException>()
+            .Which.ErrorCode.Should().Be("BRANCH_COORDINATES_REQUIRED");
+    }
+
+    [Fact]
+    public void RequireExistingOrThrow_ShouldFailWhenVendorHasNoBranches()
+    {
+        var vendor = new Vendor(
+            Guid.NewGuid(),
+            "متجر",
+            "Store",
+            "Retail",
+            "CR123",
+            "vendor@test.com",
+            "1234567890");
+
+        var act = () => VendorPrimaryBranchFactory.RequireExistingOrThrow(vendor);
+
+        act.Should()
+            .Throw<BusinessRuleException>()
+            .Which.ErrorCode.Should().Be("PRIMARY_BRANCH_REQUIRED");
     }
 
     private static IStringLocalizer<SharedResource> CreateLocalizer()
