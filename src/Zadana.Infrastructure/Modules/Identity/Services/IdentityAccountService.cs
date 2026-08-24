@@ -536,8 +536,17 @@ public class IdentityAccountService : IIdentityAccountService
             return setResult;
         }
 
-        user.CompletePasswordChange();
-        return await PersistUserAsync(user);
+        var refreshed = await _userManager.FindByIdAsync(userId.ToString());
+        if (refreshed is null)
+        {
+            return new IdentityOperationResult(false, ["User account was not found."]);
+        }
+
+        await _userManager.ResetAccessFailedCountAsync(refreshed);
+        await _userManager.SetLockoutEndDateAsync(refreshed, null);
+
+        refreshed.CompletePasswordChange();
+        return await PersistUserAsync(refreshed);
     }
 
     public async Task<OtpDispatchResult> GenerateRegistrationOtpAsync(Guid userId, CancellationToken cancellationToken = default)
@@ -716,15 +725,30 @@ public class IdentityAccountService : IIdentityAccountService
                 passwordResult.Errors);
         }
 
-        user = await FindUserByIdentifierAsync(identifier, cancellationToken);
-        if (user == null)
+        // Reload by id after password mutation so we never overwrite PasswordHash
+        // with a stale snapshot, and so lockout fields are current.
+        var refreshed = await _userManager.FindByIdAsync(user.Id.ToString());
+        if (refreshed is null)
         {
             return new PasswordResetResult(PasswordResetStatus.UserNotFound);
         }
 
-        user.ClearPasswordResetSession();
-        user.CompletePasswordChange();
-        var persistResult = await PersistUserAsync(user);
+        // Drivers (and other users) often hit Identity lockout while guessing the
+        // old password. Forgot-password must clear that lockout, otherwise login
+        // with the new password still returns InvalidCredentials for up to 15 min.
+        await _userManager.ResetAccessFailedCountAsync(refreshed);
+        await _userManager.SetLockoutEndDateAsync(refreshed, null);
+
+        if (!await _userManager.CheckPasswordAsync(refreshed, newPassword))
+        {
+            return new PasswordResetResult(
+                PasswordResetStatus.Failed,
+                ["Password was not persisted correctly."]);
+        }
+
+        refreshed.ClearPasswordResetSession();
+        refreshed.CompletePasswordChange();
+        var persistResult = await PersistUserAsync(refreshed);
         if (!persistResult.Succeeded)
         {
             return new PasswordResetResult(

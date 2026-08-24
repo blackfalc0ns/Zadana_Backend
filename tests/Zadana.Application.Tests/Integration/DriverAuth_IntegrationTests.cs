@@ -319,6 +319,98 @@ public class DriverAuth_IntegrationTests : IClassFixture<ZadanaWebFactory>
         newLoginResponse.StatusCode.Should().Be(HttpStatusCode.OK, loginContent);
     }
 
+    /// <summary>
+    /// Regression: drivers often hit Identity lockout (5 failed logins → 15 min)
+    /// before completing forgot-password. Reset must clear lockout, otherwise
+    /// login with the new password still returns InvalidCredentials and looks
+    /// like "password did not change".
+    /// </summary>
+    [Fact]
+    public async Task ResetPassword_AfterIdentityLockout_ClearsLockoutAndAllowsLoginWithNewPassword()
+    {
+        var email = $"driver_lockout_reset_{Guid.NewGuid():N}@test.com";
+        var phone = "016" + Random.Shared.Next(10000000, 99999999);
+        const string originalPassword = "P@ssword1234";
+        const string newPassword = "Yahya123!";
+
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var userManager = scope.ServiceProvider.GetRequiredService<UserManager<User>>();
+
+            var user = new User("Driver Lockout Reset Test", email, phone, UserRole.Driver);
+            var createResult = await userManager.CreateAsync(user, originalPassword);
+            createResult.Succeeded.Should().BeTrue(string.Join(", ", createResult.Errors.Select(error => error.Description)));
+            await userManager.AddToRoleAsync(user, UserRole.Driver.ToString());
+            user.VerifyEmail();
+            await userManager.UpdateAsync(user);
+        }
+
+        for (var i = 0; i < 5; i++)
+        {
+            var failedLogin = await _client.PostAsJsonAsync("/api/drivers/auth/login", new
+            {
+                identifier = email,
+                password = "WrongPass1"
+            });
+            failedLogin.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+        }
+
+        using (var lockoutScope = _factory.Services.CreateScope())
+        {
+            var lockoutUserManager = lockoutScope.ServiceProvider.GetRequiredService<UserManager<User>>();
+            var locked = await lockoutUserManager.FindByEmailAsync(email);
+            locked.Should().NotBeNull();
+            (await lockoutUserManager.IsLockedOutAsync(locked!))
+                .Should().BeTrue("five failed logins must lock the account");
+        }
+
+        string otpCode;
+        using (var otpScope = _factory.Services.CreateScope())
+        {
+            var otpService = otpScope.ServiceProvider.GetRequiredService<IIdentityAccountService>();
+            var otpResult = await otpService.GeneratePasswordResetOtpAsync(email);
+            otpResult.Status.Should().Be(OtpDispatchStatus.Succeeded);
+            otpCode = otpResult.OtpCode!;
+        }
+
+        var verifyResponse = await _client.PostAsJsonAsync("/api/drivers/auth/verify-reset-otp", new
+        {
+            identifier = email,
+            otpCode
+        });
+        var verifyContent = await verifyResponse.Content.ReadAsStringAsync();
+        verifyResponse.StatusCode.Should().Be(HttpStatusCode.OK, verifyContent);
+
+        using var verifyDocument = JsonDocument.Parse(verifyContent);
+        var resetToken = verifyDocument.RootElement.GetProperty("resetToken").GetString();
+        resetToken.Should().NotBeNullOrWhiteSpace();
+
+        var resetResponse = await _client.PostAsJsonAsync("/api/drivers/auth/reset-password", new
+        {
+            identifier = email,
+            resetToken,
+            newPassword
+        });
+        var resetContent = await resetResponse.Content.ReadAsStringAsync();
+        resetResponse.StatusCode.Should().Be(HttpStatusCode.OK, resetContent);
+
+        using var assertScope = _factory.Services.CreateScope();
+        var assertUserManager = assertScope.ServiceProvider.GetRequiredService<UserManager<User>>();
+        var reloaded = await assertUserManager.FindByEmailAsync(email);
+        reloaded.Should().NotBeNull();
+        (await assertUserManager.IsLockedOutAsync(reloaded!)).Should().BeFalse(
+            "password reset must clear Identity lockout so the new password can be used immediately");
+        (await assertUserManager.CheckPasswordAsync(reloaded, newPassword)).Should().BeTrue();
+
+        var newLoginResponse = await _client.PostAsJsonAsync("/api/drivers/auth/login", new
+        {
+            identifier = email,
+            password = newPassword
+        });
+        var loginContent = await newLoginResponse.Content.ReadAsStringAsync();
+        newLoginResponse.StatusCode.Should().Be(HttpStatusCode.OK, loginContent);
+    }
+
     private static object BuildDriverRegisterBody(string email, string password = "P@ssword1234")
     {
         var unique = Guid.NewGuid().ToString("N");
